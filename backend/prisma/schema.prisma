@@ -1,0 +1,77 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  clerkId       String    @unique
+  email         String    @unique
+  displayName   String
+  firstName     String?
+  lastName      String?
+  photoUrl      String?
+  phoneNumber   String?
+  
+  // Premium subscription
+  isPremium     Boolean   @default(false)
+  premiumPlan   String?   // 'monthly' or 'yearly'
+  premiumSince  DateTime?
+  premiumExpiry DateTime?
+  
+  // Settings
+  notificationsEnabled Boolean @default(true)
+  soundEnabled         Boolean @default(true)
+  vibrationEnabled     Boolean @default(true)
+  
+  // Timestamps
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lastActiveAt  DateTime  @default(now())
+  
+  // Relationships
+  pairAsUser1   Pair?     @relation("User1")
+  pairAsUser2   Pair?     @relation("User2")
+  uploadedMoments Moment[] @relation("Uploader")
+  
+  @@index([clerkId])
+  @@index([email])
+}
+
+model Pair {
+  id            String    @id @default(cuid())
+  user1Id       String    @unique
+  user2Id       String    @unique
+  inviteCode    String?   @unique
+  codeExpiresAt DateTime?
+  pairedAt      DateTime  @default(now())
+  
+  user1         User      @relation("User1", fields: [user1Id], references: [id])
+  user2         User      @relation("User2", fields: [user2Id], references: [id])
+  moments       Moment[]
+  
+  @@index([inviteCode])
+}
+
+model Moment {
+  id            String    @id @default(cuid())
+  pairId        String
+  uploaderId    String
+  photoData     Bytes     // BYTEA - stores compressed image
+  uploadedAt    DateTime  @default(now())
+  
+  pair          Pair      @relation(fields: [pairId], references: [id], onDelete: Cascade)
+  uploader      User      @relation("Uploader", fields: [uploaderId], references: [id])
+  
+  @@index([pairId, uploadedAt])
+}
