@@ -4,6 +4,8 @@ import { Server } from 'socket.io';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
+import cron from 'node-cron';
+import ScheduledMomentService from './services/scheduledMomentService';
 
 // Load environment variables
 dotenv.config();
@@ -81,6 +83,17 @@ io.on('connection', (socket) => {
 
 // Export io for use in other modules
 export { io };
+
+// Setup cron job for scheduled moments (runs every minute)
+cron.schedule('* * * * *', async () => {
+  try {
+    await ScheduledMomentService.processScheduledMoments();
+  } catch (error) {
+    console.error('Error in scheduled moments cron:', error);
+  }
+});
+
+console.log('⏰ Scheduled moments cron job started (runs every minute)');
 
 // Start server
 const PORT = process.env.PORT || 3000;

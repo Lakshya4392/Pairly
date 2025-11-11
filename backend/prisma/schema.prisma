@@ -68,10 +68,18 @@ model Moment {
   pairId        String
   uploaderId    String
   photoData     Bytes     // BYTEA - stores compressed image
+  note          String?   // Optional note/message with moment
   uploadedAt    DateTime  @default(now())
+  
+  // Scheduled delivery
+  isScheduled   Boolean   @default(false)
+  scheduledFor  DateTime? // When to show this moment
+  deliveredAt   DateTime? // When it was actually delivered
+  expiresAt     DateTime? // When to auto-delete (optional)
   
   pair          Pair      @relation(fields: [pairId], references: [id], onDelete: Cascade)
   uploader      User      @relation("Uploader", fields: [uploaderId], references: [id])
   
   @@index([pairId, uploadedAt])
+  @@index([isScheduled, scheduledFor])
 }
