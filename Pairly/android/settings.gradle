@@ -17,7 +17,7 @@ extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
 
 rootProject.name = 'Pairly'
 
-// Apply Expo modules
+// Apply Expo autolinking
 apply from: new File(["node", "--print", "require.resolve('expo/package.json')"].execute(null, rootDir).text.trim(), "../scripts/autolinking.gradle")
 useExpoModules()
 
