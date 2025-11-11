@@ -245,13 +245,13 @@ const styles = StyleSheet.create({
   },
   container: {
     backgroundColor: colors.background,
-    borderTopLeftRadius: borderRadius.xxxl,
-    borderTopRightRadius: borderRadius.xxxl,
+    borderTopLeftRadius: borderRadius.xxl,
+    borderTopRightRadius: borderRadius.xxl,
     maxHeight: '92%',
   },
   header: {
-    borderTopLeftRadius: borderRadius.xxxl,
-    borderTopRightRadius: borderRadius.xxxl,
+    borderTopLeftRadius: borderRadius.xxl,
+    borderTopRightRadius: borderRadius.xxl,
     paddingHorizontal: spacing.xxl,
     paddingTop: spacing.xxl,
     paddingBottom: spacing.xl,
