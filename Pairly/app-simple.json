@@ -1,0 +1,21 @@
+{
+  "expo": {
+    "name": "Pairly",
+    "slug": "pairly",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#6366F1"
+    },
+    "platforms": ["ios", "android"],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#6366F1"
+      }
+    }
+  }
+}

@@ -1,0 +1,31 @@
+<resources>
+    <string name="app_name">Pairly</string>
+    
+    <!-- Widget Strings -->
+    <string name="widget_description">Show your partner\'s latest moment on your home screen</string>
+    <string name="widget_name">Pairly Moments</string>
+    <string name="widget_loading">Loading moment...</string>
+    <string name="widget_no_photo">No moments yet</string>
+    <string name="widget_tap_to_open">Tap to open Pairly</string>
+    <string name="widget_partner_name">Your Partner</string>
+    <string name="widget_just_now">Just now</string>
+    <string name="widget_minutes_ago">%d min ago</string>
+    <string name="widget_hours_ago">%d hr ago</string>
+    <string name="widget_days_ago">%d days ago</string>
+    
+    <!-- Widget Configuration -->
+    <string name="widget_config_title">Pairly Widget Setup</string>
+    <string name="widget_config_description">Keep your partner\'s latest moment always visible on your home screen.</string>
+    <string name="widget_size_small">Small (2x2) - Photo only</string>
+    <string name="widget_size_medium">Medium (3x2) - Photo with info</string>
+    <string name="widget_size_large">Large (4x3) - Full experience</string>
+    <string name="widget_update_frequency">Update Frequency</string>
+    <string name="widget_update_realtime">Real-time</string>
+    <string name="widget_update_5min">Every 5 minutes</string>
+    <string name="widget_update_15min">Every 15 minutes</string>
+    <string name="widget_update_30min">Every 30 minutes</string>
+    <string name="widget_update_1hour">Every hour</string>
+    <string name="widget_cancel">Cancel</string>
+    <string name="widget_add">Add Widget</string>
+    
+</resources>

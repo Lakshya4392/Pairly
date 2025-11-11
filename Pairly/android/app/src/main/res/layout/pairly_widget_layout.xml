@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_background"
+    android:padding="8dp">
+
+    <!-- Main Photo Container -->
+    <RelativeLayout
+        android:id="@+id/photo_container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_above="@+id/bottom_info"
+        android:layout_marginBottom="8dp">
+
+        <!-- Partner Photo -->
+        <ImageView
+            android:id="@+id/partner_photo"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_centerInParent="true"
+            android:scaleType="centerCrop"
+            android:background="@drawable/photo_placeholder"
+            android:contentDescription="Partner's latest photo" />
+
+        <!-- Loading Overlay -->
+        <RelativeLayout
+            android:id="@+id/loading_overlay"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/loading_background"
+            android:visibility="gone">
+
+            <ProgressBar
+                android:id="@+id/loading_spinner"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_centerInParent="true"
+                android:indeterminateTint="#FF6DAE" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_below="@id/loading_spinner"
+                android:layout_centerHorizontal="true"
+                android:layout_marginTop="8dp"
+                android:text="Loading..."
+                android:textColor="#666666"
+                android:textSize="12sp" />
+
+        </RelativeLayout>
+
+        <!-- No Photo Placeholder -->
+        <RelativeLayout
+            android:id="@+id/no_photo_placeholder"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/placeholder_background"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_centerInParent="true"
+                android:orientation="vertical"
+                android:gravity="center">
+
+                <ImageView
+                    android:id="@+id/heart_icon"
+                    android:layout_width="64dp"
+                    android:layout_height="64dp"
+                    android:src="@drawable/heart_outline"
+                    android:tint="#FF6DAE"
+                    android:alpha="0.7" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:text="No moments yet"
+                    android:textColor="#666666"
+                    android:textSize="14sp"
+                    android:fontFamily="sans-serif-medium" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="Share your first moment!"
+                    android:textColor="#999999"
+                    android:textSize="11sp" />
+
+            </LinearLayout>
+
+        </RelativeLayout>
+
+        <!-- Heart Reaction Overlay -->
+        <ImageView
+            android:id="@+id/heart_reaction"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_alignParentTop="true"
+            android:layout_alignParentEnd="true"
+            android:layout_margin="8dp"
+            android:src="@drawable/heart_filled"
+            android:tint="#FF6DAE"
+            android:visibility="gone"
+            android:alpha="0.9" />
+
+    </RelativeLayout>
+
+    <!-- Bottom Info Section -->
+    <LinearLayout
+        android:id="@+id/bottom_info"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@drawable/info_background"
+        android:padding="8dp">
+
+        <!-- Partner Avatar -->
+        <ImageView
+            android:id="@+id/partner_avatar"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_marginEnd="8dp"
+            android:background="@drawable/avatar_circle"
+            android:scaleType="centerCrop" />
+
+        <!-- Info Text -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/partner_name"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Your Partner"
+                android:textColor="#333333"
+                android:textSize="12sp"
+                android:fontFamily="sans-serif-medium"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/time_ago"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Just now"
+                android:textColor="#666666"
+                android:textSize="10sp"
+                android:maxLines="1" />
+
+        </LinearLayout>
+
+        <!-- Action Button -->
+        <ImageView
+            android:id="@+id/action_button"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@drawable/camera_icon"
+            android:tint="#FF6DAE"
+            android:background="@drawable/action_button_background"
+            android:padding="4dp"
+            android:contentDescription="Open camera" />
+
+    </LinearLayout>
+
+</RelativeLayout>
