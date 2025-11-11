@@ -19,7 +19,7 @@ export class ScheduledMomentService {
         data: {
           pairId: data.pairId,
           uploaderId: data.uploaderId,
-          photoData: data.photoData,
+          photoData: Buffer.from(data.photoData),
           note: data.note,
           isScheduled: true,
           scheduledFor: data.scheduledFor,
