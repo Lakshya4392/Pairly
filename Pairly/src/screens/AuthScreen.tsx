@@ -263,27 +263,32 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.logoContainer}>
-            <LinearGradient
-              colors={[colors.primary, colors.secondary]}
-              style={styles.logoGradient}
-            >
-              <Ionicons name="heart" size={32} color="white" />
-            </LinearGradient>
+        {/* Header - Only show when not in verify mode */}
+        {authMode !== 'verify' && (
+          <View style={styles.header}>
+            <View style={styles.logoContainer}>
+              <LinearGradient
+                colors={[colors.primary, colors.secondary]}
+                style={styles.logoGradient}
+              >
+                <Ionicons name="heart" size={32} color="white" />
+              </LinearGradient>
+            </View>
+            
+            <Text style={styles.appName}>Pairly</Text>
           </View>
-          
-          <Text style={styles.appName}>Pairly</Text>
-          <Text style={styles.tagline}>Share moments, stay connected</Text>
-        </View>
+        )}
 
         {/* Auth Section */}
         <View style={styles.authContainer}>
-          <Text style={styles.welcomeText}>Welcome back</Text>
-          <Text style={styles.subtitle}>
-            Sign in to continue sharing moments
-          </Text>
+          {authMode !== 'verify' && (
+            <>
+              <Text style={styles.welcomeText}>Welcome back</Text>
+              <Text style={styles.subtitle}>
+                Sign in to continue sharing moments
+              </Text>
+            </>
+          )}
 
           {authMode === 'oauth' && (
             <>
@@ -444,17 +449,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
           {authMode === 'verify' && (
             <>
               <View style={styles.verifyContainer}>
-                <View style={styles.verifyIconContainer}>
-                  <Ionicons name="mail" size={48} color={colors.primary} />
-                </View>
-                <Text style={styles.verifyTitle}>Check your email</Text>
-                <Text style={styles.verifySubtitle}>
-                  We've sent a 6-digit code to
-                </Text>
+                <Text style={styles.verifyTitle}>Enter verification code</Text>
                 <Text style={styles.emailText}>{email}</Text>
-                <Text style={styles.verifyNote}>
-                  Check your inbox and spam folder
-                </Text>
               </View>
 
               <View style={styles.otpContainer}>
@@ -529,9 +525,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
             </>
           )}
 
-          <Text style={styles.privacyText}>
-            By continuing, you agree to our Terms of Service and Privacy Policy
-          </Text>
+          {authMode !== 'verify' && (
+            <Text style={styles.privacyText}>
+              By continuing, you agree to our Terms of Service and Privacy Policy
+            </Text>
+          )}
         </View>
       </ScrollView>
 
@@ -606,30 +604,25 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     paddingTop: spacing.massive,
-    paddingBottom: spacing.huge,
+    paddingBottom: spacing.xxl,
   },
   logoContainer: {
-    marginBottom: spacing.xxl,
+    marginBottom: spacing.lg,
   },
   logoGradient: {
-    width: 100,
-    height: 100,
-    borderRadius: 28,
+    width: 80,
+    height: 80,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    ...shadows.xl,
+    ...shadows.lg,
   },
   appName: {
-    fontFamily: 'Inter-Bold', fontSize: 28, lineHeight: 36,
+    fontFamily: 'Inter-Bold',
+    fontSize: 24,
+    lineHeight: 32,
     color: colors.text,
-    marginBottom: spacing.sm,
     textAlign: 'center',
-  },
-  tagline: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    fontFamily: 'Inter-Regular',
   },
 
   // Auth Container
@@ -638,6 +631,7 @@ const styles = StyleSheet.create({
     maxWidth: layout.maxContentWidth,
     alignSelf: 'center',
     width: '100%',
+    justifyContent: 'center',
   },
   welcomeText: {
     fontFamily: 'Inter-SemiBold', fontSize: 24,
@@ -782,37 +776,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing.xxxl,
   },
-  verifyIconContainer: {
-    width: 96,
-    height: 96,
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: borderRadius.xl,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: spacing.xxl,
-  },
   verifyTitle: {
-    fontFamily: 'Inter-SemiBold', fontSize: 24,
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 22,
+    lineHeight: 28,
     color: colors.text,
-    marginBottom: spacing.md,
+    marginBottom: spacing.lg,
     textAlign: 'center',
-  },
-  verifySubtitle: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginBottom: spacing.sm,
   },
   emailText: {
-    fontSize: 16,
-    color: colors.primary,
-    fontFamily: 'Inter-SemiBold',
-    textAlign: 'center',
-    marginBottom: spacing.md,
-  },
-  verifyNote: {
-    fontSize: 14,
-    color: colors.textTertiary,
+    fontSize: 15,
+    lineHeight: 20,
+    color: colors.textSecondary,
+    fontFamily: 'Inter-Medium',
     textAlign: 'center',
   },
 
