@@ -239,19 +239,7 @@ export const PairingConnectionScreen: React.FC<PairingConnectionScreenProps> = (
           )}
         </View>
 
-        {/* Demo Button - Simulate Connection (for testing) */}
-        {mode === 'waiting' && __DEV__ && (
-          <TouchableOpacity
-            style={styles.demoButton}
-            onPress={() => {
-              setPartnerName('Sarah');
-              setMode('connected');
-            }}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.demoButtonText}>🧪 Simulate Connection (Dev Only)</Text>
-          </TouchableOpacity>
-        )}
+
 
         {/* Action Button */}
         {mode === 'connected' && (
@@ -465,20 +453,5 @@ const styles = StyleSheet.create({
     color: 'white',
   },
 
-  // Demo Button (Dev Only)
-  demoButton: {
-    marginTop: spacing.xl,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.xl,
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderStyle: 'dashed',
-  },
-  demoButtonText: {
-    fontSize: 12,
-    color: colors.textTertiary,
-    textAlign: 'center',
-  },
+
 });
