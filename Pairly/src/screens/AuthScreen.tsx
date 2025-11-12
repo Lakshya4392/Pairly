@@ -71,7 +71,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
       console.log('🔄 Queuing background sync...');
       
       // Queue sync with retry logic
-      const BackgroundSyncService = (await import('@services/BackgroundSyncService')).default;
+      const BackgroundSyncService = (await import('../services/BackgroundSyncService')).default;
       await BackgroundSyncService.queueUserSync(userData);
       
       console.log('✅ User sync queued');

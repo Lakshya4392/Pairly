@@ -1,3 +1,4 @@
+import 'react-native-reanimated';
 import './polyfills';
 import 'react-native-gesture-handler';
 import React, { useEffect, useState } from 'react';
@@ -13,6 +14,9 @@ import {
   Inter_600SemiBold,
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
+
+// Import services
+import WidgetBackgroundService from './src/services/WidgetBackgroundService';
 
 // Import theme
 import { paperTheme } from './src/theme';
@@ -104,6 +108,11 @@ export default function App() {
       console.log('✅ Inter fonts loaded and applied globally');
     }
   }, [fontsLoaded]);
+
+  // Initialize background services
+  useEffect(() => {
+    WidgetBackgroundService.initialize();
+  }, []);
 
   if (!fontsLoaded) {
     return (

@@ -72,17 +72,6 @@ class RealtimeService {
     this.socket.on('receive_photo', async (data: any) => {
       console.log('📥 Photo received from partner');
       this.triggerEvent('receive_photo', data);
-      
-      // Update widget with new photo (Android only)
-      try {
-        const { Platform } = await import('react-native');
-        if (Platform.OS === 'android' && data.photoUri && data.partnerName) {
-          const { default: WidgetService } = await import('./WidgetService');
-          await WidgetService.onPhotoReceived(data.photoUri, data.partnerName);
-        }
-      } catch (error) {
-        console.error('Error updating widget:', error);
-      }
     });
 
     // Photo delivered confirmation

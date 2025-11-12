@@ -61,7 +61,7 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
 
   const checkLockStatus = async () => {
     try {
-      const AppLockService = (await import('@services/AppLockService')).default;
+      const AppLockService = (await import('../services/AppLockService')).default;
       const locked = await AppLockService.isLocked();
       setNeedsUnlock(locked);
     } catch (error) {
@@ -78,7 +78,7 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
   const loadPhotos = async () => {
     try {
       // Load real photos from LocalPhotoStorage
-      const LocalPhotoStorage = (await import('@services/LocalPhotoStorage')).default;
+      const LocalPhotoStorage = (await import('../services/LocalPhotoStorage')).default;
       const allPhotos = await LocalPhotoStorage.getAllPhotos();
       
       // Convert to Photo format

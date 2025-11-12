@@ -1,89 +1,87 @@
 package com.pairly;
 
+import android.appwidget.AppWidgetManager;
+import android.content.ComponentName;
 import android.content.Context;
-import android.util.Log;
+import android.content.Intent;
+import android.content.SharedPreferences;
 
+import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
-import com.facebook.react.bridge.Promise;
 
-/**
- * React Native module for widget communication
- */
 public class PairlyWidgetModule extends ReactContextBaseJavaModule {
-    
-    private static final String TAG = "PairlyWidgetModule";
-    private final ReactApplicationContext reactContext;
-    
-    public PairlyWidgetModule(ReactApplicationContext reactContext) {
-        super(reactContext);
-        this.reactContext = reactContext;
+    private static ReactApplicationContext reactContext;
+    private static final String PREFS_NAME = "com.pairly.widget";
+    private static final String PREF_PHOTO_PATH = "photo_path";
+    private static final String PREF_PARTNER_NAME = "partner_name";
+    private static final String PREF_TIMESTAMP = "timestamp";
+
+    PairlyWidgetModule(ReactApplicationContext context) {
+        super(context);
+        reactContext = context;
     }
-    
+
     @Override
     public String getName() {
         return "PairlyWidget";
     }
-    
-    /**
-     * Update widget with new photo from React Native
-     */
-    @ReactMethod
-    public void updateWidget(String photoPath, String partnerName, double timestamp, Promise promise) {
-        try {
-            Log.d(TAG, "updateWidget called from RN - Photo: " + photoPath + ", Partner: " + partnerName);
-            
-            Context context = getReactApplicationContext();
-            long timestampLong = (long) timestamp;
-            
-            // Update the widget
-            PairlyWidgetProvider.updateWidgetFromRN(context, photoPath, partnerName, timestampLong);
-            
-            promise.resolve("Widget updated successfully");
-            Log.d(TAG, "Widget update completed");
-            
-        } catch (Exception e) {
-            Log.e(TAG, "Error updating widget: " + e.getMessage());
-            promise.reject("WIDGET_UPDATE_ERROR", "Failed to update widget: " + e.getMessage());
-        }
-    }
-    
-    /**
-     * Clear widget photo
-     */
-    @ReactMethod
-    public void clearWidget(Promise promise) {
-        try {
-            Log.d(TAG, "clearWidget called from RN");
-            
-            Context context = getReactApplicationContext();
-            
-            // Clear widget by passing empty values
-            PairlyWidgetProvider.updateWidgetFromRN(context, "", "Your Partner", 0);
-            
-            promise.resolve("Widget cleared successfully");
-            Log.d(TAG, "Widget clear completed");
-            
-        } catch (Exception e) {
-            Log.e(TAG, "Error clearing widget: " + e.getMessage());
-            promise.reject("WIDGET_CLEAR_ERROR", "Failed to clear widget: " + e.getMessage());
-        }
-    }
-    
-    /**
-     * Check if widgets are available
-     */
+
     @ReactMethod
     public void hasWidgets(Promise promise) {
         try {
-            // For now, always return true on Android
-            // In future, we can check if any widgets are actually added
-            promise.resolve(true);
-            
+            AppWidgetManager appWidgetManager = AppWidgetManager.getInstance(reactContext);
+            int[] appWidgetIds = appWidgetManager.getAppWidgetIds(new ComponentName(reactContext, PairlyWidgetProvider.class));
+            promise.resolve(appWidgetIds.length > 0);
         } catch (Exception e) {
-            Log.e(TAG, "Error checking widgets: " + e.getMessage());
-            promise.reject("WIDGET_CHECK_ERROR", "Failed to check widgets: " + e.getMessage());
+            promise.reject(e);
+        }
+    }
+
+    @ReactMethod
+    public void updateWidget(String photoPath, String partnerName, double timestamp, Promise promise) {
+        try {
+            Context context = getReactApplicationContext();
+            AppWidgetManager appWidgetManager = AppWidgetManager.getInstance(context);
+            int[] appWidgetIds = appWidgetManager.getAppWidgetIds(new ComponentName(context, PairlyWidgetProvider.class));
+
+            // Save the data for later updates
+            SharedPreferences.Editor prefs = context.getSharedPreferences(PREFS_NAME, 0).edit();
+            prefs.putString(PREF_PHOTO_PATH, photoPath);
+            prefs.putString(PREF_PARTNER_NAME, partnerName);
+            prefs.putLong(PREF_TIMESTAMP, (long) timestamp);
+            prefs.apply();
+
+            for (int appWidgetId : appWidgetIds) {
+                PairlyWidgetProvider.updateAppWidget(context, appWidgetManager, appWidgetId, photoPath, partnerName, (long) timestamp);
+            }
+            promise.resolve(true);
+        } catch (Exception e) {
+            promise.reject(e);
+        }
+    }
+
+    @ReactMethod
+    public void clearWidget(Promise promise) {
+        try {
+            Context context = getReactApplicationContext();
+            AppWidgetManager appWidgetManager = AppWidgetManager.getInstance(context);
+            int[] appWidgetIds = appWidgetManager.getAppWidgetIds(new ComponentName(context, PairlyWidgetProvider.class));
+
+            // Clear saved data
+            SharedPreferences.Editor prefs = context.getSharedPreferences(PREFS_NAME, 0).edit();
+            prefs.remove(PREF_PHOTO_PATH);
+            prefs.remove(PREF_PARTNER_NAME);
+            prefs.remove(PREF_TIMESTAMP);
+            prefs.apply();
+
+            for (int appWidgetId : appWidgetIds) {
+                PairlyWidgetProvider.updateAppWidget(context, appWidgetManager, appWidgetId, null, null, 0);
+            }
+            promise.resolve(true);
+        } catch (Exception e) {
+            promise.reject(e);
         }
     }
 }

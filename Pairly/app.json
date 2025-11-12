@@ -3,10 +3,9 @@
     "name": "Pairly",
     "slug": "pairly",
     "version": "1.0.0",
-    "entryPoint": "./index.js",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "icon": "./assets/PairlyLogo.png",
+    "icon": "./assets/icon.png",
     "splash": {
       "image": "./assets/PairlyLogo.png",
       "backgroundColor": "#FFFFFF",
@@ -15,13 +14,13 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.pairly.app",
-      "icon": "./assets/PairlyLogo.png"
+      "icon": "./assets/icon.png"
     },
     "android": {
       "package": "com.pairly.app",
       "versionCode": 1,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/PairlyLogo.png",
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"
       },
       "permissions": [

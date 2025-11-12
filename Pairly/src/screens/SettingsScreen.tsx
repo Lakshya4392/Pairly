@@ -79,7 +79,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
   const loadSettings = async () => {
     try {
-      const SettingsService = (await import('@services/SettingsService')).default;
+      const SettingsService = (await import('../services/SettingsService')).default;
       const settings = await SettingsService.getSettings();
       
       setNotifications(settings.notificationsEnabled);
@@ -103,7 +103,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
   const loadPartnerInfo = async () => {
     try {
-      const PairingService = (await import('@services/PairingService')).default;
+      const PairingService = (await import('../services/PairingService')).default;
       const partner = await PairingService.getPartner();
       
       if (partner) {
@@ -122,7 +122,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
   const loadAppLockSettings = async () => {
     try {
-      const AppLockService = (await import('@services/AppLockService')).default;
+      const AppLockService = (await import('../services/AppLockService')).default;
       const settings = await AppLockService.getSettings();
       setAppLockEnabled(settings.enabled);
       setBiometricEnabled(settings.useBiometric);
@@ -134,7 +134,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const loadAllPremiumSettings = async () => {
     try {
       // Load theme settings
-      const ThemeService = (await import('@services/ThemeService')).default;
+      const ThemeService = (await import('../services/ThemeService')).default;
       const theme = await ThemeService.getTheme();
       setDarkMode(theme.mode === 'dark');
       
@@ -176,7 +176,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     
     setDarkMode(enabled);
     try {
-      const ThemeService = (await import('@services/ThemeService')).default;
+      const ThemeService = (await import('../services/ThemeService')).default;
       await ThemeService.setThemeMode(enabled ? 'dark' : 'light');
       setSuccessMessage(enabled ? 'Dark mode enabled' : 'Dark mode disabled');
       setShowSuccessAlert(true);
@@ -227,7 +227,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       setShowPINSetup(true);
     } else {
       try {
-        const AppLockService = (await import('@services/AppLockService')).default;
+        const AppLockService = (await import('../services/AppLockService')).default;
         await AppLockService.disableAppLock();
         setAppLockEnabled(false);
         setSuccessMessage('App lock disabled');
@@ -288,7 +288,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
   const handleSelectTheme = async (themeId: string) => {
     try {
-      const ThemeService = (await import('@services/ThemeService')).default;
+      const ThemeService = (await import('../services/ThemeService')).default;
       await ThemeService.setColorTheme(themeId as any);
       setSuccessMessage('Theme changed successfully');
       setShowSuccessAlert(true);
@@ -299,7 +299,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
   const handleSetPIN = async (pin: string) => {
     try {
-      const AppLockService = (await import('@services/AppLockService')).default;
+      const AppLockService = (await import('../services/AppLockService')).default;
       const success = await AppLockService.enableAppLock(pin);
       if (success) {
         setAppLockEnabled(true);
@@ -353,7 +353,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const handleToggleNotifications = async (enabled: boolean) => {
     setNotifications(enabled);
     try {
-      const SettingsService = (await import('@services/SettingsService')).default;
+      const SettingsService = (await import('../services/SettingsService')).default;
       await SettingsService.toggleNotifications(enabled, user?.id);
       console.log('✅ Notifications:', enabled);
     } catch (error) {
@@ -364,7 +364,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const handleToggleSound = async (enabled: boolean) => {
     setSoundEnabled(enabled);
     try {
-      const SettingsService = (await import('@services/SettingsService')).default;
+      const SettingsService = (await import('../services/SettingsService')).default;
       await SettingsService.toggleSound(enabled, user?.id);
       console.log('✅ Sound:', enabled);
     } catch (error) {
@@ -375,7 +375,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const handleToggleVibration = async (enabled: boolean) => {
     setVibrationEnabled(enabled);
     try {
-      const SettingsService = (await import('@services/SettingsService')).default;
+      const SettingsService = (await import('../services/SettingsService')).default;
       await SettingsService.toggleVibration(enabled, user?.id);
       console.log('✅ Vibration:', enabled);
     } catch (error) {
@@ -386,7 +386,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const handleTogglePartnerOnline = async (enabled: boolean) => {
     setPartnerOnlineNotif(enabled);
     try {
-      const SettingsService = (await import('@services/SettingsService')).default;
+      const SettingsService = (await import('../services/SettingsService')).default;
       await SettingsService.togglePartnerOnlineNotifications(enabled, user?.id);
       console.log('✅ Partner online notifications:', enabled);
     } catch (error) {
@@ -853,7 +853,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     try {
       // Save rating to database
       if (user) {
-        const BackgroundSyncService = (await import('@services/BackgroundSyncService')).default;
+        const BackgroundSyncService = (await import('../services/BackgroundSyncService')).default;
         // You can create a new endpoint for ratings or add to user profile
         console.log('✅ Rating submitted:', { rating, feedback, userId: user.id });
         

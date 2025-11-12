@@ -88,7 +88,7 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
 
   const loadBackgroundSyncQueue = async () => {
     try {
-      const BackgroundSyncService = (await import('@services/BackgroundSyncService')).default;
+      const BackgroundSyncService = (await import('../services/BackgroundSyncService')).default;
       await BackgroundSyncService.loadQueue();
       console.log('✅ Background sync queue loaded');
     } catch (error) {
@@ -175,16 +175,7 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
   };
 
   const handleAuthSuccess = async () => {
-    console.log('✅ Auth successful, syncing user...');
-    
-    // Sync user with backend
-    try {
-      const { user } = await import('@clerk/clerk-expo').then(m => ({ user: null })); // Get user from Clerk
-      // This will be called from AuthScreen with user data
-    } catch (error) {
-      console.error('Error syncing user:', error);
-    }
-    
+    console.log('✅ Auth successful, navigating to pairing...');
     setCurrentScreen('pairing');
   };
 
@@ -243,7 +234,7 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
       
       // Queue sync with backend (non-blocking)
       if (user) {
-        const BackgroundSyncService = (await import('@services/BackgroundSyncService')).default;
+        const BackgroundSyncService = (await import('../services/BackgroundSyncService')).default;
         await BackgroundSyncService.queuePremiumSync(user.id, true, plan);
         console.log('✅ Premium status sync queued');
       }

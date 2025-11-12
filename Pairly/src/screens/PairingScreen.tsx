@@ -60,12 +60,12 @@ export const PairingScreen: React.FC<PairingScreenProps> = ({ onPairingComplete,
     // Start loading user info and code generation in parallel for speed
     const [userResult, codeResult] = await Promise.allSettled([
       (async () => {
-        const AuthService = (await import('@services/AuthService')).default;
+        const AuthService = (await import('../services/AuthService')).default;
         const user = await AuthService.getUser();
         return user?.displayName?.split(' ')[0] || 'You';
       })(),
       (async () => {
-        const PairingService = (await import('@services/PairingService')).default;
+        const PairingService = (await import('../services/PairingService')).default;
         return await PairingService.generateCode();
       })()
     ]);
@@ -106,7 +106,7 @@ export const PairingScreen: React.FC<PairingScreenProps> = ({ onPairingComplete,
     setLoading(true);
     
     // Get user name first
-    const AuthService = (await import('@services/AuthService')).default;
+    const AuthService = (await import('../services/AuthService')).default;
     const user = await AuthService.getUser();
     const displayName = user?.displayName?.split(' ')[0] || 'You';
     setUserName(displayName);
@@ -117,7 +117,7 @@ export const PairingScreen: React.FC<PairingScreenProps> = ({ onPairingComplete,
     }
 
     try {
-      const PairingService = (await import('@services/PairingService')).default;
+      const PairingService = (await import('../services/PairingService')).default;
       await PairingService.joinWithCode(inviteCode);
       // Connection successful - will be handled by connection screen
       onPairingComplete();

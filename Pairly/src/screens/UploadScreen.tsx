@@ -24,7 +24,7 @@ import { useUser } from '@clerk/clerk-expo';
 import { colors, gradients } from '../theme/colorsIOS';
 import { spacing, layout, borderRadius } from '../theme/spacingIOS';
 import { shadows } from '../theme/shadowsIOS';
-import PairingService from '@services/PairingService';
+import PairingService from '../services/PairingService';
 
 interface UploadScreenProps {
   onNavigateToSettings: () => void;
@@ -135,7 +135,7 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
       setShowPhotoOptions(false);
       setUploading(true);
       
-      const PhotoService = (await import('@services/PhotoService')).default;
+      const PhotoService = (await import('../services/PhotoService')).default;
       const photo = await PhotoService.capturePhoto();
       
       if (!photo) {
@@ -159,7 +159,7 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
       setShowPhotoOptions(false);
       setUploading(true);
       
-      const PhotoService = (await import('@services/PhotoService')).default;
+      const PhotoService = (await import('../services/PhotoService')).default;
       const photo = await PhotoService.selectFromGallery();
       
       if (!photo) {
@@ -183,7 +183,7 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
       if (!selectedPhotoUri) return;
 
       // Save photo locally first
-      const LocalPhotoStorage = (await import('@services/LocalPhotoStorage')).default;
+      const LocalPhotoStorage = (await import('../services/LocalPhotoStorage')).default;
       await LocalPhotoStorage.savePhoto(selectedPhotoUri, 'me', true);
       
       if (!isPartnerConnected) {
@@ -192,7 +192,7 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
         setShowSuccessAlert(true);
       } else {
         // Paired mode - upload to server with note and optional schedule
-        const MomentService = (await import('@services/MomentService')).default;
+        const MomentService = (await import('../services/MomentService')).default;
         
         if (scheduledTime && duration) {
           // Schedule the moment

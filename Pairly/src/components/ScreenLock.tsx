@@ -51,7 +51,7 @@ export const ScreenLock: React.FC<ScreenLockProps> = ({
     if (value.length === 4) {
       // Verify PIN
       try {
-        const AppLockService = (await import('@services/AppLockService')).default;
+        const AppLockService = (await import('../services/AppLockService')).default;
         const isValid = await AppLockService.verifyPIN(value);
         
         if (isValid) {
@@ -71,7 +71,7 @@ export const ScreenLock: React.FC<ScreenLockProps> = ({
 
   const handleBiometric = async () => {
     try {
-      const AppLockService = (await import('@services/AppLockService')).default;
+      const AppLockService = (await import('../services/AppLockService')).default;
       const success = await AppLockService.authenticateWithBiometric();
       
       if (success) {

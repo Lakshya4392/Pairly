@@ -121,7 +121,18 @@ class MomentService {
 
       console.log('✅ Photo received and saved:', localPhoto.id);
 
-      // 3. Send acknowledgment
+      // 3. Update widget if on Android
+      try {
+        const { Platform } = await import('react-native');
+        if (Platform.OS === 'android') {
+          const { default: WidgetService } = await import('./WidgetService');
+          await WidgetService.onPhotoReceived(fileUri, data.senderName);
+        }
+      } catch (widgetError) {
+        console.error('Error updating widget from MomentService:', widgetError);
+      }
+
+      // 4. Send acknowledgment
       RealtimeService.emit('photo_received', {
         photoId: data.photoId,
         receivedAt: Date.now(),

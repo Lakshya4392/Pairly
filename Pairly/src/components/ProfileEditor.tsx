@@ -64,7 +64,7 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
       // Sync with backend database
       if (user) {
         const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
-        const BackgroundSyncService = (await import('@services/BackgroundSyncService')).default;
+        const BackgroundSyncService = (await import('../services/BackgroundSyncService')).default;
         
         // Queue user sync with updated data
         await BackgroundSyncService.queueUserSync({
