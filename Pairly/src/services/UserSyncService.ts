@@ -61,9 +61,7 @@ class UserSyncService {
       
       return { success: true, user: data.user };
     } catch (error: any) {
-      // Backend offline - this is expected and non-blocking
-      console.log('⚠️ Backend sync skipped (offline or unavailable)');
-      console.log('💡 App will continue working with local data');
+      // Silent fail - backend offline is normal for free tier
       return { success: false };
     }
   }
@@ -73,22 +71,25 @@ class UserSyncService {
    */
   static async getUserFromBackend(clerkId: string) {
     try {
+      // Longer timeout for Render cold start (free tier spins down after 15 min)
       const response = await fetch(`${API_URL}/auth/me`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
           'x-clerk-user-id': clerkId,
         },
+        signal: AbortSignal.timeout(60000), // 60 second timeout for cold start
       });
 
       if (!response.ok) {
-        throw new Error('Failed to get user');
+        // Silent fail - don't log errors
+        return null;
       }
 
       const data = await response.json();
       return data.user;
-    } catch (error) {
-      console.error('❌ Error getting user:', error);
+    } catch (error: any) {
+      // Completely silent - backend offline is normal for free tier
       return null;
     }
   }

@@ -52,11 +52,29 @@ export const ManagePremiumScreen: React.FC<ManagePremiumScreenProps> = ({
 
   const handleCancelSubscription = async () => {
     try {
-      // Cancel premium
+      console.log('🚫 Canceling premium subscription...');
+      
+      // Cancel premium locally
       await PremiumService.setPremiumStatus(false);
+      
+      // Sync with backend
+      try {
+        const { useUser } = await import('@clerk/clerk-expo');
+        const user = useUser().user;
+        
+        if (user) {
+          const UserSyncService = (await import('../services/UserSyncService')).default;
+          await UserSyncService.updatePremiumStatus(user.id, false);
+          console.log('✅ Premium canceled in backend');
+        }
+      } catch (syncError) {
+        console.log('⚠️ Backend sync skipped (offline)');
+      }
       
       setShowCancelAlert(false);
       setShowSuccessAlert(true);
+      
+      console.log('✅ Premium subscription canceled');
       
       // Navigate back after showing success
       setTimeout(() => {

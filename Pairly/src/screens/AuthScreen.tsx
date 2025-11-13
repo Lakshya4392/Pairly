@@ -76,24 +76,22 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
         phoneNumber: user.primaryPhoneNumber?.phoneNumber || undefined,
       };
       
-      console.log('🔄 Starting user sync with backend...');
+      console.log('🔄 Syncing user with backend...');
       
       // Try immediate sync first (non-blocking)
       const UserSyncService = (await import('../services/UserSyncService')).default;
       const result = await UserSyncService.syncUserWithBackend(userData);
       
       if (result.success && result.user) {
-        console.log('✅ User synced immediately');
-        console.log('💎 Premium status from backend:', result.user.isPremium);
+        console.log('✅ User synced - Premium:', result.user.isPremium);
       } else {
-        // If immediate sync fails, queue for retry
-        console.log('⚠️ Immediate sync failed, queuing for retry...');
+        // Queue for retry if backend offline
+        console.log('💡 Backend offline, queued for sync');
         const BackgroundSyncService = (await import('../services/BackgroundSyncService')).default;
         await BackgroundSyncService.queueUserSync(userData);
       }
     } catch (error) {
-      console.error('❌ Background sync error:', error);
-      // Queue for retry on error
+      // Silent fail - queue for retry
       try {
         const BackgroundSyncService = (await import('../services/BackgroundSyncService')).default;
         await BackgroundSyncService.queueUserSync({
@@ -102,7 +100,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
           displayName: user?.fullName || user?.username || 'User',
         });
       } catch (queueError) {
-        console.error('❌ Failed to queue sync:', queueError);
+        // Ignore - app will work with local data
       }
     }
   };

@@ -13,14 +13,15 @@ export const getApiUrl = (): string => {
   // ALWAYS use environment variable if set (highest priority)
   const envApiUrl = process.env.EXPO_PUBLIC_API_URL;
   
-  if (envApiUrl && envApiUrl.trim() !== '') {
+  if (envApiUrl && envApiUrl.trim() !== '' && envApiUrl !== 'https://api.pairly.app') {
     console.log('✅ Using API URL from .env:', envApiUrl);
     return envApiUrl;
   }
 
-  // Fallback to production URL
-  console.log('⚠️ No .env API URL found, using production URL');
-  return 'https://pairly-60qj.onrender.com';
+  // Fallback to Render production URL (for APK builds)
+  const renderUrl = 'https://pairly-60qj.onrender.com';
+  console.log('✅ Using Render backend URL:', renderUrl);
+  return renderUrl;
 };
 
 /**
@@ -29,12 +30,12 @@ export const getApiUrl = (): string => {
 export const getSocketUrl = (): string => {
   const envSocketUrl = process.env.EXPO_PUBLIC_SOCKET_URL;
   
-  if (envSocketUrl && envSocketUrl.trim() !== '') {
+  if (envSocketUrl && envSocketUrl.trim() !== '' && envSocketUrl !== 'https://api.pairly.app') {
     console.log('✅ Using Socket URL from .env:', envSocketUrl);
     return envSocketUrl;
   }
 
-  // Use same as API URL
+  // Use same as API URL (Render backend)
   const apiUrl = getApiUrl();
   console.log('✅ Using Socket URL same as API:', apiUrl);
   return apiUrl;
@@ -46,9 +47,9 @@ export const getSocketUrl = (): string => {
 export const API_CONFIG = {
   baseUrl: getApiUrl(),
   socketUrl: getSocketUrl(),
-  timeout: 10000, // 10 seconds (reduced for faster failure)
-  retryAttempts: 2, // Reduced retries
-  retryDelay: 500, // 0.5 second (faster retry)
+  timeout: 60000, // 60 seconds (for Render cold start on free tier)
+  retryAttempts: 1, // Single retry only
+  retryDelay: 1000, // 1 second delay
 };
 
 /**

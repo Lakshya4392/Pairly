@@ -50,16 +50,24 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
     loadBackgroundSyncQueue();
     initializeWidgetService();
     setupRealtimeListeners();
-    
-    // Refresh premium status every 5 seconds when on settings/premium screen
+  }, []);
+
+  // Refresh premium status only when on settings/premium screen
+  useEffect(() => {
+    if (currentScreen !== 'settings' && currentScreen !== 'premium' && currentScreen !== 'managePremium') {
+      return; // Don't check if not on premium-related screens
+    }
+
+    // Check once when screen opens
+    checkPremiumStatus();
+
+    // Then check every 30 seconds (not 5 seconds - too frequent)
     const interval = setInterval(() => {
-      if (currentScreen === 'settings' || currentScreen === 'premium') {
-        checkPremiumStatus();
-      }
-    }, 5000);
+      checkPremiumStatus();
+    }, 30000); // 30 seconds
     
     return () => clearInterval(interval);
-  }, []);
+  }, [currentScreen]);
 
   useEffect(() => {
     if (isSignedIn && user) {
@@ -219,43 +227,46 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
       const isPremiumUser = await PremiumService.isPremium();
       setIsPremium(isPremiumUser);
       
-      console.log('💎 Premium status loaded from local:', isPremiumUser);
+      // Only log once on initial load
+      if (currentScreen === 'splash' || currentScreen === 'auth') {
+        console.log('💎 Premium status:', isPremiumUser);
+      }
 
-      // Try to sync with backend (non-blocking)
-      try {
-        const UserSyncService = (await import('../services/UserSyncService')).default;
-        const backendUser = await UserSyncService.getUserFromBackend(user.id);
-        
-        if (backendUser) {
-          console.log('📥 User data from backend:', {
-            isPremium: backendUser.isPremium,
-            plan: backendUser.premiumPlan,
-            expiresAt: backendUser.premiumExpiry,
-          });
+      // Try to sync with backend (non-blocking, silent fail)
+      // Only sync if on premium-related screens
+      if (currentScreen === 'settings' || currentScreen === 'premium' || currentScreen === 'managePremium') {
+        try {
+          const UserSyncService = (await import('../services/UserSyncService')).default;
+          const backendUser = await UserSyncService.getUserFromBackend(user.id);
           
-          // Sync premium status from backend
-          if (backendUser.isPremium) {
-            const expiryDate = backendUser.premiumExpiry 
-              ? new Date(backendUser.premiumExpiry) 
-              : undefined;
+          if (backendUser) {
+            // Only log if status changed
+            if (backendUser.isPremium !== isPremiumUser) {
+              console.log('✅ Premium status updated from backend:', backendUser.isPremium);
+            }
             
-            await PremiumService.setPremiumStatus(
-              true,
-              backendUser.premiumPlan || 'monthly',
-              expiryDate
-            );
-            
-            setIsPremium(true);
-            console.log('✅ Premium status synced from backend: true');
-          } else if (isPremiumUser && !backendUser.isPremium) {
-            // Backend says not premium, update local
-            await PremiumService.setPremiumStatus(false);
-            setIsPremium(false);
-            console.log('✅ Premium status synced from backend: false');
+            // Sync premium status from backend
+            if (backendUser.isPremium) {
+              const expiryDate = backendUser.premiumExpiry 
+                ? new Date(backendUser.premiumExpiry) 
+                : undefined;
+              
+              await PremiumService.setPremiumStatus(
+                true,
+                backendUser.premiumPlan || 'monthly',
+                expiryDate
+              );
+              
+              setIsPremium(true);
+            } else if (isPremiumUser && !backendUser.isPremium) {
+              // Backend says not premium, update local
+              await PremiumService.setPremiumStatus(false);
+              setIsPremium(false);
+            }
           }
+        } catch (syncError) {
+          // Silent - backend offline is normal
         }
-      } catch (syncError) {
-        console.log('⚠️ Backend sync skipped (offline or unavailable)');
       }
     } catch (error) {
       console.error('Error checking premium status:', error);
