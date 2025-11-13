@@ -4,8 +4,9 @@ services:
     env: node
     region: oregon
     plan: free
-    buildCommand: npm install && npm run prisma:generate && npm run build
+    buildCommand: npm install && npx prisma generate && npm run build
     startCommand: npm start
+    healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
@@ -21,6 +22,8 @@ services:
         value: 7d
       - key: PORT
         value: 10000
+      - key: CORS_ORIGIN
+        value: "*"
 
 databases:
   - name: pairly-db
