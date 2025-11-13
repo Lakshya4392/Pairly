@@ -1,7 +1,9 @@
 import * as FileSystem from 'expo-file-system/legacy';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import LocalStorageService from './LocalStorageService';
 import RealtimeService from './RealtimeService';
 import PairingService from './PairingService';
+import PhotoService from './PhotoService';
 
 export interface Photo {
   uri: string;
@@ -56,15 +58,15 @@ class MomentService {
         };
       }
 
-      // 4. Read photo as base64 for transfer
-      const photoBase64 = await FileSystem.readAsStringAsync(photo.uri, {
-        encoding: 'base64' as any,
-      });
+      // 4. Compress photo and get base64
+      const highQuality = await AsyncStorage.getItem('@pairly_high_quality') === 'true';
+      const quality = highQuality ? 'premium' : 'default';
+      const compressedPhoto = await PhotoService.compressPhoto({ uri: photo.uri, width: 0, height: 0, type: 'image/jpeg', fileName: '', fileSize: 0 }, quality);
 
       // 5. Send to partner via Socket.IO
       RealtimeService.emit('send_photo', {
         photoId: localPhoto.id,
-        photoData: photoBase64,
+        photoData: compressedPhoto.base64,
         timestamp: localPhoto.timestamp,
         caption: note || photo.caption,
         partnerId: partner.id,
@@ -243,15 +245,15 @@ class MomentService {
         };
       }
 
-      // 4. Read photo as base64 for transfer
-      const photoBase64 = await FileSystem.readAsStringAsync(photo.uri, {
-        encoding: 'base64' as any,
-      });
+      // 4. Compress photo and get base64
+      const highQuality = await AsyncStorage.getItem('@pairly_high_quality') === 'true';
+      const quality = highQuality ? 'premium' : 'default';
+      const compressedPhoto = await PhotoService.compressPhoto({ uri: photo.uri, width: 0, height: 0, type: 'image/jpeg', fileName: '', fileSize: 0 }, quality);
 
       // 5. Send schedule request to server via Socket.IO
       RealtimeService.emit('schedule_photo', {
         photoId: localPhoto.id,
-        photoData: photoBase64,
+        photoData: compressedPhoto.base64,
         scheduledTime: scheduledTime?.getTime(),
         duration: duration || 24,
         caption: note || photo.caption,

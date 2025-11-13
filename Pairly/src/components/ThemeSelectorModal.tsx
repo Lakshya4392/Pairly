@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { colors } from '../theme/colorsIOS';
+import { useTheme } from '../contexts/ThemeContext';
+import { colors as defaultColors } from '../theme/colorsIOS';
 import { spacing, borderRadius } from '../theme/spacingIOS';
 import { shadows } from '../theme/shadowsIOS';
 
@@ -33,14 +34,21 @@ export const ThemeSelectorModal: React.FC<ThemeSelectorModalProps> = ({
   onClose,
   onSelectTheme,
 }) => {
-  const [selectedTheme, setSelectedTheme] = useState('default');
+  const { colors, colorTheme, setColorTheme } = useTheme();
+  const [selectedTheme, setSelectedTheme] = useState(colorTheme);
 
-  const handleSelectTheme = (themeId: string) => {
+  useEffect(() => {
+    setSelectedTheme(colorTheme);
+  }, [colorTheme]);
+
+  const handleSelectTheme = async (themeId: string) => {
     setSelectedTheme(themeId);
+    await setColorTheme(themeId as any);
     onSelectTheme(themeId);
     setTimeout(() => onClose(), 300);
   };
 
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   return (
     <Modal visible={visible} transparent animationType="slide">
       <View style={styles.overlay}>
@@ -86,7 +94,7 @@ export const ThemeSelectorModal: React.FC<ThemeSelectorModalProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',

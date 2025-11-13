@@ -13,7 +13,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ScreenLock } from '../components/ScreenLock';
-import { colors, gradients } from '../theme/colorsIOS';
+import { useTheme } from '../contexts/ThemeContext';
+import { colors as defaultColors, gradients } from '../theme/colorsIOS';
 import { spacing, borderRadius, layout } from '../theme/spacingIOS';
 import { shadows } from '../theme/shadowsIOS';
 
@@ -43,6 +44,8 @@ const mockPhotos: Photo[] = [
 ];
 
 export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium = false }) => {
+  const { colors } = useTheme();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'timeline'>('grid');
@@ -221,11 +224,30 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {photos.length === 0 ? (
           <View style={styles.emptyState}>
-            <Ionicons name="images-outline" size={64} color={colors.textTertiary} />
-            <Text style={styles.emptyTitle}>No memories yet</Text>
-            <Text style={styles.emptyDescription}>
-              Start sharing moments to build your gallery
-            </Text>
+            <LinearGradient
+              colors={['#FFE5EC', '#FFF0F5']}
+              style={styles.emptyGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <Ionicons name="heart-outline" size={80} color="#FF6B9D" />
+              <Text style={styles.emptyTitle}>Your Memory Box is Empty</Text>
+              <Text style={styles.emptyDescription}>
+                Every great love story starts with a single moment.{'\n'}
+                Capture your first memory together 💕
+              </Text>
+              <TouchableOpacity style={styles.emptyButton} onPress={onBack} activeOpacity={0.8}>
+                <LinearGradient
+                  colors={['#FF6B9D', '#FF8FAB']}
+                  style={styles.emptyButtonGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <Ionicons name="camera" size={20} color="white" />
+                  <Text style={styles.emptyButtonText}>Capture First Moment</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </LinearGradient>
           </View>
         ) : (
           <View style={styles.content}>
@@ -296,7 +318,7 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -445,18 +467,50 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: layout.screenPaddingHorizontal,
     paddingVertical: spacing.massive,
   },
+  emptyGradient: {
+    width: '100%',
+    borderRadius: borderRadius.xxl,
+    padding: spacing.xxxl,
+    alignItems: 'center',
+    ...shadows.lg,
+  },
   emptyTitle: {
-    fontFamily: 'Inter-SemiBold', fontSize: 20,
+    fontFamily: 'Inter-Bold',
+    fontSize: 24,
     color: colors.text,
     marginTop: spacing.xl,
     marginBottom: spacing.md,
+    textAlign: 'center',
   },
   emptyDescription: {
-    fontSize: 16,
+    fontFamily: 'Inter-Regular',
+    fontSize: 15,
     color: colors.textSecondary,
     textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: spacing.xxl,
+  },
+  emptyButton: {
+    borderRadius: borderRadius.full,
+    overflow: 'hidden',
+    ...shadows.md,
+  },
+  emptyButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.xxl,
+    gap: spacing.sm,
+  },
+  emptyButtonText: {
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 16,
+    color: 'white',
+    letterSpacing: 0.3,
   },
 
   // Modal

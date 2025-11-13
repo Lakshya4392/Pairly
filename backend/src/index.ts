@@ -35,6 +35,21 @@ import authRoutes from './routes/authRoutes';
 import pairRoutes from './routes/pairRoutes';
 import momentRoutes from './routes/momentRoutes';
 import testRoutes from './routes/testRoutes';
+import userRoutes from './routes/userRoutes';
+import noteRoutes from './routes/noteRoutes';
+import timeLockRoutes from './routes/timeLockRoutes';
+import dualCameraRoutes from './routes/dualCameraRoutes';
+import widgetRoutes from './routes/widgetRoutes';
+
+// Request logging middleware
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    console.log(`${req.method} ${req.path} - ${res.statusCode} (${duration}ms)`);
+  });
+  next();
+});
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -46,18 +61,73 @@ app.use('/auth', authRoutes);
 app.use('/pairs', pairRoutes);
 app.use('/moments', momentRoutes);
 app.use('/test', testRoutes);
+app.use('/users', userRoutes);
+app.use('/notes', noteRoutes);
+app.use('/timelock', timeLockRoutes);
+app.use('/dual-moments', dualCameraRoutes);
+app.use('/widget', widgetRoutes);
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {
   console.log('Client connected:', socket.id);
 
+  let currentUserId: string | null = null;
+
   // Join user's personal room
-  socket.on('join_room', (data: { userId: string }) => {
+  socket.on('join_room', async (data: { userId: string }) => {
+    currentUserId = data.userId;
     socket.join(data.userId);
     console.log(`User ${data.userId} joined their room`);
     
     // Send acknowledgment
     socket.emit('room_joined', { userId: data.userId });
+
+    // Notify partner that user is online
+    try {
+      const pair = await prisma.pair.findFirst({
+        where: {
+          OR: [{ user1Id: data.userId }, { user2Id: data.userId }],
+        },
+      });
+
+      if (pair) {
+        const partnerId = pair.user1Id === data.userId ? pair.user2Id : pair.user1Id;
+        
+        // Send presence update to partner
+        io.to(partnerId).emit('partner_presence', {
+          userId: data.userId,
+          isOnline: true,
+          timestamp: new Date().toISOString(),
+        });
+
+        console.log(`🟢 User ${data.userId} is now online (notified ${partnerId})`);
+      }
+    } catch (error) {
+      console.error('Error notifying partner presence:', error);
+    }
+  });
+
+  // Heartbeat to keep presence alive
+  socket.on('heartbeat', async (data: { userId: string }) => {
+    try {
+      const pair = await prisma.pair.findFirst({
+        where: {
+          OR: [{ user1Id: data.userId }, { user2Id: data.userId }],
+        },
+      });
+
+      if (pair) {
+        const partnerId = pair.user1Id === data.userId ? pair.user2Id : pair.user1Id;
+        
+        // Send heartbeat to partner
+        io.to(partnerId).emit('partner_heartbeat', {
+          userId: data.userId,
+          timestamp: new Date().toISOString(),
+        });
+      }
+    } catch (error) {
+      console.error('Error sending heartbeat:', error);
+    }
   });
 
   // Acknowledge moment received
@@ -71,8 +141,34 @@ io.on('connection', (socket) => {
   });
 
   // Handle disconnection
-  socket.on('disconnect', (reason) => {
+  socket.on('disconnect', async (reason) => {
     console.log('Client disconnected:', socket.id, 'Reason:', reason);
+
+    // Notify partner that user is offline
+    if (currentUserId) {
+      try {
+        const pair = await prisma.pair.findFirst({
+          where: {
+            OR: [{ user1Id: currentUserId }, { user2Id: currentUserId }],
+          },
+        });
+
+        if (pair) {
+          const partnerId = pair.user1Id === currentUserId ? pair.user2Id : pair.user1Id;
+          
+          // Send offline status to partner
+          io.to(partnerId).emit('partner_presence', {
+            userId: currentUserId,
+            isOnline: false,
+            timestamp: new Date().toISOString(),
+          });
+
+          console.log(`⚫ User ${currentUserId} is now offline (notified ${partnerId})`);
+        }
+      } catch (error) {
+        console.error('Error notifying partner offline:', error);
+      }
+    }
   });
 
   // Handle errors

@@ -10,7 +10,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { colors, gradients } from '../theme/colorsIOS';
+import { useTheme } from '../contexts/ThemeContext';
+import { colors as defaultColors, gradients } from '../theme/colorsIOS';
 import { spacing, layout, borderRadius } from '../theme/spacingIOS';
 import { shadows } from '../theme/shadowsIOS';
 
@@ -31,6 +32,8 @@ export const PairingConnectionScreen: React.FC<PairingConnectionScreenProps> = (
   onGoHome,
   onCancel,
 }) => {
+  const { colors } = useTheme();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const [mode, setMode] = useState<'waiting' | 'connected'>(initialMode);
   const [partnerName, setPartnerName] = useState(initialPartnerName);
   
@@ -264,7 +267,7 @@ export const PairingConnectionScreen: React.FC<PairingConnectionScreenProps> = (
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,

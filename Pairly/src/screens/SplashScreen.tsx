@@ -11,7 +11,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, gradients } from '../theme/colorsIOS';
+import { useTheme } from '../contexts/ThemeContext';
+import { colors as defaultColors, gradients } from '../theme/colorsIOS';
 import { spacing, borderRadius } from '../theme/spacingIOS';
 import { shadows } from '../theme/shadowsIOS';
 
@@ -22,6 +23,8 @@ interface SplashScreenProps {
 }
 
 export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
+  const { colors } = useTheme();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const logoScale = useSharedValue(0);
   const logoOpacity = useSharedValue(0);
   const textOpacity = useSharedValue(0);
@@ -98,7 +101,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.primary,

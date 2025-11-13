@@ -1,8 +1,3 @@
-/**
- * Notification Service
- * Handles push notifications and local notifications
- */
-
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
@@ -11,278 +6,432 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // Configure notification behavior
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldSetBadge: true,
+    shouldPlaySound: false, // Sound removed as requested
   }),
 });
 
+interface ReminderSettings {
+  dailyMoment: { enabled: boolean; time: string }; // Scheduled at specific time
+  goodMorning: { enabled: boolean; time: string }; // Scheduled at specific time (e.g., 8:00 AM)
+  goodNight: { enabled: boolean; time: string }; // Scheduled at specific time (e.g., 10:00 PM)
+  anniversary: { enabled: boolean; date: string | null }; // Scheduled on specific date
+  dailyLimit: { enabled: boolean }; // Real-time when limit reached
+  partnerActivity: { enabled: boolean }; // Real-time when partner sends moment/note
+  dualComplete: { enabled: boolean }; // Real-time when dual moment completes
+  timeLockUnlock: { enabled: boolean }; // Real-time when time-lock unlocks
+}
+
 class NotificationService {
-  private pushToken: string | null = null;
-  private notificationListener: any = null;
-  private responseListener: any = null;
-
-  /**
-   * Initialize notification service
-   */
-  async initialize(): Promise<boolean> {
-    try {
-      // Check if physical device
-      if (!Device.isDevice) {
-        console.log('⚠️ Notifications only work on physical devices');
-        return false;
-      }
-
-      // Request permissions
-      const hasPermission = await this.requestPermissions();
-      
-      if (!hasPermission) {
-        console.log('❌ Notification permission denied');
-        return false;
-      }
-
-      // Get push token
-      this.pushToken = await this.getPushToken();
-      
-      if (this.pushToken) {
-        console.log('✅ Push token:', this.pushToken);
-        await this.savePushToken(this.pushToken);
-      }
-
-      // Configure Android channel
-      if (Platform.OS === 'android') {
-        await this.setupAndroidChannel();
-      }
-
-      // Setup listeners
-      this.setupListeners();
-
-      console.log('✅ Notifications initialized');
-      return true;
-
-    } catch (error) {
-      console.error('❌ Notification init error:', error);
-      return false;
-    }
-  }
+  private static STORAGE_KEY = '@pairly_reminders';
+  private static notificationIds: Map<string, string> = new Map();
 
   /**
    * Request notification permissions
    */
-  private async requestPermissions(): Promise<boolean> {
-    try {
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
-      let finalStatus = existingStatus;
-
-      if (existingStatus !== 'granted') {
-        const { status } = await Notifications.requestPermissionsAsync();
-        finalStatus = status;
-      }
-
-      return finalStatus === 'granted';
-    } catch (error) {
-      console.error('Permission request error:', error);
+  static async requestPermissions(): Promise<boolean> {
+    if (!Device.isDevice) {
+      console.warn('Notifications only work on physical devices');
       return false;
     }
+
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+
+    if (existingStatus !== 'granted') {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+
+    if (finalStatus !== 'granted') {
+      console.warn('Notification permission denied');
+      return false;
+    }
+
+    // Configure notification channel for Android
+    if (Platform.OS === 'android') {
+      await Notifications.setNotificationChannelAsync('default', {
+        name: 'default',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#FF6B9D',
+      });
+    }
+
+    console.log('✅ Notification permissions granted');
+    return true;
   }
 
   /**
-   * Get Expo push token
+   * Get reminder settings
    */
-  private async getPushToken(): Promise<string | null> {
+  static async getReminderSettings(): Promise<ReminderSettings> {
     try {
-      const token = (await Notifications.getExpoPushTokenAsync()).data;
-      return token;
+      const data = await AsyncStorage.getItem(this.STORAGE_KEY);
+      if (data) {
+        return JSON.parse(data);
+      }
     } catch (error) {
-      console.error('Get push token error:', error);
-      return null;
+      console.error('Error loading reminder settings:', error);
+    }
+
+    // Default settings
+    return {
+      dailyMoment: { enabled: false, time: '09:00' }, // 9:00 AM
+      goodMorning: { enabled: false, time: '08:00' }, // 8:00 AM - Fixed morning time
+      goodNight: { enabled: false, time: '22:00' }, // 10:00 PM - Fixed night time
+      anniversary: { enabled: false, date: null },
+      dailyLimit: { enabled: true }, // Real-time notification
+      partnerActivity: { enabled: true }, // Real-time notification
+      dualComplete: { enabled: true }, // Real-time notification
+      timeLockUnlock: { enabled: true }, // Real-time notification
+    };
+  }
+
+  /**
+   * Save reminder settings
+   */
+  static async saveReminderSettings(settings: ReminderSettings): Promise<void> {
+    try {
+      await AsyncStorage.setItem(this.STORAGE_KEY, JSON.stringify(settings));
+      console.log('✅ Reminder settings saved');
+    } catch (error) {
+      console.error('Error saving reminder settings:', error);
     }
   }
 
   /**
-   * Save push token to storage
+   * Schedule daily moment reminder (SCHEDULED)
+   * Sends notification at specific time every day (e.g., 9:00 AM)
+   * User can set custom time in settings
    */
-  private async savePushToken(token: string): Promise<void> {
+  static async scheduleDailyMomentReminder(time: string, partnerName: string): Promise<void> {
     try {
-      await AsyncStorage.setItem('push_token', token);
-      // TODO: Send token to backend server
+      // Cancel existing
+      await this.cancelReminder('dailyMoment');
+
+      // Parse time (HH:MM)
+      const [hour, minute] = time.split(':').map(Number);
+
+      // Schedule notification
+      const id = await Notifications.scheduleNotificationAsync({
+        content: {
+          title: '💕 Time to Share',
+          body: `Share a moment with ${partnerName} today!`,
+          data: { type: 'daily_moment' },
+        },
+        trigger: {
+          hour,
+          minute,
+          repeats: true,
+        } as any,
+      });
+
+      this.notificationIds.set('dailyMoment', id);
+      console.log('✅ Daily moment reminder scheduled for', time);
     } catch (error) {
-      console.error('Save push token error:', error);
+      console.error('Error scheduling daily moment reminder:', error);
     }
   }
 
   /**
-   * Setup Android notification channel
+   * Schedule good morning reminder (SCHEDULED - FIXED TIME)
+   * Sends notification at specific morning time (default: 8:00 AM)
+   * Repeats daily at the same time
    */
-  private async setupAndroidChannel(): Promise<void> {
-    await Notifications.setNotificationChannelAsync('default', {
-      name: 'Pairly Notifications',
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250],
-      lightColor: '#FF6B9D',
-      sound: 'default',
-    });
+  static async scheduleGoodMorningReminder(time: string, partnerName: string): Promise<void> {
+    try {
+      await this.cancelReminder('goodMorning');
+
+      const [hour, minute] = time.split(':').map(Number);
+
+      const id = await Notifications.scheduleNotificationAsync({
+        content: {
+          title: '☀️ Good Morning!',
+          body: `Say good morning to ${partnerName}`,
+          data: { type: 'good_morning' },
+        },
+        trigger: {
+          hour,
+          minute,
+          repeats: true,
+        } as any,
+      });
+
+      this.notificationIds.set('goodMorning', id);
+      console.log('✅ Good morning reminder scheduled for', time);
+    } catch (error) {
+      console.error('Error scheduling good morning reminder:', error);
+    }
+  }
+
+  /**
+   * Schedule good night reminder (SCHEDULED - FIXED TIME)
+   * Sends notification at specific night time (default: 10:00 PM)
+   * Repeats daily at the same time
+   */
+  static async scheduleGoodNightReminder(time: string, partnerName: string): Promise<void> {
+    try {
+      await this.cancelReminder('goodNight');
+
+      const [hour, minute] = time.split(':').map(Number);
+
+      const id = await Notifications.scheduleNotificationAsync({
+        content: {
+          title: '🌙 Good Night!',
+          body: `Send a goodnight moment to ${partnerName}`,
+          data: { type: 'good_night' },
+        },
+        trigger: {
+          hour,
+          minute,
+          repeats: true,
+        } as any,
+      });
+
+      this.notificationIds.set('goodNight', id);
+      console.log('✅ Good night reminder scheduled for', time);
+    } catch (error) {
+      console.error('Error scheduling good night reminder:', error);
+    }
+  }
+
+  /**
+   * Schedule anniversary reminder
+   */
+  static async scheduleAnniversaryReminder(date: string, partnerName: string): Promise<void> {
+    try {
+      await this.cancelReminder('anniversary');
+
+      const anniversaryDate = new Date(date);
+      const now = new Date();
+
+      // Schedule 1 week before
+      const oneWeekBefore = new Date(anniversaryDate);
+      oneWeekBefore.setDate(oneWeekBefore.getDate() - 7);
+      
+      if (oneWeekBefore > now) {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: '💕 Anniversary Coming Up!',
+            body: `Your anniversary with ${partnerName} is in 1 week!`,
+            data: { type: 'anniversary_week' },
+          },
+          trigger: {
+            date: oneWeekBefore,
+          } as any,
+        });
+      }
+
+      // Schedule 1 day before
+      const oneDayBefore = new Date(anniversaryDate);
+      oneDayBefore.setDate(oneDayBefore.getDate() - 1);
+      
+      if (oneDayBefore > now) {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: '💕 Anniversary Tomorrow!',
+            body: `Tomorrow is your special day with ${partnerName}!`,
+            data: { type: 'anniversary_day' },
+          },
+          trigger: {
+            date: oneDayBefore,
+          } as any,
+        });
+      }
+
+      // Schedule on the day
+      if (anniversaryDate > now) {
+        const id = await Notifications.scheduleNotificationAsync({
+          content: {
+            title: '🎉 Happy Anniversary!',
+            body: `Celebrate your special day with ${partnerName}! 💕`,
+            data: { type: 'anniversary' },
+          },
+          trigger: {
+            date: anniversaryDate,
+          } as any,
+        });
+
+        this.notificationIds.set('anniversary', id);
+      }
+
+      console.log('✅ Anniversary reminders scheduled');
+    } catch (error) {
+      console.error('Error scheduling anniversary reminder:', error);
+    }
+  }
+
+  /**
+   * Send daily limit warning (REAL-TIME)
+   * Triggers immediately when user reaches 2/3 or 3/3 moments
+   * Only for free users
+   */
+  static async sendDailyLimitWarning(remaining: number): Promise<void> {
+    try {
+      const settings = await this.getReminderSettings();
+      if (!settings.dailyLimit.enabled) return;
+
+      let title = '';
+      let body = '';
+
+      if (remaining === 1) {
+        title = '⚠️ Last Moment Today';
+        body = 'You have 1 moment left today. Upgrade for unlimited!';
+      } else if (remaining === 0) {
+        title = '🔒 Daily Limit Reached';
+        body = 'You\'ve used all 3 moments today. Upgrade to Premium for unlimited moments!';
+      }
+
+      if (title) {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title,
+            body,
+            data: { type: 'daily_limit', remaining },
+          },
+          trigger: null, // Send immediately
+        });
+
+        console.log('✅ Daily limit warning sent');
+      }
+    } catch (error) {
+      console.error('Error sending daily limit warning:', error);
+    }
+  }
+
+  /**
+   * Send partner activity notification (REAL-TIME)
+   * Triggers immediately when partner sends moment/note
+   */
+  static async sendPartnerActivity(type: 'moment' | 'note' | 'dual', partnerName: string, title?: string): Promise<void> {
+    try {
+      // Check if partner activity notifications are enabled
+      const settings = await this.getReminderSettings();
+      if (!settings.partnerActivity.enabled) {
+        console.log('Partner activity notifications disabled');
+        return;
+      }
+
+      let notifTitle = '';
+      let notifBody = '';
+
+      switch (type) {
+        case 'moment':
+          notifTitle = '📸 New Moment!';
+          notifBody = `${partnerName} sent you a moment 💕`;
+          break;
+        case 'note':
+          notifTitle = '💌 New Note!';
+          notifBody = `${partnerName} sent you a love note`;
+          break;
+        case 'dual':
+          notifTitle = '📸 Dual Moment Complete!';
+          notifBody = `${partnerName} added their photo to "${title}"!`;
+          break;
+      }
+
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: notifTitle,
+          body: notifBody,
+          data: { type: `partner_${type}` },
+        },
+        trigger: null, // Send immediately
+      });
+
+      console.log('✅ Partner activity notification sent (real-time)');
+    } catch (error) {
+      console.error('Error sending partner activity notification:', error);
+    }
+  }
+
+  /**
+   * Send time-lock unlocked notification (REAL-TIME)
+   * Triggers when scheduled time is reached
+   */
+  static async sendTimeLockUnlocked(partnerName: string, preview: string): Promise<void> {
+    try {
+      // Check if time-lock notifications are enabled
+      const settings = await this.getReminderSettings();
+      if (!settings.timeLockUnlock.enabled) {
+        console.log('Time-lock notifications disabled');
+        return;
+      }
+
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: '🔓 Time-Lock Unlocked!',
+          body: `Your message to ${partnerName} has been delivered!`,
+          data: { type: 'timelock_unlocked' },
+        },
+        trigger: null, // Send immediately
+      });
+
+      console.log('✅ Time-lock unlocked notification sent (real-time)');
+    } catch (error) {
+      console.error('Error sending time-lock notification:', error);
+    }
+  }
+
+  /**
+   * Cancel specific reminder
+   */
+  static async cancelReminder(type: string): Promise<void> {
+    try {
+      const id = this.notificationIds.get(type);
+      if (id) {
+        await Notifications.cancelScheduledNotificationAsync(id);
+        this.notificationIds.delete(type);
+        console.log('✅ Reminder cancelled:', type);
+      }
+    } catch (error) {
+      console.error('Error cancelling reminder:', error);
+    }
+  }
+
+  /**
+   * Cancel all reminders
+   */
+  static async cancelAllReminders(): Promise<void> {
+    try {
+      await Notifications.cancelAllScheduledNotificationsAsync();
+      this.notificationIds.clear();
+      console.log('✅ All reminders cancelled');
+    } catch (error) {
+      console.error('Error cancelling all reminders:', error);
+    }
+  }
+
+  /**
+   * Get all scheduled notifications
+   */
+  static async getAllScheduledNotifications(): Promise<Notifications.NotificationRequest[]> {
+    try {
+      return await Notifications.getAllScheduledNotificationsAsync();
+    } catch (error) {
+      console.error('Error getting scheduled notifications:', error);
+      return [];
+    }
   }
 
   /**
    * Setup notification listeners
    */
-  private setupListeners(): void {
+  static setupListeners(
+    onNotificationReceived: (notification: Notifications.Notification) => void,
+    onNotificationTapped: (response: Notifications.NotificationResponse) => void
+  ): void {
     // Notification received while app is foregrounded
-    this.notificationListener = Notifications.addNotificationReceivedListener((notification: any) => {
-      console.log('📬 Notification received:', notification);
-    });
+    Notifications.addNotificationReceivedListener(onNotificationReceived);
 
-    // User tapped on notification
-    this.responseListener = Notifications.addNotificationResponseReceivedListener((response: any) => {
-      console.log('👆 Notification tapped:', response);
-      
-      const data = response.notification.request.content.data;
-      
-      // Handle notification tap
-      if (data.type === 'new_photo') {
-        // Navigate to gallery
-        // TODO: Implement navigation
-      }
-    });
-  }
+    // Notification tapped
+    Notifications.addNotificationResponseReceivedListener(onNotificationTapped);
 
-  /**
-   * Send local notification
-   */
-  async sendLocalNotification(
-    title: string,
-    body: string,
-    data?: any
-  ): Promise<void> {
-    try {
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title,
-          body,
-          data,
-          sound: true,
-          badge: 1,
-        },
-        trigger: null, // Immediate
-      });
-    } catch (error) {
-      console.error('Send notification error:', error);
-    }
-  }
-
-  /**
-   * Notify when partner sends photo
-   */
-  async notifyPhotoReceived(partnerName: string, photoId: string): Promise<void> {
-    await this.sendLocalNotification(
-      `❤️ New moment from ${partnerName}`,
-      'Your partner just shared a special moment!',
-      {
-        type: 'new_photo',
-        photoId,
-      }
-    );
-  }
-
-  /**
-   * Notify when partner reacts to photo
-   */
-  async notifyReaction(partnerName: string, reaction: string, photoId: string): Promise<void> {
-    await this.sendLocalNotification(
-      `${reaction} ${partnerName} reacted`,
-      'Your partner loved your moment!',
-      {
-        type: 'reaction',
-        photoId,
-        reaction,
-      }
-    );
-  }
-
-  /**
-   * Notify when partner comes online
-   */
-  async notifyPartnerOnline(partnerName: string): Promise<void> {
-    await this.sendLocalNotification(
-      `💚 ${partnerName} is online`,
-      'Your partner just came online',
-      {
-        type: 'partner_online',
-      }
-    );
-  }
-
-  /**
-   * Schedule reminder notification
-   */
-  async scheduleReminder(
-    title: string,
-    body: string,
-    seconds: number
-  ): Promise<void> {
-    try {
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title,
-          body,
-          sound: true,
-        },
-        trigger: {
-          seconds,
-        },
-      });
-    } catch (error) {
-      console.error('Schedule notification error:', error);
-    }
-  }
-
-  /**
-   * Clear all notifications
-   */
-  async clearAllNotifications(): Promise<void> {
-    try {
-      await Notifications.dismissAllNotificationsAsync();
-      await Notifications.setBadgeCountAsync(0);
-    } catch (error) {
-      console.error('Clear notifications error:', error);
-    }
-  }
-
-  /**
-   * Set badge count
-   */
-  async setBadgeCount(count: number): Promise<void> {
-    try {
-      await Notifications.setBadgeCountAsync(count);
-    } catch (error) {
-      console.error('Set badge count error:', error);
-    }
-  }
-
-  /**
-   * Get notification settings
-   */
-  async getSettings(): Promise<any> {
-    try {
-      return await Notifications.getPermissionsAsync();
-    } catch (error) {
-      console.error('Get settings error:', error);
-      return null;
-    }
-  }
-
-  /**
-   * Cleanup listeners
-   */
-  cleanup(): void {
-    if (this.notificationListener) {
-      Notifications.removeNotificationSubscription(this.notificationListener);
-    }
-    if (this.responseListener) {
-      Notifications.removeNotificationSubscription(this.responseListener);
-    }
+    console.log('✅ Notification listeners setup');
   }
 }
 
-export default new NotificationService();
+export default NotificationService;

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,67 +10,108 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { CustomAlert } from '../components/CustomAlert';
-import { colors, gradients } from '../theme/colorsIOS';
+import { useTheme } from '../contexts/ThemeContext';
+import { colors as defaultColors, gradients } from '../theme/colorsIOS';
 import { spacing, borderRadius, layout } from '../theme/spacingIOS';
 import { shadows } from '../theme/shadowsIOS';
+import PremiumService from '../services/PremiumService';
 
 interface PremiumScreenProps {
   onBack: () => void;
   onPurchase?: (plan: 'monthly' | 'yearly') => void;
 }
 
-const premiumFeatures = [
-  {
-    icon: 'moon',
-    title: 'Dark Mode',
-    description: 'Beautiful dark theme for night time',
-    color: colors.primary,
-  },
-  {
-    icon: 'image',
-    title: 'High Quality Photos',
-    description: 'Upload photos in original quality',
-    color: colors.secondary,
-  },
-  {
-    icon: 'color-palette',
-    title: 'Custom Themes',
-    description: '5 beautiful color themes to choose from',
-    color: '#FF6B9D',
-  },
-  {
-    icon: 'notifications',
-    title: 'Smart Reminders',
-    description: 'Good morning & goodnight reminders',
-    color: '#9B59B6',
-  },
-  {
-    icon: 'lock-closed',
-    title: 'App Lock & Privacy',
-    description: 'PIN/Fingerprint protection',
-    color: '#E74C3C',
-  },
-  {
-    icon: 'volume-high',
-    title: 'Custom Sounds',
-    description: '15+ notification sounds',
-    color: '#3498DB',
-  },
-  {
-    icon: 'sparkles',
-    title: 'Photo Filters',
-    description: '20+ Instagram-style filters',
-    color: '#F39C12',
-  },
-  {
-    icon: 'eye-off',
-    title: 'Private Mode',
-    description: 'Hide app in recent apps',
-    color: '#1ABC9C',
-  },
-];
-
 export const PremiumScreen: React.FC<PremiumScreenProps> = ({ onBack, onPurchase }) => {
+  const { colors } = useTheme();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
+  
+  const [isPremium, setIsPremium] = useState(false);
+  const [premiumPlan, setPremiumPlan] = useState<'free' | 'monthly' | 'yearly'>('free');
+  const [expiresAt, setExpiresAt] = useState<string | null>(null);
+
+  // Load premium status
+  useEffect(() => {
+    loadPremiumStatus();
+  }, []);
+
+  const loadPremiumStatus = async () => {
+    try {
+      const status = await PremiumService.getPremiumStatus();
+      setIsPremium(status.isPremium);
+      setPremiumPlan(status.plan);
+      setExpiresAt(status.expiresAt);
+      console.log('💎 Premium status loaded:', status);
+    } catch (error) {
+      console.error('Error loading premium status:', error);
+    }
+  };
+  
+  // Premium features with emotional copy
+  const premiumFeatures = [
+    {
+      icon: 'infinite',
+      title: 'Unlimited Moments',
+      description: 'Share as many moments as your heart desires',
+      color: colors.secondary,
+      isNew: false,
+    },
+    {
+      icon: 'chatbubble-ellipses',
+      title: 'Shared Love Notes',
+      description: 'Send notes that appear like magic on their screen',
+      color: '#FF6B9D',
+      isNew: true,
+    },
+    {
+      icon: 'time',
+      title: 'Time-Lock Messages',
+      description: 'Send love to your future selves',
+      color: '#9B59B6',
+      isNew: true,
+    },
+    {
+      icon: 'people',
+      title: 'Live Presence',
+      description: 'Feel close, even when miles apart',
+      color: '#3498DB',
+      isNew: true,
+    },
+    {
+      icon: 'camera',
+      title: 'Dual Camera Moments',
+      description: 'Capture from two worlds, one moment',
+      color: '#E74C3C',
+      isNew: true,
+    },
+    {
+      icon: 'lock-closed',
+      title: 'Secret Vault',
+      description: 'Some memories are just for you two',
+      color: '#1ABC9C',
+      isNew: true,
+    },
+    {
+      icon: 'film',
+      title: 'AI Love Story',
+      description: 'Your year, told beautifully',
+      color: '#F39C12',
+      isNew: true,
+    },
+    {
+      icon: 'moon',
+      title: 'Dark Mode & Themes',
+      description: 'Beautiful themes for every mood',
+      color: colors.primary,
+      isNew: false,
+    },
+    {
+      icon: 'shield-checkmark',
+      title: 'App Lock & Privacy',
+      description: 'PIN/Fingerprint protection',
+      color: '#34495E',
+      isNew: false,
+    },
+  ];
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('yearly');
   const [showConfirmAlert, setShowConfirmAlert] = useState(false);
   const [showSuccessAlert, setShowSuccessAlert] = useState(false);
@@ -81,21 +122,31 @@ export const PremiumScreen: React.FC<PremiumScreenProps> = ({ onBack, onPurchase
 
   const confirmPurchase = async () => {
     try {
+      // Start trial or activate premium
+      if (selectedPlan === 'yearly') {
+        // 1 year premium
+        const expiryDate = new Date();
+        expiryDate.setFullYear(expiryDate.getFullYear() + 1);
+        await PremiumService.setPremiumStatus(true, 'yearly', expiryDate);
+      } else {
+        // 1 month premium
+        const expiryDate = new Date();
+        expiryDate.setMonth(expiryDate.getMonth() + 1);
+        await PremiumService.setPremiumStatus(true, 'monthly', expiryDate);
+      }
+      
+      // Reload premium status
+      await loadPremiumStatus();
+      
       // Update local subscription
       onPurchase?.(selectedPlan);
-      
-      // Sync with backend - Import dynamically to avoid hook issues
-      const { useUser: getUser } = await import('@clerk/clerk-expo');
-      
-      // Note: This is a workaround - ideally pass user from parent component
-      // For now, we'll handle sync in the parent component that has access to hooks
       
       setShowConfirmAlert(false);
       setShowSuccessAlert(true);
       
-      console.log('✅ Premium purchase completed');
+      console.log('✅ Premium activated:', selectedPlan);
     } catch (error) {
-      console.error('❌ Error processing premium:', error);
+      console.error('❌ Error activating premium:', error);
       setShowConfirmAlert(false);
       setShowSuccessAlert(true);
     }
@@ -162,49 +213,48 @@ export const PremiumScreen: React.FC<PremiumScreenProps> = ({ onBack, onPurchase
   const FeatureItem = ({ 
     icon, 
     title, 
-    description, 
-    color 
+    description,
+    color,
+    isNew 
   }: { 
     icon: string; 
     title: string; 
     description: string;
     color: string;
+    isNew?: boolean;
   }) => (
-    <View style={styles.featureItem}>
-      <View style={[styles.featureIcon, { backgroundColor: color + '20' }]}>
+    <View style={styles.featureCard}>
+      <View style={[styles.featureIconContainer, { backgroundColor: color + '15' }]}>
         <Ionicons name={icon as any} size={24} color={color} />
+        {isNew && (
+          <View style={styles.newDot} />
+        )}
       </View>
-      <View style={styles.featureText}>
-        <Text style={styles.featureTitle}>{title}</Text>
-        <Text style={styles.featureDescription}>{description}</Text>
+      <View style={styles.featureTextContainer}>
+        <Text style={styles.featureTitle} numberOfLines={1}>{title}</Text>
+        <Text style={styles.featureDescription} numberOfLines={2}>{description}</Text>
       </View>
-      <Ionicons name="checkmark-circle" size={24} color={colors.success} />
     </View>
   );
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.primary} />
+      <StatusBar barStyle="light-content" backgroundColor={colors.secondary} />
       
-      {/* Header with Gradient - Compact */}
+      {/* Compact Header */}
       <LinearGradient
         colors={[colors.secondary, colors.secondaryLight]}
         style={styles.header}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       >
-        <View style={styles.headerTop}>
-          <TouchableOpacity onPress={onBack} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="white" />
-          </TouchableOpacity>
-          <View style={styles.diamondIcon}>
-            <Ionicons name="diamond" size={24} color="white" />
-          </View>
-        </View>
+        <TouchableOpacity onPress={onBack} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color="white" />
+        </TouchableOpacity>
         
         <View style={styles.headerContent}>
+          <Ionicons name="diamond" size={32} color="white" style={styles.headerIcon} />
           <Text style={styles.headerTitle}>Pairly Premium</Text>
-          <Text style={styles.headerSubtitle}>Unlock all premium features</Text>
         </View>
       </LinearGradient>
 
@@ -213,54 +263,54 @@ export const PremiumScreen: React.FC<PremiumScreenProps> = ({ onBack, onPurchase
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Features List */}
+        {/* Premium Status Banner */}
+        {isPremium && (
+          <View style={styles.premiumBanner}>
+            <LinearGradient
+              colors={['#FFD700', '#FFA500']}
+              style={styles.premiumBannerGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <Ionicons name="checkmark-circle" size={24} color="white" />
+              <View style={styles.premiumBannerText}>
+                <Text style={styles.premiumBannerTitle}>Premium Active</Text>
+                <Text style={styles.premiumBannerSubtitle}>
+                  {premiumPlan === 'yearly' ? 'Yearly Plan' : 'Monthly Plan'}
+                  {expiresAt && ` • Expires ${new Date(expiresAt).toLocaleDateString()}`}
+                </Text>
+              </View>
+            </LinearGradient>
+          </View>
+        )}
+
+        {/* Features Grid */}
         <View style={styles.featuresContainer}>
-          <Text style={styles.sectionTitle}>✨ Premium Features</Text>
-          {premiumFeatures.map((feature, index) => (
-            <FeatureItem key={index} {...feature} />
-          ))}
+          <View style={styles.featuresGrid}>
+            {premiumFeatures.map((feature, index) => (
+              <FeatureItem key={index} {...feature} />
+            ))}
+          </View>
         </View>
 
         {/* Pricing Plans */}
         <View style={styles.pricingContainer}>
-          <Text style={styles.sectionTitle}>💎 Choose Your Plan</Text>
-          <Text style={styles.sectionSubtitle}>Start with 7 days free trial</Text>
-          
           <PlanCard
             plan="yearly"
             price="$39.99"
             period="Yearly"
-            savings="Save 33% • Best Value!"
+            savings="Save 17%"
             isPopular
           />
           
           <PlanCard
             plan="monthly"
-            price="$4.99"
+            price="$3.99"
             period="Monthly"
           />
-        </View>
-
-        {/* Benefits */}
-        <View style={styles.benefitsContainer}>
-          <View style={styles.benefitRow}>
-            <Ionicons name="checkmark-circle" size={20} color={colors.success} />
-            <Text style={styles.benefitText}>7-day free trial</Text>
-          </View>
-          <View style={styles.benefitRow}>
-            <Ionicons name="checkmark-circle" size={20} color={colors.success} />
-            <Text style={styles.benefitText}>Cancel anytime</Text>
-          </View>
-          <View style={styles.benefitRow}>
-            <Ionicons name="checkmark-circle" size={20} color={colors.success} />
-            <Text style={styles.benefitText}>All features included</Text>
-          </View>
-        </View>
-
-        {/* Social Proof */}
-        <View style={styles.socialProof}>
-          <Text style={styles.socialProofText}>
-            ⭐️ Rated 4.9/5 by 10,000+ premium couples
+          
+          <Text style={styles.trialText}>
+            7-day free trial • Cancel anytime
           </Text>
         </View>
       </ScrollView>
@@ -315,8 +365,8 @@ export const PremiumScreen: React.FC<PremiumScreenProps> = ({ onBack, onPurchase
       {/* Success Alert */}
       <CustomAlert
         visible={showSuccessAlert}
-        title="Welcome to Premium! 🎉"
-        message="You now have access to all premium features. Enjoy!"
+        title="Trial Started! 🎉"
+        message="You now have 7 days of premium access. Enjoy unlimited moments, shared notes, time-lock messages, and more!"
         icon="checkmark-circle"
         iconColor={colors.success}
         buttons={[
@@ -338,51 +388,42 @@ export const PremiumScreen: React.FC<PremiumScreenProps> = ({ onBack, onPurchase
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
   },
   
-  // Header - Compact
+  // Compact Header
   header: {
     paddingTop: spacing.huge,
-    paddingBottom: spacing.xl,
+    paddingBottom: spacing.lg,
     paddingHorizontal: layout.screenPaddingHorizontal,
-  },
-  headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.md,
+    gap: spacing.lg,
   },
   backButton: {
     width: 40,
     height: 40,
-    borderRadius: borderRadius.md,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  diamondIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.full,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   headerContent: {
-    alignItems: 'flex-start',
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  headerIcon: {
+    marginBottom: 2,
   },
   headerTitle: {
-    fontFamily: 'Inter-Bold', fontSize: 28, lineHeight: 36,
+    fontFamily: 'Inter-Bold',
+    fontSize: 24,
     color: 'white',
-    marginBottom: spacing.xs,
-  },
-  headerSubtitle: {
-    fontSize: 15,
-    color: 'rgba(255, 255, 255, 0.9)',
   },
 
   // Scroll View
@@ -393,51 +434,96 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xxxl,
   },
 
-  // Section Title
-  sectionTitle: {
-    fontFamily: 'Inter-SemiBold', fontSize: 20, lineHeight: 28,
-    color: colors.text,
-    marginBottom: spacing.xs,
+  // Premium Status Banner
+  premiumBanner: {
+    marginHorizontal: layout.screenPaddingHorizontal,
+    marginTop: spacing.lg,
+    marginBottom: spacing.md,
+    borderRadius: borderRadius.lg,
+    overflow: 'hidden',
+    ...shadows.md,
   },
-  sectionSubtitle: {
-    fontSize: 15,
-    color: colors.textSecondary,
-    marginBottom: spacing.lg,
-  },
-
-  // Features
-  featuresContainer: {
-    paddingHorizontal: layout.screenPaddingHorizontal,
-    paddingTop: spacing.xxl,
-  },
-  featureItem: {
+  premiumBannerGradient: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surface,
     padding: spacing.lg,
-    borderRadius: borderRadius.lg,
-    marginBottom: spacing.md,
-    ...shadows.sm,
+    gap: spacing.md,
   },
-  featureIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: borderRadius.md,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: spacing.md,
-  },
-  featureText: {
+  premiumBannerText: {
     flex: 1,
   },
-  featureTitle: {
-    fontFamily: 'Inter-SemiBold', fontSize: 16,
-    color: colors.text,
-    marginBottom: spacing.xs,
+  premiumBannerTitle: {
+    fontFamily: 'Inter-Bold',
+    fontSize: 16,
+    color: 'white',
+    marginBottom: 2,
   },
-  featureDescription: {
+  premiumBannerSubtitle: {
+    fontFamily: 'Inter-Medium',
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.9)',
+  },
+
+  // Trial Text
+  trialText: {
     fontSize: 14,
     color: colors.textSecondary,
+    textAlign: 'center',
+    marginTop: spacing.lg,
+  },
+
+  // Features Grid
+  featuresContainer: {
+    paddingHorizontal: layout.screenPaddingHorizontal,
+    paddingTop: spacing.xl,
+  },
+  featuresGrid: {
+    gap: spacing.md,
+  },
+  featureCard: {
+    backgroundColor: colors.surface,
+    padding: spacing.lg,
+    borderRadius: borderRadius.xl,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.md,
+    ...shadows.sm,
+  },
+  featureIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: borderRadius.lg,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+    flexShrink: 0,
+  },
+  newDot: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.secondary,
+    borderWidth: 2,
+    borderColor: colors.surface,
+  },
+  featureTextContainer: {
+    flex: 1,
+    paddingTop: 2,
+  },
+  featureTitle: {
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 15,
+    color: colors.text,
+    marginBottom: spacing.xs,
+    lineHeight: 20,
+  },
+  featureDescription: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    lineHeight: 18,
   },
 
   // Pricing
@@ -448,30 +534,30 @@ const styles = StyleSheet.create({
   planCard: {
     backgroundColor: colors.surface,
     borderRadius: borderRadius.xl,
-    padding: spacing.xl,
-    marginBottom: spacing.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
     borderWidth: 2,
     borderColor: colors.border,
     ...shadows.sm,
   },
   planCardSelected: {
     borderColor: colors.secondary,
-    borderWidth: 3,
-    backgroundColor: 'white',
-    ...shadows.lg,
+    borderWidth: 2,
+    ...shadows.md,
   },
   popularBadge: {
     position: 'absolute',
-    top: -12,
-    right: spacing.xl,
+    top: -10,
+    right: spacing.lg,
     backgroundColor: colors.secondary,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
+    paddingVertical: 4,
     borderRadius: borderRadius.full,
-    ...shadows.md,
+    ...shadows.sm,
   },
   popularText: {
-    fontFamily: 'Inter-Bold', fontSize: 11,
+    fontFamily: 'Inter-Bold',
+    fontSize: 10,
     color: 'white',
     letterSpacing: 0.5,
   },
@@ -513,7 +599,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   planName: {
-    fontFamily: 'Inter-SemiBold', fontSize: 17,
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 16,
     color: colors.text,
     marginBottom: spacing.xs,
   },
@@ -522,49 +609,25 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Bold',
   },
   planSavings: {
-    fontFamily: 'Inter-SemiBold', fontSize: 12,
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 11,
     color: colors.secondary,
   },
   planPrice: {
-    fontFamily: 'Inter-Bold', fontSize: 28, lineHeight: 36,
+    fontFamily: 'Inter-Bold',
+    fontSize: 24,
     color: colors.text,
   },
   planPriceSelected: {
     color: colors.secondary,
   },
   planPeriod: {
-    fontSize: 14,
+    fontSize: 13,
     color: colors.textSecondary,
     marginLeft: spacing.xs,
   },
 
-  // Benefits
-  benefitsContainer: {
-    paddingHorizontal: layout.screenPaddingHorizontal,
-    paddingTop: spacing.xl,
-    gap: spacing.md,
-  },
-  benefitRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  benefitText: {
-    fontSize: 15,
-    color: colors.textSecondary,
-  },
 
-  // Social Proof
-  socialProof: {
-    paddingHorizontal: layout.screenPaddingHorizontal,
-    paddingTop: spacing.xl,
-    alignItems: 'center',
-  },
-  socialProofText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    textAlign: 'center',
-  },
 
   // Footer
   footer: {

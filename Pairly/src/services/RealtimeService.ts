@@ -36,8 +36,8 @@ class RealtimeService {
 
       this.setupEventHandlers(userId);
     } catch (error) {
-      console.error('Socket connection error:', error);
-      throw error;
+      // Silent fail - app works without realtime features
+      console.log('⚠️ Realtime features unavailable (backend offline)');
     }
   }
 
@@ -104,6 +104,29 @@ class RealtimeService {
       this.triggerEvent('partner_updated', data);
     });
 
+    // Partner presence (online/offline)
+    this.socket.on('partner_presence', (data: any) => {
+      console.log('Partner presence:', data.isOnline ? '🟢 Online' : '⚫ Offline');
+      this.triggerEvent('partner_presence', data);
+    });
+
+    // Partner heartbeat
+    this.socket.on('partner_heartbeat', (data: any) => {
+      this.triggerEvent('partner_heartbeat', data);
+    });
+
+    // Shared note received
+    this.socket.on('shared_note', (data: any) => {
+      console.log('📝 Shared note received:', data.content);
+      this.triggerEvent('shared_note', data);
+    });
+
+    // Time-lock message unlocked
+    this.socket.on('timelock_unlocked', (data: any) => {
+      console.log('🔓 Time-lock message unlocked:', data.content);
+      this.triggerEvent('timelock_unlocked', data);
+    });
+
     // Disconnection
     this.socket.on('disconnect', (reason: string) => {
       console.log('Socket.IO disconnected:', reason);
@@ -137,7 +160,7 @@ class RealtimeService {
 
     // Connection error
     this.socket.on('connect_error', (error: Error) => {
-      console.error('Socket connection error:', error);
+      // Silent fail - don't spam console with errors
       this.triggerEvent('connect_error', { error: error.message });
     });
   }
@@ -210,6 +233,42 @@ class RealtimeService {
    */
   acknowledgeMoment(momentId: string): void {
     this.emit('moment_received', { momentId });
+  }
+
+  /**
+   * Send heartbeat to keep presence alive
+   */
+  sendHeartbeat(userId: string): void {
+    this.emit('heartbeat', { userId });
+  }
+
+  /**
+   * Start heartbeat interval (every 30 seconds)
+   */
+  private heartbeatInterval: NodeJS.Timeout | null = null;
+
+  startHeartbeat(userId: string): void {
+    // Clear existing interval
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+    }
+
+    // Send heartbeat every 30 seconds
+    this.heartbeatInterval = setInterval(() => {
+      if (this.isConnected) {
+        this.sendHeartbeat(userId);
+      }
+    }, 30000);
+
+    console.log('💓 Heartbeat started');
+  }
+
+  stopHeartbeat(): void {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+      console.log('💔 Heartbeat stopped');
+    }
   }
 }
 

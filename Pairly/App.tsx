@@ -7,6 +7,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { PaperProvider } from 'react-native-paper';
 import { ClerkProvider } from '@clerk/clerk-expo';
 import * as SecureStore from 'expo-secure-store';
+import * as Linking from 'expo-linking';
 import {
   useFonts,
   Inter_400Regular,
@@ -17,10 +18,11 @@ import {
 
 // Import services
 import WidgetBackgroundService from './src/services/WidgetBackgroundService';
+import ReminderService from './src/services/ReminderService';
 
 // Import theme
 import { paperTheme } from './src/theme';
-import { ThemeProvider } from './src/contexts/ThemeContext';
+import { ThemeProvider as PairlyThemeProvider } from './src/contexts/ThemeContext';
 
 // Import navigation
 import { AppNavigator } from './src/navigation/AppNavigator';
@@ -109,9 +111,57 @@ export default function App() {
     }
   }, [fontsLoaded]);
 
-  // Initialize background services
+  // Initialize background services and notifications
   useEffect(() => {
-    WidgetBackgroundService.initialize();
+    const initializeApp = async () => {
+      // Initialize widget and reminders
+      WidgetBackgroundService.initialize();
+      ReminderService.scheduleReminders();
+      
+      // Request notification permissions
+      const NotificationService = (await import('./src/services/NotificationService')).default;
+      const hasPermission = await NotificationService.requestPermissions();
+      
+      if (hasPermission) {
+        console.log('✅ Notification permissions granted');
+        
+        // Setup notification listeners
+        NotificationService.setupListeners(
+          (notification) => {
+            // Notification received while app is open
+            console.log('📬 Notification received:', notification.request.content.title);
+          },
+          (response) => {
+            // Notification tapped
+            console.log('👆 Notification tapped:', response.notification.request.content.data);
+            // TODO: Navigate to relevant screen based on notification type
+          }
+        );
+      } else {
+        console.warn('⚠️ Notification permissions denied');
+      }
+    };
+    
+    initializeApp();
+  }, []);
+
+  // Handle deep links (OAuth redirect)
+  useEffect(() => {
+    const subscription = Linking.addEventListener('url', ({ url }) => {
+      console.log('📱 Deep link received:', url);
+      // Clerk will automatically handle the OAuth callback
+    });
+
+    // Check if app was opened via deep link
+    Linking.getInitialURL().then((url) => {
+      if (url) {
+        console.log('📱 App opened with URL:', url);
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
   }, []);
 
   if (!fontsLoaded) {
@@ -126,11 +176,11 @@ export default function App() {
     <ErrorBoundary>
       <SafeAreaProvider>
         <ClerkProvider publishableKey={CLERK_KEY} tokenCache={tokenCache}>
-          <ThemeProvider>
+          <PairlyThemeProvider>
             <PaperProvider theme={paperTheme}>
               <AppNavigator />
             </PaperProvider>
-          </ThemeProvider>
+          </PairlyThemeProvider>
         </ClerkProvider>
       </SafeAreaProvider>
     </ErrorBoundary>

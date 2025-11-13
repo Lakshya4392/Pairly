@@ -10,6 +10,10 @@ import {
   Modal,
 } from 'react-native';
 import { CustomAlert } from '../components/CustomAlert';
+import { UpgradePrompt } from '../components/UpgradePrompt';
+import { SharedNoteModal } from '../components/SharedNoteModal';
+import { TimeLockModal } from '../components/TimeLockModal';
+import { DualCameraModal } from '../components/DualCameraModal';
 import { PhotoPreviewScreen } from './PhotoPreviewScreen';
 import Animated, {
   useSharedValue,
@@ -17,19 +21,26 @@ import Animated, {
   withSpring,
   withSequence,
   withTiming,
+  withDelay,
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useUser } from '@clerk/clerk-expo';
-import { colors, gradients } from '../theme/colorsIOS';
+import { useTheme } from '../contexts/ThemeContext';
+import { colors as defaultColors, gradients } from '../theme/colorsIOS';
 import { spacing, layout, borderRadius } from '../theme/spacingIOS';
 import { shadows } from '../theme/shadowsIOS';
 import PairingService from '../services/PairingService';
+import PremiumService from '../services/PremiumService';
+import SharedNotesService from '../services/SharedNotesService';
+import TimeLockService from '../services/TimeLockService';
+import { useAuth } from '@clerk/clerk-expo';
 
 interface UploadScreenProps {
   onNavigateToSettings: () => void;
   onNavigateToPairing?: () => void;
   onNavigateToGallery?: () => void;
+  onNavigateToPremium?: () => void;
   isPremium?: boolean;
 }
 
@@ -37,24 +48,44 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
   onNavigateToSettings, 
   onNavigateToPairing,
   onNavigateToGallery,
-  isPremium = false
+  onNavigateToPremium,
+  isPremium = false // Production: Check actual premium status
 }) => {
+  const { colors } = useTheme();
   const { user } = useUser();
+  const { getToken } = useAuth();
+  
+  // Create styles with current theme colors
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
+  
+  // Dynamic gradients based on theme
+  const dynamicGradients = React.useMemo(() => ({
+    primary: [colors.primary, colors.primaryLight],
+    secondary: [colors.secondary, colors.secondaryLight],
+  }), [colors]);
+  
   const [partnerName, setPartnerName] = useState('Your Person');
   const [uploading, setUploading] = useState(false);
   const [recentPhotos, setRecentPhotos] = useState<string[]>([]);
-  const [stats, setStats] = useState({ photosShared: 0, daysActive: 0 });
+  const [dailyMomentsRemaining, setDailyMomentsRemaining] = useState(3);
   const scale = useSharedValue(1);
   const viewAllScale = useSharedValue(1);
   const settingsScale = useSharedValue(1);
   const settingsRotate = useSharedValue(0);
+  const heartScale = useSharedValue(1);
   const [showPhotoOptions, setShowPhotoOptions] = useState(false);
   const [showSuccessAlert, setShowSuccessAlert] = useState(false);
   const [showErrorAlert, setShowErrorAlert] = useState(false);
+  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
   const [isPartnerConnected, setIsPartnerConnected] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [selectedPhotoUri, setSelectedPhotoUri] = useState<string | null>(null);
+  const [showNoteModal, setShowNoteModal] = useState(false);
+  const [showTimeLockModal, setShowTimeLockModal] = useState(false);
+  const [showDualCameraModal, setShowDualCameraModal] = useState(false);
+  const [isPartnerOnline, setIsPartnerOnline] = useState(false);
+  const [partnerLastSeen, setPartnerLastSeen] = useState<Date | null>(null);
 
   // Get user name from Clerk
   const userName = user?.firstName || user?.username || 'User';
@@ -62,7 +93,28 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
   useEffect(() => {
     loadPartnerInfo();
     loadRecentPhotos();
-    loadStats();
+    checkDailyLimit();
+    setupPresence();
+
+    // Heart pulse animation - smooth and romantic
+    const pulseHeart = () => {
+      heartScale.value = withSequence(
+        withSpring(1.3, { damping: 8, stiffness: 120 }),
+        withSpring(1, { damping: 8, stiffness: 120 })
+      );
+    };
+    
+    // Initial pulse after delay
+    setTimeout(pulseHeart, 500);
+    
+    // Repeat pulse every 1.5 seconds (faster)
+    const interval = setInterval(pulseHeart, 1500);
+
+    return () => {
+      // Cleanup
+      cleanupPresence();
+      clearInterval(interval);
+    };
   }, []);
 
   useEffect(() => {
@@ -70,6 +122,253 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
       console.log('✅ Clerk user loaded:', user.firstName, user.username);
     }
   }, [user]);
+
+  const checkDailyLimit = async () => {
+    try {
+      const { remaining } = await PremiumService.canSendMoment();
+      setDailyMomentsRemaining(remaining);
+    } catch (error) {
+      console.error('Error checking daily limit:', error);
+    }
+  };
+
+  const handleSendNote = async (content: string, expiresIn24h: boolean) => {
+    try {
+      // Check if partner is connected
+      if (!isPartnerConnected) {
+        setAlertMessage('Please connect with your partner first 💕');
+        setShowErrorAlert(true);
+        return;
+      }
+
+      // Check premium
+      const hasPremium = await PremiumService.isPremium();
+      if (!hasPremium) {
+        setShowNoteModal(false);
+        setShowUpgradePrompt(true);
+        return;
+      }
+
+      // Get token
+      const token = await getToken();
+      if (!token) {
+        setAlertMessage('Authentication error. Please try again.');
+        setShowErrorAlert(true);
+        return;
+      }
+
+      // Send note
+      const result = await SharedNotesService.sendNote(content, token, expiresIn24h);
+      
+      if (result.success) {
+        setAlertMessage(`Your note has been sent to ${partnerName} 💕`);
+        setShowSuccessAlert(true);
+      } else {
+        setAlertMessage(result.error || 'Failed to send note');
+        setShowErrorAlert(true);
+      }
+    } catch (error) {
+      console.error('Error sending note:', error);
+      setAlertMessage('Failed to send note. Please try again.');
+      setShowErrorAlert(true);
+    }
+  };
+
+  const handleOpenNoteModal = async () => {
+    // Check if partner is connected
+    if (!isPartnerConnected) {
+      setAlertMessage('Please connect with your partner first to send notes 💕');
+      setShowErrorAlert(true);
+      return;
+    }
+
+    // Check premium
+    const hasPremium = await PremiumService.isPremium();
+    if (!hasPremium) {
+      setShowUpgradePrompt(true);
+      return;
+    }
+
+    setShowNoteModal(true);
+  };
+
+  const setupPresence = async () => {
+    try {
+      if (!user || !isPremium) return;
+
+      const RealtimeService = (await import('../services/RealtimeService')).default;
+      const PresenceService = (await import('../services/PresenceService')).default;
+
+      // Load saved presence
+      const presence = await PresenceService.getPartnerPresence();
+      if (presence) {
+        setIsPartnerOnline(presence.isOnline);
+        setPartnerLastSeen(presence.lastSeen);
+      }
+
+      // Listen for presence updates
+      RealtimeService.on('partner_presence', (data: any) => {
+        PresenceService.updatePartnerPresence(
+          data.userId,
+          data.isOnline,
+          new Date(data.timestamp)
+        );
+        setIsPartnerOnline(data.isOnline);
+        setPartnerLastSeen(new Date(data.timestamp));
+      });
+
+      // Listen for heartbeats
+      RealtimeService.on('partner_heartbeat', (data: any) => {
+        setPartnerLastSeen(new Date(data.timestamp));
+      });
+
+      // Start sending heartbeats
+      RealtimeService.startHeartbeat(user.id);
+
+      console.log('✅ Presence setup complete');
+    } catch (error) {
+      console.error('Error setting up presence:', error);
+    }
+  };
+
+  const cleanupPresence = async () => {
+    try {
+      const RealtimeService = (await import('../services/RealtimeService')).default;
+      RealtimeService.stopHeartbeat();
+    } catch (error) {
+      console.error('Error cleaning up presence:', error);
+    }
+  };
+
+  const getLastSeenText = () => {
+    if (!partnerLastSeen) return '';
+    
+    const now = new Date();
+    const diffMs = now.getTime() - partnerLastSeen.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffMins < 1440) return `${Math.floor(diffMins / 60)}h ago`;
+    return 'Recently';
+  };
+
+  const handleOpenTimeLockModal = async () => {
+    // Check if partner is connected
+    if (!isPartnerConnected) {
+      setAlertMessage('Please connect with your partner first 💕');
+      setShowErrorAlert(true);
+      return;
+    }
+
+    // Check premium
+    const hasPremium = await PremiumService.isPremium();
+    if (!hasPremium) {
+      setShowUpgradePrompt(true);
+      return;
+    }
+
+    setShowTimeLockModal(true);
+  };
+
+  const handleOpenDualCameraModal = async () => {
+    // Check if partner is connected
+    if (!isPartnerConnected) {
+      setAlertMessage('Please connect with your partner first 💕');
+      setShowErrorAlert(true);
+      return;
+    }
+
+    // Check premium
+    const hasPremium = await PremiumService.isPremium();
+    if (!hasPremium) {
+      setShowUpgradePrompt(true);
+      return;
+    }
+
+    setShowDualCameraModal(true);
+  };
+
+  const handleCaptureDualMoment = async (title: string) => {
+    try {
+      // Capture photo
+      const PhotoService = (await import('../services/PhotoService')).default;
+      const photo = await PhotoService.capturePhoto();
+      
+      if (!photo) return; // User cancelled
+
+      // Get token
+      const token = await getToken();
+      if (!token) {
+        setAlertMessage('Authentication error. Please try again.');
+        setShowErrorAlert(true);
+        return;
+      }
+
+      // Create dual moment
+      const DualCameraService = (await import('../services/DualCameraService')).default;
+      const result = await DualCameraService.createDualMoment(title, photo.uri, token);
+      
+      if (result.success) {
+        setAlertMessage(`Your photo is saved! Waiting for ${partnerName} to add theirs 💞`);
+        setShowSuccessAlert(true);
+      } else {
+        setAlertMessage(result.error || 'Failed to create dual moment');
+        setShowErrorAlert(true);
+      }
+    } catch (error) {
+      console.error('Error capturing dual moment:', error);
+      setAlertMessage('Failed to capture photo. Please try again.');
+      setShowErrorAlert(true);
+    }
+  };
+
+  const handleSendTimeLock = async (content: string, unlockDate: Date) => {
+    try {
+      // Check if partner is connected
+      if (!isPartnerConnected) {
+        setAlertMessage('Please connect with your partner first 💕');
+        setShowErrorAlert(true);
+        return;
+      }
+
+      // Check premium
+      const hasPremium = await PremiumService.isPremium();
+      if (!hasPremium) {
+        setShowTimeLockModal(false);
+        setShowUpgradePrompt(true);
+        return;
+      }
+
+      // Get token
+      const token = await getToken();
+      if (!token) {
+        setAlertMessage('Authentication error. Please try again.');
+        setShowErrorAlert(true);
+        return;
+      }
+
+      // Send time-lock message
+      const result = await TimeLockService.createTimeLock(content, unlockDate, token);
+      
+      if (result.success) {
+        const dateStr = unlockDate.toLocaleDateString('en-US', { 
+          month: 'short', 
+          day: 'numeric', 
+          year: 'numeric' 
+        });
+        setAlertMessage(`Your message will unlock on ${dateStr} 🔒💕`);
+        setShowSuccessAlert(true);
+      } else {
+        setAlertMessage(result.error || 'Failed to create time-lock message');
+        setShowErrorAlert(true);
+      }
+    } catch (error) {
+      console.error('Error sending time-lock:', error);
+      setAlertMessage('Failed to create time-lock message. Please try again.');
+      setShowErrorAlert(true);
+    }
+  };
 
 
 
@@ -92,34 +391,44 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
     }
   };
 
+
+
   const loadRecentPhotos = async () => {
     try {
-      // Mock data for now - replace with actual API call
-      const mockPhotos = [
-        'https://picsum.photos/200/200?random=1',
-        'https://picsum.photos/200/200?random=2',
-        'https://picsum.photos/200/200?random=3',
-        'https://picsum.photos/200/200?random=4',
-      ];
-      setRecentPhotos(mockPhotos);
+      const LocalPhotoStorage = (await import('../services/LocalPhotoStorage')).default;
+      const photos = await LocalPhotoStorage.getAllPhotos();
+      
+      // Get last 4 photos - get URIs from metadata
+      const recentUris = await Promise.all(
+        photos.slice(0, 4).map(async (p) => {
+          const uri = await LocalPhotoStorage.getPhotoUri(p.id);
+          return uri || '';
+        })
+      );
+      
+      setRecentPhotos(recentUris.filter(uri => uri !== ''));
     } catch (error) {
       console.error('Error loading recent photos:', error);
     }
   };
 
-  const loadStats = async () => {
-    try {
-      // Mock data for now - replace with actual API call
-      setStats({
-        photosShared: 12,
-        daysActive: 5,
-      });
-    } catch (error) {
-      console.error('Error loading stats:', error);
+  const handleCapturePress = async () => {
+    // Check if partner is connected first
+    if (!isPartnerConnected) {
+      setAlertMessage('Please connect with your partner first to share moments 💕');
+      setShowErrorAlert(true);
+      return;
     }
-  };
 
-  const handleCapturePress = () => {
+    // Check daily limit
+    const { canSend, remaining, limit } = await PremiumService.canSendMoment();
+    
+    if (!canSend) {
+      // Show upgrade prompt
+      setShowUpgradePrompt(true);
+      return;
+    }
+
     // Animate button press
     scale.value = withSequence(
       withTiming(0.95, { duration: 100 }),
@@ -198,8 +507,6 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
           // Schedule the moment
           const result = await MomentService.schedulePhoto({
             uri: selectedPhotoUri,
-            width: 0,
-            height: 0,
           }, note, scheduledTime, duration);
           
           if (result.success) {
@@ -213,16 +520,25 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
           // Send immediately
           const result = await MomentService.uploadPhoto({
             uri: selectedPhotoUri,
-            width: 0,
-            height: 0,
           }, note);
           
           if (result.success) {
-            setAlertMessage('Your moment has been shared with your partner');
+            // Increment daily counter
+            await PremiumService.incrementMomentCount();
+            
+            // Update remaining count
+            await checkDailyLimit();
+            
+            setAlertMessage('Your moment has been shared with your partner 💕');
             setShowSuccessAlert(true);
           } else {
-            setAlertMessage(result.error || 'Failed to upload photo');
-            setShowErrorAlert(true);
+            // Check if it's a daily limit error
+            if (result.error?.includes('Daily limit reached') || result.error?.includes('upgradeRequired')) {
+              setShowUpgradePrompt(true);
+            } else {
+              setAlertMessage(result.error || 'Failed to upload photo');
+              setShowErrorAlert(true);
+            }
           }
         }
       }
@@ -254,31 +570,83 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
   }));
 
   const animatedSettingsStyle = useAnimatedStyle(() => ({
+    opacity: withDelay(500, withTiming(1, { duration: 300 })),
+  }));
+
+  const animatedSettingsIconStyle = useAnimatedStyle(() => ({
     transform: [
       { scale: settingsScale.value },
       { rotate: `${settingsRotate.value}deg` }
     ],
   }));
 
+  const animatedHeartStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: heartScale.value }],
+  }));
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="white" />
       
-      {/* Header - Fixed at top */}
+      {/* Header - Compact & Modern */}
       <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <View style={styles.greetingRow}>
-            <Text style={styles.greetingText}>Hello,</Text>
-            <View style={styles.waveIcon}>
-              <Ionicons name="hand-right" size={20} color={colors.primary} />
-            </View>
+        {isPartnerConnected ? (
+          /* Couple Mode - Compact Cards */
+          <View style={styles.coupleContainer}>
+            <LinearGradient
+              colors={[colors.primary + '15', colors.primaryLight + '15']}
+              style={styles.coupleCard}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              {/* User */}
+              <View style={styles.personCompact}>
+                <View style={[styles.avatarCompact, { backgroundColor: colors.primary }]}>
+                  <Text style={styles.avatarTextCompact}>{userName.charAt(0).toUpperCase()}</Text>
+                </View>
+                <Text style={styles.nameCompact} numberOfLines={1}>{userName}</Text>
+              </View>
+
+              {/* Heart */}
+              <Animated.View style={[styles.heartCompact, animatedHeartStyle]}>
+                <Ionicons name="heart" size={18} color="#FF6B9D" />
+              </Animated.View>
+
+              {/* Partner */}
+              <View style={styles.personCompact}>
+                <View style={[styles.avatarCompact, { backgroundColor: colors.secondary }]}>
+                  <Text style={styles.avatarTextCompact}>{partnerName.charAt(0).toUpperCase()}</Text>
+                  {isPremium && isPartnerOnline && (
+                    <View style={styles.onlineDotCompact} />
+                  )}
+                </View>
+                <Text style={styles.nameCompact} numberOfLines={1}>{partnerName}</Text>
+              </View>
+            </LinearGradient>
           </View>
-          <Text style={styles.userName}>{userName}</Text>
-        </View>
+        ) : (
+          /* Solo Mode - Compact Card */
+          <View style={styles.soloContainer}>
+            <LinearGradient
+              colors={[colors.primary + '15', colors.primaryLight + '15']}
+              style={styles.soloCardCompact}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <View style={[styles.avatarCompact, { backgroundColor: colors.primary }]}>
+                <Text style={styles.avatarTextCompact}>{userName.charAt(0).toUpperCase()}</Text>
+              </View>
+              <View style={styles.soloInfoCompact}>
+                <Text style={styles.soloGreeting}>Hey there!</Text>
+                <Text style={styles.soloNameCompact} numberOfLines={1}>{userName}</Text>
+              </View>
+            </LinearGradient>
+          </View>
+        )}
         
         <Animated.View style={animatedSettingsStyle}>
           <TouchableOpacity
-            style={styles.settingsButton}
+            style={styles.settingsButtonCompact}
             onPress={() => {
               // Scale + Rotate animation
               settingsScale.value = withSequence(
@@ -291,37 +659,26 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
               );
               setTimeout(() => onNavigateToSettings(), 150);
             }}
-            activeOpacity={1}
+            activeOpacity={0.7}
           >
-            <LinearGradient
-              colors={[colors.primaryLight, colors.primary]}
-              style={styles.settingsGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
-              <Ionicons name="settings-sharp" size={22} color="white" />
-            </LinearGradient>
+            <Animated.View style={animatedSettingsIconStyle}>
+              <View style={styles.settingsIconContainer}>
+                <Ionicons name="settings-sharp" size={22} color={colors.primary} />
+              </View>
+            </Animated.View>
           </TouchableOpacity>
         </Animated.View>
       </View>
 
       {/* Main Content - Centered */}
       <View style={styles.mainContent}>
-        {/* Partner Status - Compact */}
-        {isPartnerConnected && (
-          <View style={styles.partnerBadge}>
-            <View style={styles.onlineDot} />
-            <Text style={styles.partnerText}>Connected with {partnerName}</Text>
-          </View>
-        )}
-
         {/* Hero Card with Capture Button */}
         <View style={styles.heroCard}>
           <Text style={styles.heroTitle}>Share Your Moment</Text>
           <Text style={styles.heroSubtitle}>
             {!isPartnerConnected
               ? 'Capture and save your memories' 
-              : `Share a special moment with ${partnerName}`
+              : 'Capture a special moment together'
             }
           </Text>
           
@@ -333,7 +690,7 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
               activeOpacity={0.8}
             >
               <LinearGradient
-                colors={uploading ? [colors.disabled, colors.disabled] : gradients.primary}
+                colors={uploading ? [colors.disabled, colors.disabled] as const : dynamicGradients.primary as any}
                 style={styles.captureButtonGradient}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
@@ -346,26 +703,82 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
               </LinearGradient>
             </TouchableOpacity>
           </Animated.View>
+
+          {/* Premium Quick Actions */}
+          {isPremium && isPartnerConnected && (
+            <View style={styles.quickActions}>
+              <TouchableOpacity
+                style={styles.quickActionButton}
+                onPress={handleOpenDualCameraModal}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.quickActionIcon, { backgroundColor: '#E8F5E9' }]}>
+                  <Ionicons name="camera-reverse" size={18} color="#4CAF50" />
+                </View>
+                <Text style={styles.quickActionText}>Dual View</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.quickActionButton}
+                onPress={handleOpenNoteModal}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.quickActionIcon, { backgroundColor: '#FFE5EC' }]}>
+                  <Ionicons name="chatbubble-ellipses" size={18} color="#FF6B9D" />
+                </View>
+                <Text style={styles.quickActionText}>Send Note</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.quickActionButton}
+                onPress={handleOpenTimeLockModal}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.quickActionIcon, { backgroundColor: '#F3E5F5' }]}>
+                  <Ionicons name="time" size={18} color="#9B59B6" />
+                </View>
+                <Text style={styles.quickActionText}>Time-Lock</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
 
-        {/* Recent Moments Card */}
-        {recentPhotos.length > 0 && (
-          <View style={styles.recentCard}>
+        {/* Recent Moments Card - Always show for testing */}
+        <View style={styles.recentCard}>
             <View style={styles.recentHeader}>
               <View style={styles.recentTitleContainer}>
                 <Ionicons name="time-outline" size={20} color={colors.primary} />
                 <Text style={styles.recentTitle}>Recent Moments</Text>
               </View>
-              <View style={styles.recentBadge}>
-                <Text style={styles.recentBadgeText}>{recentPhotos.length}</Text>
-              </View>
+              {recentPhotos.length > 0 && (
+                <View style={styles.recentBadge}>
+                  <Text style={styles.recentBadgeText}>{recentPhotos.length}</Text>
+                </View>
+              )}
             </View>
             <View style={styles.recentPhotosGrid}>
-              {recentPhotos.slice(0, 4).map((photo, index) => (
-                <View key={index} style={styles.recentPhotoThumb}>
-                  <Ionicons name="image" size={24} color={colors.textTertiary} />
-                </View>
-              ))}
+              {recentPhotos.length > 0 ? (
+                recentPhotos.slice(0, 4).map((photoUri, index) => (
+                  <View key={index} style={styles.recentPhotoThumb}>
+                    {photoUri ? (
+                      <Image 
+                        source={{ uri: photoUri }} 
+                        style={styles.recentPhotoImage}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <Ionicons name="image" size={24} color={colors.textTertiary} />
+                    )}
+                  </View>
+                ))
+              ) : (
+                // Placeholder when no photos
+                [0, 1, 2, 3].map((index) => (
+                  <View key={index} style={styles.recentPhotoThumb}>
+                    <Ionicons name="image-outline" size={24} color={colors.textTertiary} />
+                  </View>
+                ))
+              )}
             </View>
             <Animated.View style={animatedViewAllStyle}>
               <TouchableOpacity 
@@ -379,24 +792,23 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
                 }}
                 activeOpacity={1}
               >
-                <Text style={styles.viewAllText}>View All</Text>
+                <Text style={styles.viewAllText}>View All Memories</Text>
                 <Ionicons name="chevron-forward" size={16} color={colors.primary} />
               </TouchableOpacity>
             </Animated.View>
           </View>
-        )}
       </View>
 
-      {/* Bottom Action Bar */}
-      <View style={styles.bottomBar}>
-        {!isPartnerConnected && onNavigateToPairing ? (
+      {/* Bottom Action Bar - Only show if not connected */}
+      {!isPartnerConnected && onNavigateToPairing && (
+        <View style={styles.bottomBar}>
           <TouchableOpacity 
             style={styles.bottomButton}
             onPress={onNavigateToPairing}
             activeOpacity={0.8}
           >
             <LinearGradient
-              colors={gradients.secondary}
+              colors={dynamicGradients.secondary as any}
               style={styles.bottomButtonGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
@@ -405,15 +817,45 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
               <Text style={styles.bottomButtonText}>Connect with Partner</Text>
             </LinearGradient>
           </TouchableOpacity>
-        ) : (
-          <View style={styles.bottomInfo}>
-            <Ionicons name="shield-checkmark" size={18} color={colors.success} />
-            <Text style={styles.bottomInfoText}>
-              {stats.photosShared} photos shared this month
-            </Text>
-          </View>
-        )}
-      </View>
+        </View>
+      )}
+
+      {/* Shared Note Modal */}
+      <SharedNoteModal
+        visible={showNoteModal}
+        onClose={() => setShowNoteModal(false)}
+        onSend={handleSendNote}
+        partnerName={partnerName}
+      />
+
+      {/* Time-Lock Modal */}
+      <TimeLockModal
+        visible={showTimeLockModal}
+        onClose={() => setShowTimeLockModal(false)}
+        onSend={handleSendTimeLock}
+        partnerName={partnerName}
+      />
+
+      {/* Dual Camera Modal */}
+      <DualCameraModal
+        visible={showDualCameraModal}
+        onClose={() => setShowDualCameraModal(false)}
+        onCapture={handleCaptureDualMoment}
+        partnerName={partnerName}
+      />
+
+      {/* Upgrade Prompt */}
+      <UpgradePrompt
+        visible={showUpgradePrompt}
+        onClose={() => setShowUpgradePrompt(false)}
+        onUpgrade={() => {
+          setShowUpgradePrompt(false);
+          onNavigateToPremium?.();
+        }}
+        type="daily-limit"
+        currentCount={3}
+        limit={3}
+      />
 
       {/* Photo Options Alert */}
       <CustomAlert
@@ -501,58 +943,125 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+// Create styles function that accepts colors
+const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
   },
 
-  // Header - Clean & Minimal
+  // Header - Compact & Modern
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: layout.screenPaddingHorizontal,
-    paddingTop: spacing.massive,
-    paddingBottom: spacing.xxl,
+    paddingTop: spacing.xxl,
+    paddingBottom: spacing.md,
   },
-  headerLeft: {
+  
+  // Couple Mode - Compact
+  coupleContainer: {
     flex: 1,
-    paddingRight: spacing.xl,
+    marginRight: spacing.md,
   },
-  greetingRow: {
+  coupleCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: spacing.xs,
+    justifyContent: 'space-between',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  personCompact: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing.sm,
+    flex: 1,
   },
-  greetingText: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    fontFamily: 'Inter-Medium',
-  },
-  waveIcon: {
-    width: 28,
-    height: 28,
-    backgroundColor: colors.primaryPastel,
-    borderRadius: 14,
+  avatarCompact: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
+    position: 'relative',
+  },
+  avatarTextCompact: {
+    fontFamily: 'Inter-Bold',
+    fontSize: 14,
+    color: 'white',
+  },
+  nameCompact: {
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 14,
+    color: colors.text,
+    flex: 1,
+  },
+  heartCompact: {
+    marginLeft: spacing.xs,
+    marginRight: spacing.md,
+  },
+  onlineDotCompact: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#4CAF50',
+    borderWidth: 2,
+    borderColor: 'white',
+  },
+  
+  // Solo Mode - Compact
+  soloContainer: {
+    flex: 1,
+    marginRight: spacing.md,
+  },
+  soloCardCompact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  soloInfoCompact: {
+    flex: 1,
+  },
+  soloGreeting: {
+    fontFamily: 'Inter-Medium',
+    fontSize: 11,
+    color: colors.textSecondary,
+  },
+  soloNameCompact: {
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 15,
+    color: colors.text,
   },
   userName: {
     fontFamily: 'Inter-Bold', fontSize: 28, lineHeight: 36,
     color: colors.text,
     letterSpacing: 0.5,
   },
-  settingsButton: {
-    width: 48,
-    height: 48,
-    borderRadius: borderRadius.lg,
-    overflow: 'hidden',
-    ...shadows.md,
+  settingsButtonCompact: {
+    width: 44,
+    height: 44,
   },
-  settingsGradient: {
-    flex: 1,
+  settingsIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -579,6 +1088,11 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-SemiBold', fontSize: 14,
     color: colors.secondary,
   },
+  presenceText: {
+    fontFamily: 'Inter-Medium',
+    fontSize: 13,
+    color: colors.textSecondary,
+  },
 
   // Main Content - Centered
   mainContent: {
@@ -586,7 +1100,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: layout.screenPaddingHorizontal,
-    paddingTop: spacing.xl,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.md,
   },
   
   // Hero Card
@@ -634,6 +1149,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 70,
   },
+  quickActions: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginTop: spacing.xl,
+    width: '100%',
+  },
+  quickActionButton: {
+    flex: 1,
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  quickActionIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...shadows.sm,
+  },
+  quickActionText: {
+    fontFamily: 'Inter-Medium',
+    fontSize: 13,
+    color: colors.textSecondary,
+  },
 
   // Recent Moments Card
   recentCard: {
@@ -641,7 +1180,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: borderRadius.xxl,
     padding: spacing.xl,
-    marginBottom: spacing.xxxl,
+    marginBottom: spacing.xl,
     ...shadows.md,
   },
   recentHeader: {
@@ -681,6 +1220,30 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.lg,
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
+  },
+  recentPhotoImage: {
+    width: '100%',
+    height: '100%',
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: spacing.xxxl,
+    paddingHorizontal: spacing.xl,
+  },
+  emptyStateTitle: {
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 18,
+    color: colors.text,
+    marginTop: spacing.lg,
+    marginBottom: spacing.sm,
+  },
+  emptyStateText: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
   },
   viewAllContainer: {
     flexDirection: 'row',
@@ -696,7 +1259,8 @@ const styles = StyleSheet.create({
   // Bottom Action Bar
   bottomBar: {
     paddingHorizontal: layout.screenPaddingHorizontal,
-    paddingVertical: spacing.xl,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.xl,
     backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.border,
@@ -727,4 +1291,5 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Medium', fontSize: 14,
     color: colors.textSecondary,
   },
+
 });

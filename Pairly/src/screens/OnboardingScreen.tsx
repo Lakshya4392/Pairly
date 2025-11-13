@@ -15,7 +15,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, gradients } from '../theme/colorsIOS';
+import { useTheme } from '../contexts/ThemeContext';
+import { colors as defaultColors, gradients } from '../theme/colorsIOS';
 import { spacing, borderRadius } from '../theme/spacingIOS';
 import { shadows } from '../theme/shadowsIOS';
 import { typography } from '../utils/fonts';
@@ -26,31 +27,33 @@ interface OnboardingScreenProps {
   onComplete: () => void;
 }
 
-const slides = [
-  {
-    id: 1,
-    icon: 'heart',
-    title: 'Share Moments',
-    description: 'Capture and share special moments with your loved one in real-time',
-    color: colors.primary,
-  },
-  {
-    id: 2,
-    icon: 'people',
-    title: 'Stay Connected',
-    description: 'Simple pairing system to connect with your partner instantly',
-    color: colors.secondary,
-  },
-  {
-    id: 3,
-    icon: 'shield-checkmark',
-    title: 'Private & Secure',
-    description: 'Your moments are encrypted and shared only between you two',
-    color: colors.accent,
-  },
-];
-
 export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }) => {
+  const { colors } = useTheme();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
+  
+  const slides = [
+    {
+      id: 1,
+      icon: 'heart',
+      title: 'Share Moments',
+      description: 'Capture and share special moments with your loved one in real-time',
+      color: colors.primary,
+    },
+    {
+      id: 2,
+      icon: 'people',
+      title: 'Stay Connected',
+      description: 'Simple pairing system to connect with your partner instantly',
+      color: colors.secondary,
+    },
+    {
+      id: 3,
+      icon: 'shield-checkmark',
+      title: 'Private & Secure',
+      description: 'Your moments are encrypted and shared only between you two',
+      color: colors.mint || colors.primary,
+    },
+  ];
   const [currentIndex, setCurrentIndex] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
   const scrollX = useSharedValue(0);
@@ -169,7 +172,7 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,

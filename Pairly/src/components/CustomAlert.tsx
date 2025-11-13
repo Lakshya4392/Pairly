@@ -8,7 +8,8 @@ import {
   Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../theme/colorsIOS';
+import { useTheme } from '../contexts/ThemeContext';
+import { colors as defaultColors } from '../theme/colorsIOS';
 import { spacing, borderRadius } from '../theme/spacingIOS';
 import { shadows } from '../theme/shadowsIOS';
 
@@ -31,10 +32,13 @@ export const CustomAlert: React.FC<CustomAlertProps> = ({
   title,
   message,
   icon,
-  iconColor = colors.primary,
+  iconColor,
   buttons,
   onClose,
 }) => {
+  const { colors } = useTheme();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
+  const finalIconColor = iconColor || colors.primary;
   const scaleAnim = React.useRef(new Animated.Value(0)).current;
 
   React.useEffect(() => {
@@ -92,8 +96,8 @@ export const CustomAlert: React.FC<CustomAlertProps> = ({
           ]}
         >
           {icon && (
-            <View style={[styles.iconContainer, { backgroundColor: iconColor + '20' }]}>
-              <Ionicons name={icon} size={32} color={iconColor} />
+            <View style={[styles.iconContainer, { backgroundColor: finalIconColor + '20' }]}>
+              <Ionicons name={icon} size={32} color={finalIconColor} />
             </View>
           )}
           
@@ -123,7 +127,7 @@ export const CustomAlert: React.FC<CustomAlertProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',

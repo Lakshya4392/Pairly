@@ -11,6 +11,60 @@ export const uploadMoment = async (req: AuthRequest, res: Response): Promise<voi
   try {
     const userId = req.userId!;
 
+    // Get user to check premium status and daily limit
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        error: 'User not found',
+      } as ApiResponse);
+      return;
+    }
+
+    // Check daily limit for free users
+    if (!user.isPremium) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      // Reset counter if new day
+      if (!user.lastMomentDate || user.lastMomentDate < today) {
+        await prisma.user.update({
+          where: { id: userId },
+          data: {
+            dailyMomentsCount: 0,
+            lastMomentDate: new Date(),
+          },
+        });
+        user.dailyMomentsCount = 0;
+      }
+
+      // Check limit (3 moments per day for free users)
+      if (user.dailyMomentsCount >= 3) {
+        res.status(403).json({
+          success: false,
+          error: 'Daily limit reached',
+          message: 'Upgrade to Premium for unlimited moments 💕',
+          upgradeRequired: true,
+          currentCount: user.dailyMomentsCount,
+          limit: 3,
+        } as ApiResponse);
+        return;
+      }
+
+      // Increment counter
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          dailyMomentsCount: user.dailyMomentsCount + 1,
+        },
+      });
+
+      console.log(`📊 User ${userId} daily moments: ${user.dailyMomentsCount + 1}/3`);
+    }
+
     // Check if user is paired
     const pair = await prisma.pair.findFirst({
       where: {

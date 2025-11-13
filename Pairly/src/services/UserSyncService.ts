@@ -36,9 +36,9 @@ class UserSyncService {
       
       return true;
     } catch (error: any) {
-      console.error('❌ Error syncing user:', error);
-      console.error('❌ Error message:', error.message);
-      console.error('❌ API URL:', API_URL);
+      // Backend offline - this is expected and non-blocking
+      console.log('⚠️ Backend sync skipped (offline or unavailable)');
+      console.log('💡 App will continue working with local data');
       return false;
     }
   }

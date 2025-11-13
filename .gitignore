@@ -67,3 +67,7 @@ backend/prisma/migrations/**/migration.sql
 *.tmp
 *.temp
 .cache/
+
+
+.windsurf/rules/kluster-code-verify.md
+.kluster

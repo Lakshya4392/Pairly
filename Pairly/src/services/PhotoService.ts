@@ -4,10 +4,20 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { Platform, Alert } from 'react-native';
 import { PhotoAsset, CompressedPhoto } from '@types';
 
-const MAX_FILE_SIZE = 500 * 1024; // 500KB
-const MAX_WIDTH = 1080;
-const MAX_HEIGHT = 1920;
-const JPEG_QUALITY = 0.85;
+const qualitySettings = {
+  default: {
+    maxFileSize: 500 * 1024, // 500KB
+    maxWidth: 1080,
+    maxHeight: 1920,
+    jpegQuality: 0.85,
+  },
+  premium: {
+    maxFileSize: 2 * 1024 * 1024, // 2MB
+    maxWidth: 1920,
+    maxHeight: 1920,
+    jpegQuality: 0.95,
+  },
+};
 
 class PhotoService {
   /**
@@ -53,7 +63,7 @@ class PhotoService {
         mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [4, 3],
-        quality: 1,
+        quality: 1, // Always capture at full quality
       });
 
       if (result.canceled || !result.assets || result.assets.length === 0) {
@@ -86,7 +96,7 @@ class PhotoService {
         mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [4, 3],
-        quality: 1,
+        quality: 1, // Always select at full quality
       });
 
       if (result.canceled || !result.assets || result.assets.length === 0) {
@@ -119,8 +129,13 @@ class PhotoService {
   /**
    * Compress photo to meet size requirements
    */
-  async compressPhoto(photoAsset: PhotoAsset): Promise<CompressedPhoto> {
+  async compressPhoto(
+    photoAsset: PhotoAsset,
+    quality: 'default' | 'premium' = 'default'
+  ): Promise<CompressedPhoto> {
     try {
+      const settings = qualitySettings[quality];
+
       // Get file info
       const fileInfo = await FileSystem.getInfoAsync(photoAsset.uri);
       if (!fileInfo.exists) {
@@ -128,17 +143,17 @@ class PhotoService {
       }
 
       let manipulatedImage = photoAsset.uri;
-      let currentQuality = JPEG_QUALITY;
+      let currentQuality = settings.jpegQuality;
 
       // Resize if dimensions are too large
-      if (photoAsset.width > MAX_WIDTH || photoAsset.height > MAX_HEIGHT) {
+      if (photoAsset.width > settings.maxWidth || photoAsset.height > settings.maxHeight) {
         const result = await ImageManipulator.manipulateAsync(
           photoAsset.uri,
           [
             {
               resize: {
-                width: Math.min(photoAsset.width, MAX_WIDTH),
-                height: Math.min(photoAsset.height, MAX_HEIGHT),
+                width: Math.min(photoAsset.width, settings.maxWidth),
+                height: Math.min(photoAsset.height, settings.maxHeight),
               },
             },
           ],
@@ -167,7 +182,7 @@ class PhotoService {
         const compressedFileInfo = await FileSystem.getInfoAsync(result.uri);
         const fileSize = (compressedFileInfo as any).size || 0;
 
-        if (fileSize <= MAX_FILE_SIZE) {
+        if (fileSize <= settings.maxFileSize) {
           // Convert to base64
           const base64 = await FileSystem.readAsStringAsync(result.uri, {
             encoding: 'base64' as any,

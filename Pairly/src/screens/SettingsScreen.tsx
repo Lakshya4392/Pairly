@@ -16,9 +16,11 @@ import { ProfileEditor } from '../components/ProfileEditor';
 import { DeleteAccountModal } from '../components/DeleteAccountModal';
 import { CustomAlert } from '../components/CustomAlert';
 import { ThemeSelectorModal } from '../components/ThemeSelectorModal';
+
 import { PINSetupModal } from '../components/PINSetupModal';
 import { RatingModal } from '../components/RatingModal';
-import { colors, gradients } from '../theme/colorsIOS';
+import { useTheme } from '../contexts/ThemeContext';
+import { colors as defaultColors, gradients } from '../theme/colorsIOS';
 import { spacing, borderRadius, layout } from '../theme/spacingIOS';
 import { shadows } from '../theme/shadowsIOS';
 
@@ -37,19 +39,13 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   onUpgradeToPremium,
   onNavigateToPairing 
 }) => {
+  const { colors, isDarkMode, toggleDarkMode: toggleTheme } = useTheme();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const { user } = useUser();
   const { signOut } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>('account');
   const [notifications, setNotifications] = useState(true);
-  const [autoSave, setAutoSave] = useState(true);
-  const [highQuality, setHighQuality] = useState(isPremium);
-  const [privateMode, setPrivateMode] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
-  const [photoNotif, setPhotoNotif] = useState(true);
-  const [likeNotif, setLikeNotif] = useState(true);
   const [partnerOnlineNotif, setPartnerOnlineNotif] = useState(true);
-  const [soundEnabled, setSoundEnabled] = useState(true);
-  const [vibrationEnabled, setVibrationEnabled] = useState(true);
   const [showProfileEditor, setShowProfileEditor] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [userName, setUserName] = useState('User');
@@ -62,11 +58,11 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [isPartnerConnected, setIsPartnerConnected] = useState(false);
   const [appLockEnabled, setAppLockEnabled] = useState(false);
   const [biometricEnabled, setBiometricEnabled] = useState(false);
+  const [privateMode, setPrivateMode] = useState(false);
   const [goodMorningReminder, setGoodMorningReminder] = useState(false);
   const [goodNightReminder, setGoodNightReminder] = useState(false);
   const [showPINSetup, setShowPINSetup] = useState(false);
   const [showThemeSelector, setShowThemeSelector] = useState(false);
-  const [showFilterSelector, setShowFilterSelector] = useState(false);
   const [showRatingModal, setShowRatingModal] = useState(false);
 
   useEffect(() => {
@@ -83,8 +79,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       const settings = await SettingsService.getSettings();
       
       setNotifications(settings.notificationsEnabled);
-      setSoundEnabled(settings.soundEnabled);
-      setVibrationEnabled(settings.vibrationEnabled);
       setPartnerOnlineNotif(settings.partnerOnlineNotifications);
       
       console.log('✅ Settings loaded:', settings);
@@ -133,10 +127,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
   const loadAllPremiumSettings = async () => {
     try {
-      // Load theme settings
-      const ThemeService = (await import('../services/ThemeService')).default;
-      const theme = await ThemeService.getTheme();
-      setDarkMode(theme.mode === 'dark');
+      // Theme is already loaded from ThemeContext (isDarkMode)
+      // No need to load separately
       
       // Load high quality setting
       const highQualitySetting = await AsyncStorage.getItem('@pairly_high_quality');
@@ -174,10 +166,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       return;
     }
     
-    setDarkMode(enabled);
     try {
-      const ThemeService = (await import('../services/ThemeService')).default;
-      await ThemeService.setThemeMode(enabled ? 'dark' : 'light');
+      // Use ThemeContext's toggleDarkMode for instant updates
+      await toggleTheme();
       setSuccessMessage(enabled ? 'Dark mode enabled' : 'Dark mode disabled');
       setShowSuccessAlert(true);
     } catch (error) {
@@ -209,13 +200,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     }
   };
 
-  const handleOpenFilterSelector = () => {
-    if (!isPremium) {
-      handlePremiumFeature('Photo Filters');
-      return;
-    }
-    setShowFilterSelector(true);
-  };
+
 
   const handleToggleAppLock = async (enabled: boolean) => {
     if (!isPremium) {
@@ -263,6 +248,15 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     setGoodMorningReminder(enabled);
     try {
       await AsyncStorage.setItem('@pairly_morning_reminder', enabled.toString());
+      
+      // Schedule/cancel notification
+      const NotificationService = (await import('../services/NotificationService')).default;
+      if (enabled && partnerName) {
+        await NotificationService.scheduleGoodMorningReminder('08:00', partnerName);
+      } else {
+        await NotificationService.cancelReminder('goodMorning');
+      }
+      
       setSuccessMessage(enabled ? 'Good morning reminder enabled' : 'Good morning reminder disabled');
       setShowSuccessAlert(true);
     } catch (error) {
@@ -279,6 +273,15 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     setGoodNightReminder(enabled);
     try {
       await AsyncStorage.setItem('@pairly_night_reminder', enabled.toString());
+      
+      // Schedule/cancel notification
+      const NotificationService = (await import('../services/NotificationService')).default;
+      if (enabled && partnerName) {
+        await NotificationService.scheduleGoodNightReminder('22:00', partnerName);
+      } else {
+        await NotificationService.cancelReminder('goodNight');
+      }
+      
       setSuccessMessage(enabled ? 'Good night reminder enabled' : 'Good night reminder disabled');
       setShowSuccessAlert(true);
     } catch (error) {
@@ -288,8 +291,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
   const handleSelectTheme = async (themeId: string) => {
     try {
-      const ThemeService = (await import('../services/ThemeService')).default;
-      await ThemeService.setColorTheme(themeId as any);
+      // Theme is already set by ThemeSelectorModal using setColorTheme from context
+      // Just show success message
       setSuccessMessage('Theme changed successfully');
       setShowSuccessAlert(true);
     } catch (error) {
@@ -317,6 +320,11 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
   const confirmSignOut = async () => {
     try {
+      // Clear premium status
+      const PremiumService = (await import('../services/PremiumService')).default;
+      await PremiumService.clearPremiumStatus();
+      
+      // Sign out
       await signOut();
       console.log('✅ Signed out successfully');
       // Navigator will automatically redirect to auth screen
@@ -361,27 +369,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     }
   };
 
-  const handleToggleSound = async (enabled: boolean) => {
-    setSoundEnabled(enabled);
-    try {
-      const SettingsService = (await import('../services/SettingsService')).default;
-      await SettingsService.toggleSound(enabled, user?.id);
-      console.log('✅ Sound:', enabled);
-    } catch (error) {
-      console.error('❌ Error toggling sound:', error);
-    }
-  };
 
-  const handleToggleVibration = async (enabled: boolean) => {
-    setVibrationEnabled(enabled);
-    try {
-      const SettingsService = (await import('../services/SettingsService')).default;
-      await SettingsService.toggleVibration(enabled, user?.id);
-      console.log('✅ Vibration:', enabled);
-    } catch (error) {
-      console.error('❌ Error toggling vibration:', error);
-    }
-  };
 
   const handleTogglePartnerOnline = async (enabled: boolean) => {
     setPartnerOnlineNotif(enabled);
@@ -640,32 +628,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           }
         />
         <SettingItem
-          icon="volume-high"
-          title="Sound"
-          subtitle="Play sound with notifications"
-          rightElement={
-            <Switch
-              value={soundEnabled}
-              onValueChange={handleToggleSound}
-              trackColor={{ false: colors.disabled, true: colors.primaryLight }}
-              thumbColor={soundEnabled ? colors.primary : colors.textTertiary}
-            />
-          }
-        />
-        <SettingItem
-          icon="phone-portrait"
-          title="Vibration"
-          subtitle="Vibrate on notifications"
-          rightElement={
-            <Switch
-              value={vibrationEnabled}
-              onValueChange={handleToggleVibration}
-              trackColor={{ false: colors.disabled, true: colors.primaryLight }}
-              thumbColor={vibrationEnabled ? colors.primary : colors.textTertiary}
-            />
-          }
-        />
-        <SettingItem
           icon="person-add"
           title="Partner Online"
           subtitle="Notify when partner comes online"
@@ -725,17 +687,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         />
       </View>
 
-      <SectionHeader title="CUSTOM SOUNDS (PREMIUM)" />
-      <View style={styles.section}>
-        <SettingItem
-          icon="musical-notes"
-          title="Notification Sounds"
-          subtitle="15+ romantic notification sounds"
-          isPremiumFeature={!isPremium}
-          onPress={() => !isPremium && handlePremiumFeature('Custom Sounds')}
-          isLast
-        />
-      </View>
+
     </ScrollView>
   );
 
@@ -751,10 +703,10 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           onPress={() => !isPremium && handlePremiumFeature('Dark Mode')}
           rightElement={
             <Switch
-              value={darkMode}
+              value={isDarkMode}
               onValueChange={handleToggleDarkMode}
               trackColor={{ false: colors.border, true: colors.primaryLight }}
-              thumbColor={darkMode ? colors.primary : colors.textTertiary}
+              thumbColor={isDarkMode ? colors.primary : colors.textTertiary}
               disabled={!isPremium}
             />
           }
@@ -765,47 +717,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           subtitle="Choose from 5 beautiful color themes"
           isPremiumFeature={!isPremium}
           onPress={handleOpenThemeSelector}
-          isLast
-        />
-      </View>
-
-      <SectionHeader title="PHOTO QUALITY" />
-      <View style={styles.section}>
-        <SettingItem
-          icon="save"
-          title="Auto-save Photos"
-          subtitle="Save received photos automatically"
-          rightElement={
-            <Switch
-              value={autoSave}
-              onValueChange={setAutoSave}
-              trackColor={{ false: colors.border, true: colors.primaryLight }}
-              thumbColor={autoSave ? colors.primary : colors.textTertiary}
-            />
-          }
-        />
-        <SettingItem
-          icon="image"
-          title="High Quality Upload"
-          subtitle="Upload photos in original quality"
-          isPremiumFeature={!isPremium}
-          onPress={() => !isPremium && handlePremiumFeature('High Quality Upload')}
-          rightElement={
-            <Switch
-              value={highQuality}
-              onValueChange={handleToggleHighQuality}
-              trackColor={{ false: colors.border, true: colors.primaryLight }}
-              thumbColor={highQuality ? colors.primary : colors.textTertiary}
-              disabled={!isPremium}
-            />
-          }
-        />
-        <SettingItem
-          icon="sparkles"
-          title="Photo Filters"
-          subtitle="20+ Instagram-style filters"
-          isPremiumFeature={!isPremium}
-          onPress={handleOpenFilterSelector}
           isLast
         />
       </View>
@@ -827,24 +738,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               disabled={!isPremium}
             />
           }
-        />
-        <SettingItem
-          icon="eye-off"
-          title="Private Mode"
-          subtitle="Hide app content in recent apps"
-          isPremiumFeature={!isPremium}
-          onPress={() => !isPremium && handlePremiumFeature('Private Mode')}
-          rightElement={
-            <Switch
-              value={privateMode}
-              onValueChange={handleTogglePrivateMode}
-              trackColor={{ false: colors.border, true: colors.primaryLight }}
-              thumbColor={privateMode ? colors.primary : colors.textTertiary}
-              disabled={!isPremium}
-            />
-          }
           isLast
         />
+
       </View>
     </ScrollView>
   );
@@ -940,6 +836,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         onClose={() => setShowThemeSelector(false)}
         onSelectTheme={handleSelectTheme}
       />
+
+
 
       {/* PIN Setup Modal */}
       <PINSetupModal
@@ -1103,7 +1001,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -1132,8 +1030,8 @@ const styles = StyleSheet.create({
   // Premium Banner
   premiumBanner: {
     marginHorizontal: layout.screenPaddingHorizontal,
-    marginBottom: spacing.lg,
-    borderRadius: borderRadius.xl,
+    marginBottom: spacing.xl,
+    borderRadius: borderRadius.xxl,
     overflow: 'hidden',
     ...shadows.lg,
     elevation: 8,
@@ -1141,13 +1039,12 @@ const styles = StyleSheet.create({
   premiumGradient: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 20,
-    paddingHorizontal: 20,
+    paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.xl,
+    gap: spacing.lg,
   },
   premiumTextContainer: {
     flex: 1,
-    marginLeft: 16,
-    marginRight: 16,
   },
   premiumBannerTitle: {
     fontFamily: 'Inter-Bold', fontSize: 17,
@@ -1165,8 +1062,8 @@ const styles = StyleSheet.create({
   tabsContainer: {
     flexDirection: 'row',
     paddingHorizontal: layout.screenPaddingHorizontal,
-    marginBottom: spacing.xl,
-    gap: spacing.md,
+    marginBottom: spacing.xxl,
+    gap: spacing.lg,
   },
   tab: {
     flex: 1,
@@ -1174,12 +1071,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: spacing.lg,
     paddingHorizontal: spacing.sm,
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.backgroundTertiary,
     borderRadius: borderRadius.lg,
     gap: spacing.xs,
   },
   activeTab: {
-    backgroundColor: colors.primaryPastel,
+    backgroundColor: colors.backgroundTertiary,
   },
   tabLabel: {
     fontFamily: 'Inter-Medium', fontSize: 11,
@@ -1194,6 +1091,7 @@ const styles = StyleSheet.create({
   tabContent: {
     flex: 1,
     paddingHorizontal: layout.screenPaddingHorizontal,
+    paddingBottom: spacing.xxxl,
   },
 
   // Section
@@ -1202,14 +1100,15 @@ const styles = StyleSheet.create({
     color: colors.textTertiary,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
-    marginTop: spacing.xl,
-    marginBottom: spacing.md,
+    marginTop: spacing.xxl,
+    marginBottom: spacing.lg,
+    paddingHorizontal: spacing.sm,
   },
   section: {
     backgroundColor: colors.surface,
     borderRadius: borderRadius.xl,
     overflow: 'hidden',
-    marginBottom: spacing.lg,
+    marginBottom: spacing.xl,
     ...shadows.md,
   },
 
@@ -1217,11 +1116,11 @@ const styles = StyleSheet.create({
   profileCardPremium: {
     borderRadius: borderRadius.xxl,
     overflow: 'hidden',
-    marginBottom: spacing.lg,
+    marginBottom: spacing.xl,
     ...shadows.lg,
   },
   premiumProfileGradient: {
-    padding: spacing.xxl,
+    padding: spacing.xxxl,
   },
   premiumContent: {
     flexDirection: 'row',
@@ -1369,16 +1268,17 @@ const styles = StyleSheet.create({
   partnerCardSettings: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: spacing.xl,
-    gap: spacing.lg,
+    padding: spacing.xxl,
+    gap: spacing.xl,
+    minHeight: 80,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
   partnerIconSettings: {
-    width: 48,
-    height: 48,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.secondaryLight + '20',
+    width: 52,
+    height: 52,
+    borderRadius: borderRadius.lg,
+    backgroundColor: colors.secondaryPastel,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1435,7 +1335,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.lg,
+    paddingVertical: spacing.xl,
+    minHeight: 64,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
@@ -1454,13 +1355,13 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: borderRadius.md,
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.backgroundTertiary,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: spacing.lg,
   },
   premiumIcon: {
-    backgroundColor: colors.secondaryLight + '20',
+    backgroundColor: colors.backgroundTertiary,
   },
   settingText: {
     flex: 1,

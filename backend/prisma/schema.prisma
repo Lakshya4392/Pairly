@@ -24,10 +24,16 @@ model User {
   phoneNumber   String?
   
   // Premium subscription
-  isPremium     Boolean   @default(false)
-  premiumPlan   String?   // 'monthly' or 'yearly'
-  premiumSince  DateTime?
-  premiumExpiry DateTime?
+  isPremium          Boolean   @default(false)
+  premiumPlan        String?   // 'monthly' | 'yearly'
+  premiumSince       DateTime?
+  premiumExpiry      DateTime?
+  revenueCatId       String?   // RevenueCat customer ID
+  trialEndsAt        DateTime? // 7-day trial tracking
+  
+  // Daily limits (for free users)
+  dailyMomentsCount  Int       @default(0)
+  lastMomentDate     DateTime? // Reset counter daily
   
   // Settings
   notificationsEnabled Boolean @default(true)
@@ -40,9 +46,14 @@ model User {
   lastActiveAt  DateTime  @default(now())
   
   // Relationships
-  pairAsUser1   Pair?     @relation("User1")
-  pairAsUser2   Pair?     @relation("User2")
-  uploadedMoments Moment[] @relation("Uploader")
+  pairAsUser1      Pair?            @relation("User1")
+  pairAsUser2      Pair?            @relation("User2")
+  uploadedMoments  Moment[]         @relation("Uploader")
+  sharedNotes      SharedNote[]     @relation("NoteSender")
+  timeLockMessages TimeLockMessage[] @relation("MessageSender")
+  secretVault      SecretVaultItem[] @relation("VaultOwner")
+  dualMomentsAsUser    DualMoment[] @relation("DualMomentUser")
+  dualMomentsAsPartner DualMoment[] @relation("DualMomentPartner")
   
   @@index([clerkId])
   @@index([email])
@@ -56,9 +67,12 @@ model Pair {
   codeExpiresAt DateTime?
   pairedAt      DateTime  @default(now())
   
-  user1         User      @relation("User1", fields: [user1Id], references: [id])
-  user2         User      @relation("User2", fields: [user2Id], references: [id])
-  moments       Moment[]
+  user1            User              @relation("User1", fields: [user1Id], references: [id])
+  user2            User              @relation("User2", fields: [user2Id], references: [id])
+  moments          Moment[]
+  sharedNotes      SharedNote[]
+  timeLockMessages TimeLockMessage[]
+  secretVault      SecretVaultItem[]
   
   @@index([inviteCode])
 }
@@ -82,4 +96,79 @@ model Moment {
   
   @@index([pairId, uploadedAt])
   @@index([isScheduled, scheduledFor])
+}
+
+// NEW PREMIUM FEATURES
+
+// Shared Notes - "Because not every moment needs a photo"
+model SharedNote {
+  id          String    @id @default(cuid())
+  senderId    String
+  pairId      String
+  content     String    // Max 500 chars
+  expiresAt   DateTime? // Auto-delete after 24hrs (optional)
+  createdAt   DateTime  @default(now())
+  
+  sender      User      @relation("NoteSender", fields: [senderId], references: [id])
+  pair        Pair      @relation(fields: [pairId], references: [id], onDelete: Cascade)
+  
+  @@index([pairId, createdAt])
+  @@index([expiresAt])
+}
+
+// Time-Lock Messages - "Send love to your future"
+model TimeLockMessage {
+  id            String    @id @default(cuid())
+  senderId      String
+  pairId        String
+  content       String
+  photoData     Bytes?    // Optional photo
+  unlockDate    DateTime  // When to deliver
+  isDelivered   Boolean   @default(false)
+  deliveredAt   DateTime?
+  createdAt     DateTime  @default(now())
+  
+  sender        User      @relation("MessageSender", fields: [senderId], references: [id])
+  pair          Pair      @relation(fields: [pairId], references: [id], onDelete: Cascade)
+  
+  @@index([unlockDate, isDelivered])
+  @@index([pairId])
+}
+
+// Secret Vault - "Some memories are just for you two"
+model SecretVaultItem {
+  id            String    @id @default(cuid())
+  userId        String
+  pairId        String
+  type          String    // 'photo' | 'video' | 'note'
+  encryptedData Bytes     // AES encrypted content
+  thumbnail     Bytes?    // Encrypted thumbnail for photos
+  title         String?   // Optional title
+  createdAt     DateTime  @default(now())
+  
+  owner         User      @relation("VaultOwner", fields: [userId], references: [id])
+  pair          Pair      @relation(fields: [pairId], references: [id], onDelete: Cascade)
+  
+  @@index([userId, pairId])
+  @@index([createdAt])
+}
+
+// Dual Camera Moments - "Capture from two worlds, one moment"
+model DualMoment {
+  id              String    @id @default(cuid())
+  userId          String
+  partnerId       String
+  frontPhotoUrl   String?   // Front camera photo
+  backPhotoUrl    String?   // Back camera photo
+  note            String?   // Optional note
+  status          String    @default("pending") // 'pending' | 'completed'
+  createdAt       DateTime  @default(now())
+  completedAt     DateTime?
+  
+  user            User      @relation("DualMomentUser", fields: [userId], references: [id])
+  partner         User      @relation("DualMomentPartner", fields: [partnerId], references: [id])
+  
+  @@index([userId, status])
+  @@index([partnerId, status])
+  @@index([createdAt])
 }

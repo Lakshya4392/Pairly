@@ -11,6 +11,7 @@ import { PremiumScreen } from '../screens/PremiumScreen';
 import { GalleryScreen } from '../screens/GalleryScreen';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_CONFIG } from '../config/api.config';
 
 type Screen = 
   | 'splash'
@@ -28,7 +29,7 @@ interface AppNavigatorProps {
 }
 
 export const AppNavigator: React.FC<AppNavigatorProps> = () => {
-  const { isSignedIn, isLoaded } = useAuth();
+  const { isSignedIn, isLoaded, getToken } = useAuth();
   const { user } = useUser();
   const [currentScreen, setCurrentScreen] = useState<Screen>('splash');
   const [isPremium, setIsPremium] = useState(false);
@@ -46,7 +47,14 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
     checkPremiumStatus();
     loadBackgroundSyncQueue();
     initializeWidgetService();
+    setupRealtimeListeners();
   }, []);
+
+  useEffect(() => {
+    if (isSignedIn && user) {
+      connectRealtime();
+    }
+  }, [isSignedIn, user]);
 
   const initializeWidgetService = async () => {
     // Only initialize on Android
@@ -86,6 +94,65 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
     }
   };
 
+  const connectRealtime = async () => {
+    try {
+      if (!user) return;
+
+      const RealtimeService = (await import('../services/RealtimeService')).default;
+      await RealtimeService.connect(user.id);
+      
+      console.log('✅ Realtime connected');
+    } catch (error) {
+      console.warn('⚠️ Could not connect to realtime (backend may be offline)');
+      // Don't crash app if realtime fails
+    }
+  };
+
+  const setupRealtimeListeners = async () => {
+    try {
+      const RealtimeService = (await import('../services/RealtimeService')).default;
+      const WidgetService = (await import('../services/WidgetService')).default;
+      const LocalPhotoStorage = (await import('../services/LocalPhotoStorage')).default;
+
+      // Listen for new moments
+      RealtimeService.on('new_moment', async (data: any) => {
+        console.log('📥 New moment received:', data);
+        
+        // Save to local storage
+        try {
+          if (data.photoBase64) {
+            const photoUri = await LocalPhotoStorage.savePhoto(
+              `data:image/jpeg;base64,${data.photoBase64}`,
+              'partner',
+              false
+            );
+            
+            // Update widget
+            await WidgetService.onPhotoReceived(photoUri, data.partnerName);
+          }
+        } catch (error) {
+          console.error('Error saving moment:', error);
+        }
+      });
+
+      // Listen for shared notes
+      RealtimeService.on('shared_note', async (data: any) => {
+        console.log('📝 Shared note received:', data.content);
+        // Show notification or update UI
+      });
+
+      // Listen for time-lock unlocked
+      RealtimeService.on('timelock_unlocked', async (data: any) => {
+        console.log('🔓 Time-lock message unlocked:', data.content);
+        // Show notification
+      });
+
+      console.log('✅ Realtime listeners setup');
+    } catch (error) {
+      console.error('❌ Error setting up realtime listeners:', error);
+    }
+  };
+
   const loadBackgroundSyncQueue = async () => {
     try {
       const BackgroundSyncService = (await import('../services/BackgroundSyncService')).default;
@@ -102,13 +169,20 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
       setIsAuthChecked(true);
       console.log('🔐 Auth loaded. Signed in:', isSignedIn);
       
-      // If user logged out or deleted account, redirect to auth
+      // If user logged out or deleted account, redirect to auth and clear premium
       if (!isSignedIn && currentScreen !== 'splash' && currentScreen !== 'onboarding') {
         console.log('🚪 User logged out, redirecting to auth');
         setCurrentScreen('auth');
+        setIsPremium(false);
+        AsyncStorage.removeItem('isPremium');
+      }
+      
+      // If user just signed in, sync premium status
+      if (isSignedIn && user) {
+        checkPremiumStatus();
       }
     }
-  }, [isLoaded, isSignedIn]);
+  }, [isLoaded, isSignedIn, user]);
 
   const checkOnboardingStatus = async () => {
     try {
@@ -123,11 +197,34 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
 
   const checkPremiumStatus = async () => {
     try {
-      const premium = await AsyncStorage.getItem('isPremium');
-      setIsPremium(premium === 'true');
+      // First check if user is signed in
+      if (!isSignedIn || !user) {
+        setIsPremium(false);
+        await AsyncStorage.removeItem('isPremium');
+        return;
+      }
+
+      // Sync with backend
+      try {
+        const token = await getToken();
+        if (token) {
+          const PremiumService = (await import('../services/PremiumService')).default;
+          await PremiumService.syncWithBackend(token, user.id);
+          
+          // Get updated status
+          const isPremiumUser = await PremiumService.isPremium();
+          setIsPremium(isPremiumUser);
+          
+          console.log('✅ Premium status synced from backend:', isPremiumUser);
+        }
+      } catch (syncError) {
+        console.error('❌ Error syncing premium status:', syncError);
+        // Fallback to local storage
+        const premium = await AsyncStorage.getItem('isPremium');
+        setIsPremium(premium === 'true');
+      }
     } catch (error) {
       console.error('Error checking premium status:', error);
-      // Default to false if error
       setIsPremium(false);
     }
   };
@@ -228,15 +325,30 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
 
   const handlePremiumPurchase = async (plan: 'monthly' | 'yearly') => {
     try {
-      // In a real app, handle the actual purchase here
-      await AsyncStorage.setItem('isPremium', 'true');
-      setIsPremium(true);
+      // In a real app, handle the actual purchase here using RevenueCat or similar
       
-      // Queue sync with backend (non-blocking)
       if (user) {
-        const BackgroundSyncService = (await import('../services/BackgroundSyncService')).default;
-        await BackgroundSyncService.queuePremiumSync(user.id, true, plan);
-        console.log('✅ Premium status sync queued');
+        const token = await getToken();
+        const response = await fetch(`${API_CONFIG.baseUrl}/users/premium`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            userId: user.id,
+            isPremium: true,
+            premiumPlan: plan,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to update premium status');
+        }
+
+        await AsyncStorage.setItem('isPremium', 'true');
+        setIsPremium(true);
+        console.log('✅ Premium status updated on backend');
       }
       
       setCurrentScreen('upload');
@@ -283,6 +395,7 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
             onNavigateToSettings={handleNavigateToSettings}
             onNavigateToPairing={handleNavigateToPairing}
             onNavigateToGallery={handleNavigateToGallery}
+            onNavigateToPremium={handleNavigateToPremium}
             isPremium={isPremium}
           />
         );

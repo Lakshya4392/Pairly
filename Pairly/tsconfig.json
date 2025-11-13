@@ -1,24 +1,60 @@
 {
-  "extends": "@react-native/typescript-config",
   "compilerOptions": {
+    "target": "esnext",
+    "module": "commonjs",
+    "lib": [
+      "es2017"
+    ],
+    "allowJs": true,
+    "jsx": "react-native",
+    "noEmit": true,
+    "isolatedModules": true,
     "strict": true,
-    "esModuleInterop": true,
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
     "skipLibCheck": true,
-    "jsx": "react-jsx",
     "baseUrl": "./src",
     "paths": {
-      "@screens/*": ["screens/*"],
-      "@components": ["components/index"],
-      "@components/*": ["components/*"],
-      "@services/*": ["services/*"],
-      "@types": ["types/index"],
-      "@types/*": ["types/*"],
-      "@theme": ["theme/index"],
-      "@theme/*": ["theme/*"],
-      "@utils/*": ["utils/*"]
+      "@screens/*": [
+        "screens/*"
+      ],
+      "@components": [
+        "components/index"
+      ],
+      "@components/*": [
+        "components/*"
+      ],
+      "@services/*": [
+        "services/*"
+      ],
+      "@types": [
+        "types/index"
+      ],
+      "@types/*": [
+        "types/*"
+      ],
+      "@theme": [
+        "theme/index"
+      ],
+      "@theme/*": [
+        "theme/*"
+      ],
+      "@utils/*": [
+        "utils/*"
+      ]
     }
   },
-  "include": ["**/*.ts", "**/*.tsx", "src/types/env.d.ts"],
-  "exclude": ["**/node_modules", "**/Pods"]
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    "src/types/env.d.ts"
+  ],
+  "exclude": [
+    "**/node_modules",
+    "**/Pods",
+    "**/*.spec.ts"
+  ],
+  "extends": "expo/tsconfig.base"
 }

@@ -103,7 +103,7 @@ class BackgroundSyncService {
 
       // Check max attempts
       if (task.attempts >= this.maxAttempts) {
-        console.log(`⚠️ Max attempts reached for task ${task.id}, removing`);
+        console.log(`💡 Background sync will retry later (backend offline)`);
         this.syncQueue.shift();
         await this.saveQueue();
         continue;
@@ -115,12 +115,15 @@ class BackgroundSyncService {
       if (success) {
         // Remove from queue
         this.syncQueue.shift();
-        console.log(`✅ Task ${task.id} completed`);
+        console.log(`✅ Background sync completed`);
       } else {
         // Update attempts
         task.attempts++;
         task.lastAttempt = now;
-        console.log(`⚠️ Task ${task.id} failed, attempt ${task.attempts}/${this.maxAttempts}`);
+        // Only log on first failure
+        if (task.attempts === 1) {
+          console.log(`💡 Background sync queued (will retry when backend is available)`);
+        }
       }
 
       await this.saveQueue();

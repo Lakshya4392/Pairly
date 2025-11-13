@@ -1,18 +1,26 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, StatusBar, TextInput, TouchableOpacity, ScrollView } from 'react-native';
 import { useAuth, useOAuth, useSignIn, useSignUp, useUser } from '@clerk/clerk-expo';
+import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { CustomAlert } from '../components/CustomAlert';
-import { colors, gradients } from '../theme/colorsIOS';
+import { useTheme } from '../contexts/ThemeContext';
+import { colors as defaultColors, gradients } from '../theme/colorsIOS';
 import { spacing, layout, borderRadius } from '../theme/spacingIOS';
 import { shadows } from '../theme/shadowsIOS';
+
+// Warm up browser for faster OAuth
+WebBrowser.maybeCompleteAuthSession();
 
 interface AuthScreenProps {
   onAuthSuccess: () => void;
 }
 
 export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
+  const { colors } = useTheme();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const { isSignedIn } = useAuth();
   const { user } = useUser();
   const { startOAuthFlow } = useOAuth({ strategy: 'oauth_google' });
@@ -83,14 +91,63 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
   const handleGoogleSignIn = async () => {
     try {
       setLoading(true);
-      const { createdSessionId, setActive } = await startOAuthFlow();
+      console.log('🔵 Starting Google OAuth...');
+      console.log('💡 TIP: After clicking Continue in browser, manually close the browser and return to app');
+      
+      // Start OAuth flow
+      const { createdSessionId, signIn, signUp, setActive } = await startOAuthFlow();
+      
+      console.log('🔵 OAuth flow returned');
+      console.log('🔵 Result:', {
+        hasSession: !!createdSessionId,
+        signInStatus: signIn?.status,
+        signUpStatus: signUp?.status,
+      });
 
-      if (createdSessionId && setActive) {
-        await setActive({ session: createdSessionId });
-        // Don't wait for sync, it will happen in useEffect
+      // Try to dismiss browser
+      try {
+        await WebBrowser.dismissBrowser();
+        console.log('🔵 Browser dismissed');
+      } catch (e) {
+        console.log('🔵 Browser already closed');
       }
-    } catch (error) {
-      console.error('OAuth error:', error);
+
+      // Direct session created
+      if (createdSessionId) {
+        console.log('✅ Activating session...');
+        await setActive!({ session: createdSessionId });
+        console.log('✅ Signed in successfully!');
+        return;
+      }
+
+      // SignUp completed
+      if (signUp?.status === 'complete' && signUp.createdSessionId) {
+        console.log('✅ Activating signup session...');
+        await setActive!({ session: signUp.createdSessionId });
+        console.log('✅ Signed up successfully!');
+        return;
+      }
+
+      // SignIn completed
+      if (signIn?.status === 'complete' && signIn.createdSessionId) {
+        console.log('✅ Activating signin session...');
+        await setActive!({ session: signIn.createdSessionId });
+        console.log('✅ Signed in successfully!');
+        return;
+      }
+
+      // OAuth incomplete - show helpful message
+      console.log('⚠️ OAuth incomplete - needs_identifier status');
+      console.log('💡 SOLUTION: Use Clerk development keys OR manually close browser after clicking Continue');
+      
+      setErrorMessage('Please close the browser manually after clicking Continue, then return to the app.');
+      setShowErrorAlert(true);
+      
+    } catch (error: any) {
+      console.error('❌ OAuth error:', error);
+      console.error('❌ Error details:', JSON.stringify(error, null, 2));
+      setErrorMessage(error.message || 'Failed to sign in with Google.');
+      setShowErrorAlert(true);
     } finally {
       setLoading(false);
     }
@@ -587,7 +644,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,

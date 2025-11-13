@@ -9,38 +9,96 @@ interface ThemeSettings {
   colorTheme: ColorTheme;
 }
 
-// Dark mode colors
+// Dark mode colors - Premium Modern Design (matches all lightColors properties)
 export const darkColors = {
-  // Base colors
-  primary: '#FF6B9D',
-  primaryLight: '#FF8FB3',
-  primaryDark: '#E5527D',
-  primaryPastel: '#FFE5EE',
+  // Primary Colors - Vibrant but elegant
+  primary: '#8B5CF6', // Purple
+  primaryLight: '#A78BFA',
+  primaryDark: '#7C3AED',
+  primaryPastel: '#DDD6FE',
   
-  secondary: '#C77DFF',
-  secondaryLight: '#E0AAFF',
-  secondaryDark: '#9D4EDD',
+  // Secondary Colors - Complementary Pink
+  secondary: '#EC4899',
+  secondaryLight: '#F472B6',
+  secondaryPastel: '#FBCFE8',
   
-  // Backgrounds
-  background: '#121212',
-  backgroundSecondary: '#1E1E1E',
-  surface: '#2C2C2C',
+  // Accent Colors - Complete set
+  mint: '#34D399',
+  mintLight: '#6EE7B7',
+  mintPastel: '#A7F3D0',
   
-  // Text
-  text: '#FFFFFF',
-  textSecondary: '#B3B3B3',
-  textTertiary: '#808080',
+  lavender: '#C4B5FD',
+  lavenderLight: '#DDD6FE',
   
-  // UI Elements
-  border: '#3A3A3A',
-  disabled: '#4A4A4A',
+  peach: '#FB923C',
+  peachLight: '#FED7AA',
   
-  // Status
-  success: '#4CAF50',
-  error: '#F44336',
-  errorText: '#FF6B6B',
-  warning: '#FF9800',
-  info: '#2196F3',
+  sky: '#38BDF8',
+  skyLight: '#7DD3FC',
+  
+  // Backgrounds - Deep but not pure black
+  background: '#0F172A', // Slate 900
+  backgroundSecondary: '#1E293B', // Slate 800
+  backgroundTertiary: '#334155', // Slate 700
+  surface: '#1E293B',
+  surfaceElevated: '#334155',
+  
+  // Dark Mode specific (for compatibility)
+  darkBg: '#0F172A',
+  darkCard: '#1E293B',
+  darkCardElevated: '#334155',
+  darkBorder: '#475569',
+  darkText: '#F1F5F9',
+  darkTextSecondary: '#CBD5E1',
+  
+  // Text - High contrast for readability
+  text: '#F1F5F9', // Slate 100
+  textSecondary: '#CBD5E1', // Slate 300
+  textTertiary: '#94A3B8', // Slate 400
+  textLight: '#64748B', // Slate 500
+  textMuted: '#475569', // Slate 600
+  
+  // Border Colors
+  border: '#334155', // Slate 700
+  borderLight: '#475569', // Slate 600
+  borderFocus: '#8B5CF6', // Primary
+  
+  // Status Colors - Vibrant
+  success: '#10B981', // Emerald 500
+  successLight: '#064E3B', // Emerald 900
+  successText: '#34D399', // Emerald 400
+  
+  error: '#EF4444', // Red 500
+  errorLight: '#7F1D1D', // Red 900
+  errorText: '#F87171', // Red 400
+  
+  warning: '#F59E0B', // Amber 500
+  warningLight: '#78350F', // Amber 900
+  warningText: '#FBBF24', // Amber 400
+  
+  info: '#3B82F6', // Blue 500
+  infoLight: '#1E3A8A', // Blue 900
+  infoText: '#60A5FA', // Blue 400
+  
+  // Shadow - Darker for depth
+  shadow: 'rgba(0, 0, 0, 0.4)',
+  shadowMedium: 'rgba(0, 0, 0, 0.5)',
+  shadowStrong: 'rgba(0, 0, 0, 0.6)',
+  shadowPrimary: 'rgba(139, 92, 246, 0.4)',
+  shadowSecondary: 'rgba(236, 72, 153, 0.4)',
+  
+  // Overlay
+  overlay: 'rgba(15, 23, 42, 0.8)',
+  overlayLight: 'rgba(15, 23, 42, 0.6)',
+  
+  // Transparent
+  transparent: 'transparent',
+  
+  // Interactive States
+  hover: 'rgba(139, 92, 246, 0.15)',
+  pressed: 'rgba(139, 92, 246, 0.25)',
+  disabled: '#334155',
+  disabledText: '#64748B',
 };
 
 // Color theme variations

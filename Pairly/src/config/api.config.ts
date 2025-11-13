@@ -46,9 +46,9 @@ export const getSocketUrl = (): string => {
 export const API_CONFIG = {
   baseUrl: getApiUrl(),
   socketUrl: getSocketUrl(),
-  timeout: 30000, // 30 seconds
-  retryAttempts: 3,
-  retryDelay: 1000, // 1 second
+  timeout: 10000, // 10 seconds (reduced for faster failure)
+  retryAttempts: 2, // Reduced retries
+  retryDelay: 500, // 0.5 second (faster retry)
 };
 
 /**

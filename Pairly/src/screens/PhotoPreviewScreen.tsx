@@ -10,7 +10,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { colors } from '../theme/colorsIOS';
+import { useTheme } from '../contexts/ThemeContext';
+import { colors as defaultColors } from '../theme/colorsIOS';
 import { spacing, borderRadius, layout } from '../theme/spacingIOS';
 import { shadows } from '../theme/shadowsIOS';
 import { ScheduledMomentModal } from '../components/ScheduledMomentModal';
@@ -28,8 +29,12 @@ export const PhotoPreviewScreen: React.FC<PhotoPreviewScreenProps> = ({
   onUpload,
   partnerName = 'Your Partner',
 }) => {
+  const { colors } = useTheme();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const [uploading, setUploading] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const [selectedFilter, setSelectedFilter] = useState<string>('none');
 
   const handleUpload = async () => {
     try {
@@ -71,12 +76,54 @@ export const PhotoPreviewScreen: React.FC<PhotoPreviewScreenProps> = ({
           <Ionicons name="close" size={28} color="white" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Preview</Text>
-        <View style={styles.headerButton} />
+        <TouchableOpacity
+          style={styles.headerButton}
+          onPress={() => setShowFilters(!showFilters)}
+          disabled={uploading}
+        >
+          <Ionicons 
+            name={selectedFilter === 'none' ? "color-filter-outline" : "color-filter"} 
+            size={24} 
+            color={selectedFilter === 'none' ? "white" : colors.secondary} 
+          />
+        </TouchableOpacity>
       </LinearGradient>
 
       {/* Photo Preview */}
       <View style={styles.photoContainer}>
         <Image source={{ uri: photoUri }} style={styles.photo} resizeMode="contain" />
+        
+        {/* Filter Selector */}
+        {showFilters && (
+          <View style={styles.filterSelector}>
+            <Text style={styles.filterTitle}>Choose Filter</Text>
+            <View style={styles.filtersList}>
+              {['none', 'grayscale', 'sepia', 'vintage', 'warm', 'cool'].map((filter) => (
+                <TouchableOpacity
+                  key={filter}
+                  style={[
+                    styles.filterOption,
+                    selectedFilter === filter && styles.filterOptionActive
+                  ]}
+                  onPress={() => {
+                    setSelectedFilter(filter);
+                    setShowFilters(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.filterOptionText,
+                    selectedFilter === filter && styles.filterOptionTextActive
+                  ]}>
+                    {filter === 'none' ? 'Original' : filter.charAt(0).toUpperCase() + filter.slice(1)}
+                  </Text>
+                  {selectedFilter === filter && (
+                    <Ionicons name="checkmark-circle" size={18} color={colors.secondary} />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
       </View>
 
       {/* Action Buttons */}
@@ -140,7 +187,7 @@ export const PhotoPreviewScreen: React.FC<PhotoPreviewScreenProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: 'black',
@@ -178,10 +225,52 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    position: 'relative',
   },
   photo: {
     width: '100%',
     height: '100%',
+  },
+
+  // Filter Selector
+  filterSelector: {
+    position: 'absolute',
+    bottom: 140,
+    left: 20,
+    right: 20,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.xl,
+    padding: spacing.lg,
+    ...shadows.lg,
+  },
+  filterTitle: {
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 14,
+    color: colors.text,
+    marginBottom: spacing.md,
+  },
+  filtersList: {
+    gap: spacing.sm,
+  },
+  filterOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.backgroundSecondary,
+  },
+  filterOptionActive: {
+    backgroundColor: colors.secondaryPastel,
+  },
+  filterOptionText: {
+    fontFamily: 'Inter-Medium',
+    fontSize: 14,
+    color: colors.text,
+  },
+  filterOptionTextActive: {
+    color: colors.secondary,
+    fontFamily: 'Inter-SemiBold',
   },
 
   // Bottom
@@ -207,8 +296,32 @@ const styles = StyleSheet.create({
     opacity: 0.4,
   },
 
+  // Filter Button
+  filterButton: {
+    height: 56,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: borderRadius.full,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  filterButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  filterButtonText: {
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 15,
+    color: 'white',
+  },
+  filterActiveText: {
+    color: colors.secondary,
+  },
+
   // Schedule Button
   scheduleButton: {
+    flex: 1,
     height: 56,
     paddingHorizontal: 20,
     backgroundColor: 'rgba(255, 255, 255, 0.15)',

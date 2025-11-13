@@ -152,6 +152,9 @@ export class ScheduledMomentService {
         await this.deliverMoment(moment);
       }
 
+      // Process time-lock messages
+      await this.processTimeLockMessages();
+
       // Clean up expired moments
       await this.deleteExpiredMoments();
 
@@ -163,6 +166,72 @@ export class ScheduledMomentService {
     } catch (error) {
       console.error('❌ Error processing scheduled moments:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Process time-lock messages ready for delivery
+   */
+  static async processTimeLockMessages() {
+    try {
+      const now = new Date();
+      
+      const messages = await prisma.timeLockMessage.findMany({
+        where: {
+          unlockDate: {
+            lte: now,
+          },
+          isDelivered: false,
+        },
+        include: {
+          sender: true,
+          pair: true,
+        },
+      });
+
+      console.log(`🔓 Found ${messages.length} time-lock messages ready to unlock`);
+
+      for (const message of messages) {
+        await this.deliverTimeLockMessage(message);
+      }
+    } catch (error) {
+      console.error('❌ Error processing time-lock messages:', error);
+    }
+  }
+
+  /**
+   * Deliver a time-lock message
+   */
+  private static async deliverTimeLockMessage(message: any) {
+    try {
+      console.log(`🔓 Unlocking message ${message.id}`);
+
+      // Mark as delivered
+      await prisma.timeLockMessage.update({
+        where: { id: message.id },
+        data: {
+          isDelivered: true,
+          deliveredAt: new Date(),
+        },
+      });
+
+      // Get partner ID
+      const partnerId = message.pair.user1Id === message.senderId 
+        ? message.pair.user2Id 
+        : message.pair.user1Id;
+
+      // Send via Socket.IO
+      const { io } = await import('../index');
+      io.to(partnerId).emit('timelock_unlocked', {
+        messageId: message.id,
+        content: message.content,
+        senderName: message.sender.displayName,
+        createdAt: message.createdAt.toISOString(),
+      });
+
+      console.log(`✅ Time-lock message ${message.id} delivered to ${partnerId}`);
+    } catch (error) {
+      console.error(`❌ Error delivering time-lock message:`, error);
     }
   }
 

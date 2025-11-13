@@ -19,7 +19,8 @@ import * as Clipboard from 'expo-clipboard';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 // Removed unused imports
-import { colors, gradients } from '../theme/colorsIOS';
+import { useTheme } from '../contexts/ThemeContext';
+import { colors as defaultColors, gradients } from '../theme/colorsIOS';
 import { spacing, layout, borderRadius } from '../theme/spacingIOS';
 import { shadows } from '../theme/shadowsIOS';
 
@@ -30,6 +31,8 @@ interface PairingScreenProps {
 }
 
 export const PairingScreen: React.FC<PairingScreenProps> = ({ onPairingComplete, onSkipPairing, onShowConnectionScreen }) => {
+  const { colors } = useTheme();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const [mode, setMode] = useState<'choose' | 'generate' | 'join'>('choose');
   const [inviteCode, setInviteCode] = useState('');
   const [generatedCode, setGeneratedCode] = useState('');
@@ -340,7 +343,7 @@ export const PairingScreen: React.FC<PairingScreenProps> = ({ onPairingComplete,
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
