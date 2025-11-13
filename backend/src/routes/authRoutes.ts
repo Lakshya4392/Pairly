@@ -13,7 +13,10 @@ router.post('/sync', async (req: Request, res: Response) => {
     const { clerkId, email, displayName, firstName, lastName, photoUrl, phoneNumber } = req.body;
 
     if (!clerkId || !email) {
-      return res.status(400).json({ error: 'Missing required fields' });
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Missing required fields' 
+      });
     }
 
     const user = await userService.syncUserFromClerk({
@@ -26,10 +29,32 @@ router.post('/sync', async (req: Request, res: Response) => {
       phoneNumber,
     });
 
-    res.json({ success: true, user });
+    // Return user with premium status
+    res.json({ 
+      success: true, 
+      user: {
+        id: user.id,
+        clerkId: user.clerkId,
+        email: user.email,
+        displayName: user.displayName,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        photoUrl: user.photoUrl,
+        phoneNumber: user.phoneNumber,
+        isPremium: user.isPremium,
+        premiumPlan: user.premiumPlan,
+        premiumExpiry: user.premiumExpiry,
+        trialEndsAt: user.trialEndsAt,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      }
+    });
   } catch (error: any) {
     console.error('Error syncing user:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
   }
 });
 

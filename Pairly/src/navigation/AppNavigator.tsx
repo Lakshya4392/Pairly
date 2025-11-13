@@ -8,6 +8,7 @@ import { PairingConnectionScreen } from '../screens/PairingConnectionScreen';
 import { UploadScreen } from '../screens/UploadScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { PremiumScreen } from '../screens/PremiumScreen';
+import { ManagePremiumScreen } from '../screens/ManagePremiumScreen';
 import { GalleryScreen } from '../screens/GalleryScreen';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -22,6 +23,7 @@ type Screen =
   | 'upload'
   | 'settings'
   | 'premium'
+  | 'managePremium'
   | 'gallery';
 
 interface AppNavigatorProps {
@@ -48,6 +50,15 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
     loadBackgroundSyncQueue();
     initializeWidgetService();
     setupRealtimeListeners();
+    
+    // Refresh premium status every 5 seconds when on settings/premium screen
+    const interval = setInterval(() => {
+      if (currentScreen === 'settings' || currentScreen === 'premium') {
+        checkPremiumStatus();
+      }
+    }, 5000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -200,28 +211,51 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
       // First check if user is signed in
       if (!isSignedIn || !user) {
         setIsPremium(false);
-        await AsyncStorage.removeItem('isPremium');
         return;
       }
 
-      // Sync with backend
+      // Always check local PremiumService first
+      const PremiumService = (await import('../services/PremiumService')).default;
+      const isPremiumUser = await PremiumService.isPremium();
+      setIsPremium(isPremiumUser);
+      
+      console.log('💎 Premium status loaded from local:', isPremiumUser);
+
+      // Try to sync with backend (non-blocking)
       try {
-        const token = await getToken();
-        if (token) {
-          const PremiumService = (await import('../services/PremiumService')).default;
-          await PremiumService.syncWithBackend(token, user.id);
+        const UserSyncService = (await import('../services/UserSyncService')).default;
+        const backendUser = await UserSyncService.getUserFromBackend(user.id);
+        
+        if (backendUser) {
+          console.log('📥 User data from backend:', {
+            isPremium: backendUser.isPremium,
+            plan: backendUser.premiumPlan,
+            expiresAt: backendUser.premiumExpiry,
+          });
           
-          // Get updated status
-          const isPremiumUser = await PremiumService.isPremium();
-          setIsPremium(isPremiumUser);
-          
-          console.log('✅ Premium status synced from backend:', isPremiumUser);
+          // Sync premium status from backend
+          if (backendUser.isPremium) {
+            const expiryDate = backendUser.premiumExpiry 
+              ? new Date(backendUser.premiumExpiry) 
+              : undefined;
+            
+            await PremiumService.setPremiumStatus(
+              true,
+              backendUser.premiumPlan || 'monthly',
+              expiryDate
+            );
+            
+            setIsPremium(true);
+            console.log('✅ Premium status synced from backend: true');
+          } else if (isPremiumUser && !backendUser.isPremium) {
+            // Backend says not premium, update local
+            await PremiumService.setPremiumStatus(false);
+            setIsPremium(false);
+            console.log('✅ Premium status synced from backend: false');
+          }
         }
       } catch (syncError) {
-        console.error('❌ Error syncing premium status:', syncError);
-        // Fallback to local storage
-        const premium = await AsyncStorage.getItem('isPremium');
-        setIsPremium(premium === 'true');
+        console.log('⚠️ Backend sync skipped (offline or unavailable)');
       }
     } catch (error) {
       console.error('Error checking premium status:', error);
@@ -325,35 +359,48 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
 
   const handlePremiumPurchase = async (plan: 'monthly' | 'yearly') => {
     try {
-      // In a real app, handle the actual purchase here using RevenueCat or similar
+      console.log('💎 Activating premium:', plan);
       
+      // Update local premium status immediately
+      setIsPremium(true);
+      await AsyncStorage.setItem('isPremium', 'true');
+      console.log('✅ Premium activated locally');
+      
+      // Try to sync with backend (non-blocking)
       if (user) {
-        const token = await getToken();
-        const response = await fetch(`${API_CONFIG.baseUrl}/users/premium`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            userId: user.id,
-            isPremium: true,
-            premiumPlan: plan,
-          }),
-        });
+        try {
+          const token = await getToken();
+          console.log('🌐 Syncing with backend...');
+          const response = await fetch(`${API_CONFIG.baseUrl}/users/premium`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              userId: user.id,
+              isPremium: true,
+              premiumPlan: plan,
+            }),
+          });
 
-        if (!response.ok) {
-          throw new Error('Failed to update premium status');
+          if (response.ok) {
+            const data = await response.json();
+            console.log('✅ Backend sync successful:', data);
+          } else {
+            console.log('⚠️ Backend sync failed:', response.status);
+          }
+        } catch (syncError: any) {
+          console.log('⚠️ Backend sync error:', syncError.message);
         }
-
-        await AsyncStorage.setItem('isPremium', 'true');
-        setIsPremium(true);
-        console.log('✅ Premium status updated on backend');
       }
+      
+      // Refresh premium status
+      await checkPremiumStatus();
       
       setCurrentScreen('upload');
     } catch (error) {
-      console.error('Error handling premium purchase:', error);
+      console.error('❌ Error handling premium purchase:', error);
     }
   };
 
@@ -405,7 +452,16 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
           <SettingsScreen 
             onBack={handleBackToUpload}
             isPremium={isPremium}
-            onUpgradeToPremium={handleNavigateToPremium}
+            onUpgradeToPremium={() => {
+              console.log('🔵 Premium button tapped, isPremium:', isPremium);
+              if (isPremium) {
+                console.log('🔵 Navigating to managePremium screen');
+                setCurrentScreen('managePremium');
+              } else {
+                console.log('🔵 Navigating to premium screen');
+                setCurrentScreen('premium');
+              }
+            }}
             onNavigateToPairing={handleNavigateToPairing}
           />
         );
@@ -415,6 +471,16 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
           <PremiumScreen 
             onBack={handleBackToUpload}
             onPurchase={handlePremiumPurchase}
+          />
+        );
+      
+      case 'managePremium':
+        return (
+          <ManagePremiumScreen
+            onBack={() => setCurrentScreen('settings')}
+            onCancelSubscription={async () => {
+              await checkPremiumStatus();
+            }}
           />
         );
       

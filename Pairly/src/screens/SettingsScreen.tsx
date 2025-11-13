@@ -587,12 +587,38 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     );
   };
 
-  const renderAccountTab = () => (
-    <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
-      <SectionHeader title="PROFILE" />
-      <View style={styles.section}>
-        <ProfileCard />
-      </View>
+  const renderAccountTab = () => {
+    console.log('🔍 Rendering Account Tab, isPremium:', isPremium);
+    return (
+      <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
+        <SectionHeader title="PROFILE" />
+        <View style={styles.section}>
+          <ProfileCard />
+        </View>
+
+        {isPremium && (
+        <>
+          <SectionHeader title="PREMIUM" />
+          <View style={styles.section}>
+            <SettingItem
+              icon="diamond"
+              title="Premium Plan"
+              subtitle="Manage your subscription"
+              onPress={() => {
+                console.log('💎 Premium Plan tapped');
+                console.log('💎 onUpgradeToPremium exists:', !!onUpgradeToPremium);
+                // Navigate to manage premium screen
+                if (onUpgradeToPremium) {
+                  onUpgradeToPremium();
+                } else {
+                  console.log('❌ onUpgradeToPremium callback missing!');
+                }
+              }}
+              isLast
+            />
+          </View>
+        </>
+      )}
 
       <SectionHeader title="PARTNER" />
       <View style={styles.section}>
@@ -608,7 +634,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         )}
       </View>
     </ScrollView>
-  );
+    );
+  };
 
   const renderNotificationsTab = () => (
     <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>

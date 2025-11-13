@@ -76,15 +76,34 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
         phoneNumber: user.primaryPhoneNumber?.phoneNumber || undefined,
       };
       
-      console.log('🔄 Queuing background sync...');
+      console.log('🔄 Starting user sync with backend...');
       
-      // Queue sync with retry logic
-      const BackgroundSyncService = (await import('../services/BackgroundSyncService')).default;
-      await BackgroundSyncService.queueUserSync(userData);
+      // Try immediate sync first (non-blocking)
+      const UserSyncService = (await import('../services/UserSyncService')).default;
+      const result = await UserSyncService.syncUserWithBackend(userData);
       
-      console.log('✅ User sync queued');
+      if (result.success && result.user) {
+        console.log('✅ User synced immediately');
+        console.log('💎 Premium status from backend:', result.user.isPremium);
+      } else {
+        // If immediate sync fails, queue for retry
+        console.log('⚠️ Immediate sync failed, queuing for retry...');
+        const BackgroundSyncService = (await import('../services/BackgroundSyncService')).default;
+        await BackgroundSyncService.queueUserSync(userData);
+      }
     } catch (error) {
       console.error('❌ Background sync error:', error);
+      // Queue for retry on error
+      try {
+        const BackgroundSyncService = (await import('../services/BackgroundSyncService')).default;
+        await BackgroundSyncService.queueUserSync({
+          clerkId: user?.id || '',
+          email: user?.primaryEmailAddress?.emailAddress || '',
+          displayName: user?.fullName || user?.username || 'User',
+        });
+      } catch (queueError) {
+        console.error('❌ Failed to queue sync:', queueError);
+      }
     }
   };
 

@@ -17,7 +17,10 @@ class UserSyncService {
   /**
    * Sync user with backend after Clerk authentication
    */
-  static async syncUserWithBackend(userData: UserData): Promise<boolean> {
+  static async syncUserWithBackend(userData: UserData): Promise<{
+    success: boolean;
+    user?: any;
+  }> {
     try {
       console.log('🌐 Syncing to:', `${API_URL}/auth/sync`);
       console.log('📦 User data:', userData);
@@ -30,16 +33,38 @@ class UserSyncService {
 
       console.log('✅ User synced with backend:', data.user.id);
       console.log('👤 User details:', data.user);
+      console.log('💎 Premium status:', {
+        isPremium: data.user.isPremium,
+        plan: data.user.premiumPlan,
+        expiresAt: data.user.premiumExpiry,
+        trialEndsAt: data.user.trialEndsAt,
+      });
       
       // Store user ID locally
       await AsyncStorage.setItem('@pairly_user_id', data.user.id);
       
-      return true;
+      // Sync premium status with local storage
+      if (data.user.isPremium) {
+        const PremiumService = (await import('./PremiumService')).default;
+        const expiryDate = data.user.premiumExpiry 
+          ? new Date(data.user.premiumExpiry) 
+          : undefined;
+        
+        await PremiumService.setPremiumStatus(
+          true,
+          data.user.premiumPlan || 'monthly',
+          expiryDate
+        );
+        
+        console.log('✅ Premium status synced to local storage');
+      }
+      
+      return { success: true, user: data.user };
     } catch (error: any) {
       // Backend offline - this is expected and non-blocking
       console.log('⚠️ Backend sync skipped (offline or unavailable)');
       console.log('💡 App will continue working with local data');
-      return false;
+      return { success: false };
     }
   }
 

@@ -143,8 +143,10 @@ class BackgroundSyncService {
   private async executeTask(task: SyncTask): Promise<boolean> {
     try {
       switch (task.type) {
-        case 'user':
-          return await UserSyncService.syncUserWithBackend(task.data);
+        case 'user': {
+          const result = await UserSyncService.syncUserWithBackend(task.data);
+          return result.success;
+        }
 
         case 'settings':
           return await UserSyncService.updateSettings(

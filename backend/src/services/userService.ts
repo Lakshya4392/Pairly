@@ -53,10 +53,22 @@ class UserService {
           lastName: clerkData.lastName,
           photoUrl: clerkData.photoUrl,
           phoneNumber: clerkData.phoneNumber,
+          // Set 7-day trial for new users
+          isPremium: true,
+          premiumPlan: 'monthly',
+          trialEndsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+          premiumExpiry: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         },
       });
 
       console.log('✅ User synced:', user.id);
+      console.log('📊 Premium status:', {
+        isPremium: user.isPremium,
+        plan: user.premiumPlan,
+        expiresAt: user.premiumExpiry,
+        trialEndsAt: user.trialEndsAt,
+      });
+      
       return user;
     } catch (error) {
       console.error('❌ Error syncing user:', error);

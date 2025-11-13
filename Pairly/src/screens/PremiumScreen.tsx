@@ -293,41 +293,44 @@ export const PremiumScreen: React.FC<PremiumScreenProps> = ({ onBack, onPurchase
           </View>
         </View>
 
-        {/* Pricing Plans */}
-        <View style={styles.pricingContainer}>
-          <PlanCard
-            plan="yearly"
-            price="$39.99"
-            period="Yearly"
-            savings="Save 17%"
-            isPopular
-          />
-          
-          <PlanCard
-            plan="monthly"
-            price="$3.99"
-            period="Monthly"
-          />
-          
-          <Text style={styles.trialText}>
-            7-day free trial • Cancel anytime
-          </Text>
-        </View>
+        {/* Pricing Plans - Only for free users */}
+        {!isPremium && (
+          <View style={styles.pricingContainer}>
+            <PlanCard
+              plan="yearly"
+              price="$39.99"
+              period="Yearly"
+              savings="Save 17%"
+              isPopular
+            />
+            
+            <PlanCard
+              plan="monthly"
+              price="$3.99"
+              period="Monthly"
+            />
+            
+            <Text style={styles.trialText}>
+              7-day free trial • Cancel anytime
+            </Text>
+          </View>
+        )}
       </ScrollView>
 
-      {/* Purchase Button */}
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={styles.purchaseButton}
-          onPress={handlePurchase}
-          activeOpacity={0.8}
-        >
-          <LinearGradient
-            colors={[colors.secondary, colors.secondaryLight]}
-            style={styles.purchaseButtonGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
+      {/* Purchase Button - Only for free users */}
+      {!isPremium && (
+        <View style={styles.footer}>
+          <TouchableOpacity
+            style={styles.purchaseButton}
+            onPress={handlePurchase}
+            activeOpacity={0.8}
           >
+            <LinearGradient
+              colors={[colors.secondary, colors.secondaryLight]}
+              style={styles.purchaseButtonGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
             <Ionicons name="diamond" size={24} color="white" />
             <Text style={styles.purchaseButtonText}>
               Start Free Trial
@@ -339,6 +342,7 @@ export const PremiumScreen: React.FC<PremiumScreenProps> = ({ onBack, onPurchase
           {selectedPlan === 'yearly' ? '$39.99/year' : '$4.99/month'} after trial ends
         </Text>
       </View>
+      )}
 
       {/* Confirm Purchase Alert */}
       <CustomAlert

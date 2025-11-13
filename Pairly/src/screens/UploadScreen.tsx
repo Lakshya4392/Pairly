@@ -956,7 +956,7 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: layout.screenPaddingHorizontal,
-    paddingTop: spacing.xxl,
+    paddingTop: spacing.huge,
     paddingBottom: spacing.md,
   },
   
