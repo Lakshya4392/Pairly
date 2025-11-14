@@ -68,10 +68,26 @@ class RealtimeService {
       this.triggerEvent('new_moment', data);
     });
 
-    // Photo received from partner
+    // Photo received from partner - VERIFY it's from our paired partner
     this.socket.on('receive_photo', async (data: any) => {
-      console.log('📥 Photo received from partner');
-      this.triggerEvent('receive_photo', data);
+      console.log('📥 Photo received from partner:', data.senderName);
+      
+      // Verify sender is our paired partner
+      try {
+        const PairingService = (await import('./PairingService')).default;
+        const partner = await PairingService.getPartner();
+        
+        if (partner && data.senderId === partner.id) {
+          console.log('✅ Verified photo is from paired partner');
+          this.triggerEvent('receive_photo', data);
+        } else {
+          console.warn('⚠️ Received photo from non-paired user - ignoring');
+        }
+      } catch (error) {
+        console.error('Error verifying photo sender:', error);
+        // Still trigger event in case of error (fail open)
+        this.triggerEvent('receive_photo', data);
+      }
     });
 
     // Photo delivered confirmation

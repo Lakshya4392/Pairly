@@ -35,10 +35,10 @@ class MomentService {
 
       console.log('✅ Photo saved locally:', localPhoto.id);
 
-      // 2. Get partner info
+      // 2. Get partner info - VERIFY paired partner exists
       const partner = await PairingService.getPartner();
       
-      if (!partner) {
+      if (!partner || !partner.id) {
         console.log('⚠️ No partner paired - photo saved locally only');
         return {
           success: true,
@@ -47,7 +47,20 @@ class MomentService {
         };
       }
 
-      // 3. Check if realtime connected
+      // 3. Verify we have a valid pair
+      const isPaired = await PairingService.isPaired();
+      if (!isPaired) {
+        console.log('⚠️ Not in a valid pair - photo saved locally only');
+        return {
+          success: true,
+          momentId: localPhoto.id,
+          error: 'Not paired with anyone',
+        };
+      }
+
+      console.log(`✅ Verified paired with partner: ${partner.displayName} (${partner.id})`);
+
+      // 4. Check if realtime connected
       if (!RealtimeService.getConnectionStatus()) {
         console.log('⚠️ Not connected to server - will send when online');
         // TODO: Add to offline queue
@@ -58,21 +71,21 @@ class MomentService {
         };
       }
 
-      // 4. Compress photo and get base64
+      // 5. Compress photo and get base64
       const highQuality = await AsyncStorage.getItem('@pairly_high_quality') === 'true';
       const quality = highQuality ? 'premium' : 'default';
       const compressedPhoto = await PhotoService.compressPhoto({ uri: photo.uri, width: 0, height: 0, type: 'image/jpeg', fileName: '', fileSize: 0 }, quality);
 
-      // 5. Send to partner via Socket.IO
+      // 6. Send to ONLY the paired partner via Socket.IO
       RealtimeService.emit('send_photo', {
         photoId: localPhoto.id,
         photoData: compressedPhoto.base64,
         timestamp: localPhoto.timestamp,
         caption: note || photo.caption,
-        partnerId: partner.id,
+        partnerId: partner.id, // ONLY send to this specific partner ID
       });
 
-      console.log('📤 Photo sent to partner via Socket.IO');
+      console.log(`📤 Photo sent ONLY to paired partner ${partner.displayName} (${partner.id})`);
 
       return {
         success: true,

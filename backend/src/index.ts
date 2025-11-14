@@ -130,6 +130,72 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Handle photo send - VERIFY partner before sending
+  socket.on('send_photo', async (data: { 
+    photoId: string; 
+    photoData: string; 
+    timestamp: number; 
+    caption?: string; 
+    partnerId: string;
+  }) => {
+    try {
+      if (!currentUserId) {
+        console.error('❌ No user ID - cannot send photo');
+        return;
+      }
+
+      // VERIFY that the sender is actually paired with the target partner
+      const pair = await prisma.pair.findFirst({
+        where: {
+          OR: [
+            { user1Id: currentUserId, user2Id: data.partnerId },
+            { user1Id: data.partnerId, user2Id: currentUserId },
+          ],
+        },
+        include: {
+          user1: true,
+          user2: true,
+        },
+      });
+
+      if (!pair) {
+        console.error(`❌ User ${currentUserId} is NOT paired with ${data.partnerId} - blocking photo send`);
+        socket.emit('send_photo_error', {
+          error: 'Not paired with this user',
+        });
+        return;
+      }
+
+      // Get sender info
+      const sender = pair.user1Id === currentUserId ? pair.user1 : pair.user2;
+
+      console.log(`✅ Verified: ${currentUserId} is paired with ${data.partnerId}`);
+      console.log(`📤 Sending photo from ${sender.displayName} to partner`);
+
+      // Send photo ONLY to the verified paired partner
+      io.to(data.partnerId).emit('receive_photo', {
+        photoId: data.photoId,
+        photoData: data.photoData,
+        timestamp: data.timestamp,
+        caption: data.caption,
+        senderName: sender.displayName,
+        senderId: currentUserId,
+      });
+
+      // Send confirmation to sender
+      socket.emit('photo_sent', {
+        photoId: data.photoId,
+        sentAt: new Date().toISOString(),
+      });
+
+    } catch (error) {
+      console.error('Error handling send_photo:', error);
+      socket.emit('send_photo_error', {
+        error: 'Failed to send photo',
+      });
+    }
+  });
+
   // Acknowledge moment received
   socket.on('moment_received', (data: { momentId: string }) => {
     console.log(`Moment ${data.momentId} received by client`);
