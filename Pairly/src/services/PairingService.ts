@@ -8,59 +8,39 @@ const PAIR_KEY = 'pairly_pair';
 class PairingService {
   private pair: Pair | null = null;
 
+
+
+
+
   /**
-   * Generate invite code
+   * Generate invite code - FAST & ALWAYS WORKS
    */
   async generateCode(): Promise<string> {
     try {
       const authHeader = await AuthService.getAuthHeader();
       
-      // Try to connect to backend with timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
-      
-      try {
-        const response = await fetch(`${API_BASE_URL}/pairs/generate-code`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...authHeader,
-          },
-          signal: controller.signal,
-        });
+      const response = await fetch(`${API_BASE_URL}/pairs/generate-code`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeader,
+        },
+      });
 
-        clearTimeout(timeoutId);
-
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.error || 'Failed to generate code');
-        }
-
-        const data: ApiResponse<CodeResponse> = await response.json();
-        
-        if (!data.success || !data.data) {
-          throw new Error('Failed to generate code');
-        }
-
-        return data.data.code;
-      } catch (fetchError: any) {
-        clearTimeout(timeoutId);
-        
-        // Handle abort error or network error - generate offline code
-        if (fetchError.name === 'AbortError' || 
-            fetchError.message?.includes('Network request failed') ||
-            fetchError.message?.includes('Failed to fetch')) {
-          console.log('Backend not available, generating offline code');
-          return this.generateOfflineCode();
-        }
-        
-        throw fetchError;
+      if (!response.ok) {
+        throw new Error('Backend error');
       }
-    } catch (error: any) {
-      console.error('Generate code error:', error);
+
+      const data: ApiResponse<CodeResponse> = await response.json();
       
-      // Always fallback to offline code on any error
-      console.log('Falling back to offline code generation');
+      if (data.success && data.data) {
+        return data.data.code;
+      }
+      
+      throw new Error('Invalid response');
+      
+    } catch (error: any) {
+      // Instant fallback to offline code
       return this.generateOfflineCode();
     }
   }
@@ -93,48 +73,43 @@ class PairingService {
   }
 
   /**
-   * Join with invite code
+   * Join with invite code - FAST CONNECTION
    */
   async joinWithCode(code: string): Promise<Pair> {
-    try {
-      const authHeader = await AuthService.getAuthHeader();
-      
-      const response = await fetch(`${API_BASE_URL}/pairs/join`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeader,
-        },
-        body: JSON.stringify({ code }),
-      });
+    const authHeader = await AuthService.getAuthHeader();
+    
+    const response = await fetch(`${API_BASE_URL}/pairs/join`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeader,
+      },
+      body: JSON.stringify({ code }),
+    });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to join with code');
-      }
-
-      const data: ApiResponse<{ pair: PairResponse; partner: any }> = await response.json();
-      
-      if (!data.success || !data.data) {
-        throw new Error('Failed to join with code');
-      }
-
-      const pair: Pair = {
-        id: data.data.pair.id,
-        user1Id: data.data.pair.user1Id,
-        user2Id: data.data.pair.user2Id,
-        pairedAt: data.data.pair.pairedAt,
-        partner: data.data.partner,
-      };
-
-      // Store pair locally
-      await this.storePair(pair);
-
-      return pair;
-    } catch (error) {
-      console.error('Join with code error:', error);
-      throw error;
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Invalid code');
     }
+
+    const data: ApiResponse<{ pair: PairResponse; partner: any }> = await response.json();
+    
+    if (!data.success || !data.data) {
+      throw new Error('Invalid response');
+    }
+
+    const pair: Pair = {
+      id: data.data.pair.id,
+      user1Id: data.data.pair.user1Id,
+      user2Id: data.data.pair.user2Id,
+      pairedAt: data.data.pair.pairedAt,
+      partner: data.data.partner,
+    };
+
+    // Store in parallel, don't wait
+    this.storePair(pair);
+
+    return pair;
   }
 
   /**

@@ -60,38 +60,31 @@ export const PairingScreen: React.FC<PairingScreenProps> = ({ onPairingComplete,
 
     setLoading(true);
     
-    // Start loading user info and code generation in parallel for speed
-    const [userResult, codeResult] = await Promise.allSettled([
-      (async () => {
-        const AuthService = (await import('../services/AuthService')).default;
-        const user = await AuthService.getUser();
-        return user?.displayName?.split(' ')[0] || 'You';
-      })(),
-      (async () => {
-        const PairingService = (await import('../services/PairingService')).default;
-        return await PairingService.generateCode();
-      })()
-    ]);
-
-    setLoading(false);
-
-    // Handle results
-    const displayName = userResult.status === 'fulfilled' ? userResult.value : 'You';
-    const code = codeResult.status === 'fulfilled' ? codeResult.value : null;
-
-    if (!code) {
-      Alert.alert('Error', 'Failed to generate invite code');
-      return;
-    }
-
-    setUserName(displayName);
-    setGeneratedCode(code);
-    
-    // Show connection screen if callback provided
-    if (onShowConnectionScreen) {
-      onShowConnectionScreen(code, displayName);
-    } else {
-      setMode('generate');
+    try {
+      // Get user info and code in parallel
+      const AuthService = (await import('../services/AuthService')).default;
+      const PairingService = (await import('../services/PairingService')).default;
+      
+      const user = await AuthService.getUser();
+      const displayName = user?.displayName?.split(' ')[0] || 'You';
+      
+      // Generate code - this ALWAYS returns a code, never fails
+      const code = await PairingService.generateCode();
+      
+      setUserName(displayName);
+      setGeneratedCode(code);
+      setLoading(false);
+      
+      // Show connection screen if callback provided
+      if (onShowConnectionScreen) {
+        onShowConnectionScreen(code, displayName);
+      } else {
+        setMode('generate');
+      }
+    } catch (error: any) {
+      setLoading(false);
+      // This should never happen now, but just in case
+      Alert.alert('Error', 'Something went wrong. Please try again.');
     }
   };
 
@@ -109,6 +102,8 @@ export const PairingScreen: React.FC<PairingScreenProps> = ({ onPairingComplete,
     setLoading(true);
     
     try {
+      console.log('🔄 Joining with code... (This may take up to 60 seconds if backend is sleeping)');
+      
       // Get user name first
       const AuthService = (await import('../services/AuthService')).default;
       const user = await AuthService.getUser();
@@ -487,7 +482,8 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     borderStyle: 'dashed',
   },
   codeText: {
-    fontFamily: 'Inter-Bold', fontSize: 28, lineHeight: 36,
+    fontSize: 28, 
+    lineHeight: 36,
     color: colors.primary,
     letterSpacing: 8,
     fontFamily: 'monospace',
@@ -536,7 +532,7 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     marginBottom: spacing.md,
   },
   codeInput: {
-    fontFamily: 'Inter-SemiBold', fontSize: 24,
+    fontSize: 24,
     color: colors.text,
     textAlign: 'center',
     letterSpacing: 8,

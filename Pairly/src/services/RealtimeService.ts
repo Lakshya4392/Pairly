@@ -27,11 +27,14 @@ class RealtimeService {
         auth: {
           token,
         },
-        transports: ['websocket', 'polling'],
+        transports: ['polling', 'websocket'], // Polling first for faster initial connection
         reconnection: true,
         reconnectionAttempts: this.maxReconnectAttempts,
-        reconnectionDelay: 1000,
-        reconnectionDelayMax: 5000,
+        reconnectionDelay: 500, // Faster reconnection
+        reconnectionDelayMax: 3000, // Reduced max delay
+        timeout: 10000, // 10 second timeout - faster
+        forceNew: false, // Reuse existing connection
+        upgrade: true, // Upgrade to websocket after polling connects
       });
 
       this.setupEventHandlers(userId);

@@ -151,25 +151,36 @@ export const joinWithCode = async (req: AuthRequest, res: Response): Promise<voi
       },
     });
 
-    // Emit socket event to both users with partner info
+    // IMMEDIATELY emit socket events to both users
+    const user1Data = {
+      id: updatedPair.user1.id,
+      displayName: updatedPair.user1.displayName,
+      email: updatedPair.user1.email,
+      photoUrl: updatedPair.user1.photoUrl,
+    };
+    
+    const user2Data = {
+      id: updatedPair.user2.id,
+      displayName: updatedPair.user2.displayName,
+      email: updatedPair.user2.email,
+      photoUrl: updatedPair.user2.photoUrl,
+    };
+
+    // Emit to user1 (who generated code)
     io.to(pair.user1Id).emit('partner_connected', {
       partnerId: userId,
-      partner: {
-        id: updatedPair.user2.id,
-        displayName: updatedPair.user2.displayName,
-        email: updatedPair.user2.email,
-        photoUrl: updatedPair.user2.photoUrl,
-      },
+      partner: user2Data,
+      pairId: updatedPair.id,
     });
+    
+    // Emit to user2 (who entered code)
     io.to(userId).emit('partner_connected', {
       partnerId: pair.user1Id,
-      partner: {
-        id: updatedPair.user1.id,
-        displayName: updatedPair.user1.displayName,
-        email: updatedPair.user1.email,
-        photoUrl: updatedPair.user1.photoUrl,
-      },
+      partner: user1Data,
+      pairId: updatedPair.id,
     });
+    
+    console.log(`✅ Socket events emitted to both users instantly`);
 
     // Prepare response
     const partner = updatedPair.user1;

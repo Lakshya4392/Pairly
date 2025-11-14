@@ -177,9 +177,11 @@ class AuthService {
    */
   async getAuthHeader(): Promise<{ Authorization: string } | {}> {
     const token = await this.getToken();
+    
     if (token) {
       return { Authorization: `Bearer ${token}` };
     }
+    
     return {};
   }
 

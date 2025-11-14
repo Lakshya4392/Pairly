@@ -107,13 +107,13 @@ export const PairingConnectionScreen: React.FC<PairingConnectionScreenProps> = (
 
         RealtimeService.on('partner_connected', handlePartnerConnected);
 
-        // Set timeout for connection (30 seconds)
+        // Set timeout for connection (15 seconds - faster feedback)
         timeoutId = setTimeout(() => {
           if (mounted && mode === 'waiting') {
-            console.log('⏱️ Connection timeout reached');
+            console.log('⏱️ Still waiting...');
             setTimeoutReached(true);
           }
-        }, 30000);
+        }, 15000);
 
         return () => {
           RealtimeService.off('partner_connected', handlePartnerConnected);
