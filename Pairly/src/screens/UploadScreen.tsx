@@ -8,6 +8,7 @@ import {
   ScrollView,
   Image,
   Modal,
+  RefreshControl,
 } from 'react-native';
 import { CustomAlert } from '../components/CustomAlert';
 import { UpgradePrompt } from '../components/UpgradePrompt';
@@ -86,6 +87,7 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
   const [showDualCameraModal, setShowDualCameraModal] = useState(false);
   const [isPartnerOnline, setIsPartnerOnline] = useState(false);
   const [partnerLastSeen, setPartnerLastSeen] = useState<Date | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Get user name from Clerk
   const userName = user?.firstName || user?.username || 'User';
@@ -412,6 +414,19 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
     }
   };
 
+  const onRefresh = async () => {
+    setRefreshing(true);
+    
+    // Reload all data
+    await Promise.all([
+      loadPartnerInfo(),
+      loadRecentPhotos(),
+      checkDailyLimit(),
+    ]);
+    
+    setRefreshing(false);
+  };
+
   const handleCapturePress = async () => {
     // Check if partner is connected first
     if (!isPartnerConnected) {
@@ -518,9 +533,11 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
           }
         } else {
           // Send immediately
+          setUploading(true);
           const result = await MomentService.uploadPhoto({
             uri: selectedPhotoUri,
           }, note);
+          setUploading(false);
           
           if (result.success) {
             // Increment daily counter
@@ -529,8 +546,20 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
             // Update remaining count
             await checkDailyLimit();
             
-            setAlertMessage('Your moment has been shared with your partner 💕');
+            // Show success with partner name
+            setAlertMessage(`✅ Moment sent to ${partnerName}!\n\nThey'll receive it instantly 💕`);
             setShowSuccessAlert(true);
+            
+            // Send notification to partner via Socket.IO
+            try {
+              const RealtimeService = (await import('../services/RealtimeService')).default;
+              RealtimeService.emit('moment_sent_notification', {
+                senderName: userName,
+                timestamp: Date.now(),
+              });
+            } catch (error) {
+              console.log('Could not send notification:', error);
+            }
           } else {
             // Check if it's a daily limit error
             if (result.error?.includes('Daily limit reached') || result.error?.includes('upgradeRequired')) {
@@ -547,7 +576,7 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
       setShowPreview(false);
       setSelectedPhotoUri(null);
       
-      // Reload recent photos
+      // Reload recent photos with animation
       await loadRecentPhotos();
     } catch (error: any) {
       setAlertMessage(error.message || 'Failed to upload photo');
@@ -670,8 +699,22 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
         </Animated.View>
       </View>
 
-      {/* Main Content - Centered */}
-      <View style={styles.mainContent}>
+      {/* Main Content - Centered with Pull to Refresh */}
+      <ScrollView
+        style={styles.mainContent}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary, colors.secondary]}
+            title="Pull to refresh"
+            titleColor={colors.textSecondary}
+          />
+        }
+      >
         {/* Hero Card with Capture Button */}
         <View style={styles.heroCard}>
           <Text style={styles.heroTitle}>Share Your Moment</Text>
@@ -797,7 +840,7 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
               </TouchableOpacity>
             </Animated.View>
           </View>
-      </View>
+      </ScrollView>
 
       {/* Bottom Action Bar - Only show if not connected */}
       {!isPartnerConnected && onNavigateToPairing && (
@@ -1094,9 +1137,12 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     color: colors.textSecondary,
   },
 
-  // Main Content - Centered
+  // Main Content - Centered with Pull to Refresh
   mainContent: {
     flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: layout.screenPaddingHorizontal,
