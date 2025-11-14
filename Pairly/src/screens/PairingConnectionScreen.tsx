@@ -36,12 +36,101 @@ export const PairingConnectionScreen: React.FC<PairingConnectionScreenProps> = (
   const styles = React.useMemo(() => createStyles(colors), [colors]);
   const [mode, setMode] = useState<'waiting' | 'connected'>(initialMode);
   const [partnerName, setPartnerName] = useState(initialPartnerName);
+  const [timeoutReached, setTimeoutReached] = useState(false);
   
   // Animations
   const pulseAnim = new Animated.Value(1);
   const rotateAnim = new Animated.Value(0);
   const connectLineAnim = new Animated.Value(0);
   const successScaleAnim = new Animated.Value(0);
+
+  // Setup realtime listener for partner connection
+  useEffect(() => {
+    let mounted = true;
+    let timeoutId: NodeJS.Timeout;
+
+    const setupListener = async () => {
+      try {
+        const RealtimeService = (await import('../services/RealtimeService')).default;
+        const PairingService = (await import('../services/PairingService')).default;
+        
+        // Listen for partner connection
+        const handlePartnerConnected = async (data: any) => {
+          console.log('🎉 Partner connected event received:', data);
+          
+          if (!mounted) return;
+          
+          // Store partner info from socket event
+          if (data.partner) {
+            const partnerInfo: any = {
+              id: data.partner.id,
+              clerkId: data.partner.clerkId || data.partner.id,
+              displayName: data.partner.displayName || 'Partner',
+              email: data.partner.email || '',
+              photoUrl: data.partner.photoUrl,
+              createdAt: new Date().toISOString(),
+            };
+            
+            // Create pair object and store it
+            const pair: any = {
+              id: data.pairId || 'temp-id',
+              user1Id: data.partnerId,
+              user2Id: data.userId || '',
+              pairedAt: new Date().toISOString(),
+              partner: partnerInfo,
+            };
+            
+            await PairingService.storePair(pair);
+            
+            if (mounted) {
+              setPartnerName(partnerInfo.displayName);
+              setMode('connected');
+            }
+          } else {
+            // Fallback: try to get partner info from service
+            try {
+              const partner = await PairingService.getPartner();
+              if (partner && mounted) {
+                setPartnerName(partner.displayName || 'Partner');
+                setMode('connected');
+              }
+            } catch (error) {
+              console.error('Error getting partner info:', error);
+              // Still show connected even if we can't get partner name
+              if (mounted) {
+                setPartnerName('Partner');
+                setMode('connected');
+              }
+            }
+          }
+        };
+
+        RealtimeService.on('partner_connected', handlePartnerConnected);
+
+        // Set timeout for connection (30 seconds)
+        timeoutId = setTimeout(() => {
+          if (mounted && mode === 'waiting') {
+            console.log('⏱️ Connection timeout reached');
+            setTimeoutReached(true);
+          }
+        }, 30000);
+
+        return () => {
+          RealtimeService.off('partner_connected', handlePartnerConnected);
+          if (timeoutId) clearTimeout(timeoutId);
+        };
+      } catch (error) {
+        console.error('Error setting up realtime listener:', error);
+      }
+    };
+
+    setupListener();
+
+    return () => {
+      mounted = false;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, []);
 
   useEffect(() => {
     if (mode === 'waiting') {
@@ -227,9 +316,16 @@ export const PairingConnectionScreen: React.FC<PairingConnectionScreenProps> = (
         <View style={styles.statusContainer}>
           {mode === 'waiting' ? (
             <>
-              <Ionicons name="time-outline" size={20} color={colors.textTertiary} />
-              <Text style={styles.statusText}>
-                Waiting for your partner to enter the code
+              <Ionicons 
+                name={timeoutReached ? "alert-circle-outline" : "time-outline"} 
+                size={20} 
+                color={timeoutReached ? colors.error : colors.textTertiary} 
+              />
+              <Text style={[styles.statusText, timeoutReached && styles.statusTextError]}>
+                {timeoutReached 
+                  ? 'Connection timeout - Make sure your partner enters the code'
+                  : 'Waiting for your partner to enter the code'
+                }
               </Text>
             </>
           ) : (
@@ -331,7 +427,8 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     marginBottom: spacing.sm,
   },
   codeText: {
-    fontFamily: 'Inter-Bold', fontSize: 28, lineHeight: 36,
+    fontSize: 28, 
+    lineHeight: 36,
     color: colors.primary,
     letterSpacing: 8,
     fontFamily: 'monospace',
@@ -435,6 +532,9 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
   },
   statusTextSuccess: {
     color: colors.success,
+  },
+  statusTextError: {
+    color: colors.error,
   },
 
   // Home Button

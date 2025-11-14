@@ -108,25 +108,49 @@ export const PairingScreen: React.FC<PairingScreenProps> = ({ onPairingComplete,
 
     setLoading(true);
     
-    // Get user name first
-    const AuthService = (await import('../services/AuthService')).default;
-    const user = await AuthService.getUser();
-    const displayName = user?.displayName?.split(' ')[0] || 'You';
-    setUserName(displayName);
-
-    // Show connection screen immediately with waiting state
-    if (onShowConnectionScreen) {
-      onShowConnectionScreen(inviteCode, displayName);
-    }
-
     try {
+      // Get user name first
+      const AuthService = (await import('../services/AuthService')).default;
+      const user = await AuthService.getUser();
+      const displayName = user?.displayName?.split(' ')[0] || 'You';
+      setUserName(displayName);
+
+      // Show connection screen immediately with waiting state
+      if (onShowConnectionScreen) {
+        onShowConnectionScreen(inviteCode, displayName);
+      }
+
+      // Try to join with code
       const PairingService = (await import('../services/PairingService')).default;
-      await PairingService.joinWithCode(inviteCode);
-      // Connection successful - will be handled by connection screen
-      onPairingComplete();
+      const pair = await PairingService.joinWithCode(inviteCode);
+      
+      // Connection successful - store pair data
+      await PairingService.storePair(pair);
+      console.log('✅ Successfully joined with code, pair stored');
     } catch (error: any) {
       setLoading(false);
-      Alert.alert('Error', error.message || 'Invalid or expired code');
+      
+      // Only show error if we haven't navigated to connection screen yet
+      if (!onShowConnectionScreen) {
+        Alert.alert('Error', error.message || 'Invalid or expired code');
+      } else {
+        // If already on connection screen, just log the error
+        console.error('Join error:', error.message);
+        Alert.alert(
+          'Connection Error', 
+          error.message || 'Invalid or expired code. Please try again.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                // Go back to pairing screen
+                setMode('choose');
+                setInviteCode('');
+              }
+            }
+          ]
+        );
+      }
     }
   };
 

@@ -132,6 +132,56 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
       const RealtimeService = (await import('../services/RealtimeService')).default;
       const WidgetService = (await import('../services/WidgetService')).default;
       const LocalPhotoStorage = (await import('../services/LocalPhotoStorage')).default;
+      const PairingService = (await import('../services/PairingService')).default;
+
+      // Listen for partner connection (for pairing flow)
+      RealtimeService.on('partner_connected', async (data: any) => {
+        console.log('🎉 Partner connected:', data);
+        
+        // Store partner info from socket event
+        if (data.partner) {
+          const partnerInfo: any = {
+            id: data.partner.id,
+            clerkId: data.partner.clerkId || data.partner.id,
+            displayName: data.partner.displayName || 'Partner',
+            email: data.partner.email || '',
+            photoUrl: data.partner.photoUrl,
+            createdAt: new Date().toISOString(),
+          };
+          
+          // Create pair object and store it
+          const pair: any = {
+            id: data.pairId || 'temp-id',
+            user1Id: data.partnerId,
+            user2Id: data.userId || '',
+            pairedAt: new Date().toISOString(),
+            partner: partnerInfo,
+          };
+          
+          await PairingService.storePair(pair);
+          console.log('✅ Pair data stored from socket event');
+        }
+        
+        // Update connection screen if we're on it
+        if (currentScreen === 'pairingConnection' && connectionData) {
+          try {
+            const partner = await PairingService.getPartner();
+            setConnectionData({
+              ...connectionData,
+              mode: 'connected',
+              partnerName: partner?.displayName || data.partner?.displayName || 'Partner',
+            });
+          } catch (error) {
+            console.error('Error getting partner info:', error);
+            // Still update to connected state
+            setConnectionData({
+              ...connectionData,
+              mode: 'connected',
+              partnerName: data.partner?.displayName || 'Partner',
+            });
+          }
+        }
+      });
 
       // Listen for new moments
       RealtimeService.on('new_moment', async (data: any) => {
@@ -147,7 +197,9 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
             );
             
             // Update widget
-            await WidgetService.onPhotoReceived(photoUri, data.partnerName);
+            if (photoUri) {
+              await WidgetService.onPhotoReceived(photoUri, data.partnerName || 'Partner');
+            }
           }
         } catch (error) {
           console.error('Error saving moment:', error);

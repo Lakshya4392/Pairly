@@ -139,14 +139,28 @@ export const uploadMoment = async (req: AuthRequest, res: Response): Promise<voi
       },
     });
 
-    // Get partner ID
+    // Get partner ID - ONLY send to paired partner
     const partnerId = pair.user1Id === userId ? pair.user2Id : pair.user1Id;
+    
+    // Verify partner exists and is actually paired
+    if (!partnerId || partnerId === userId) {
+      console.error('❌ Invalid partner ID - cannot send moment');
+      res.status(400).json({
+        success: false,
+        error: 'Invalid partner configuration',
+      } as ApiResponse);
+      return;
+    }
 
-    // Emit Socket.IO event to partner
+    console.log(`📤 Sending moment from ${userId} to paired partner ${partnerId}`);
+
+    // Emit Socket.IO event ONLY to the paired partner
     io.to(partnerId).emit('new_moment', {
       momentId: moment.id,
       uploadedBy: userId,
       uploadedAt: moment.uploadedAt.toISOString(),
+      photoBase64: photoBuffer.toString('base64'),
+      partnerName: user.displayName,
     });
 
     // Return response

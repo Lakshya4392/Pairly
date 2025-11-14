@@ -151,12 +151,24 @@ export const joinWithCode = async (req: AuthRequest, res: Response): Promise<voi
       },
     });
 
-    // Emit socket event to both users
+    // Emit socket event to both users with partner info
     io.to(pair.user1Id).emit('partner_connected', {
       partnerId: userId,
+      partner: {
+        id: updatedPair.user2.id,
+        displayName: updatedPair.user2.displayName,
+        email: updatedPair.user2.email,
+        photoUrl: updatedPair.user2.photoUrl,
+      },
     });
     io.to(userId).emit('partner_connected', {
       partnerId: pair.user1Id,
+      partner: {
+        id: updatedPair.user1.id,
+        displayName: updatedPair.user1.displayName,
+        email: updatedPair.user1.email,
+        photoUrl: updatedPair.user1.photoUrl,
+      },
     });
 
     // Prepare response
