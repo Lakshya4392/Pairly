@@ -4,6 +4,7 @@ import { Server } from 'socket.io';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
+import jwt from 'jsonwebtoken';
 import cron from 'node-cron';
 import ScheduledMomentService from './services/scheduledMomentService';
 
@@ -14,10 +15,15 @@ dotenv.config();
 const app = express();
 const httpServer = createServer(app);
 
+if (!process.env.JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is not set');
+}
+const JWT_SECRET = process.env.JWT_SECRET;
+
 // Initialize Socket.IO
 const io = new Server(httpServer, {
   cors: {
-    origin: '*', // Configure properly in production
+    origin: process.env.CORS_ORIGIN || 'http://localhost:8081',
     methods: ['GET', 'POST'],
   },
 });
@@ -67,61 +73,72 @@ app.use('/timelock', timeLockRoutes);
 app.use('/dual-moments', dualCameraRoutes);
 app.use('/widget', widgetRoutes);
 
-// Socket.IO connection handling
-io.on('connection', (socket) => {
-  console.log('Client connected:', socket.id);
+// Socket.IO authentication middleware
+io.use(async (socket, next) => {
+  const token = socket.handshake.auth.token;
 
-  let currentUserId: string | null = null;
+  if (!token) {
+    return next(new Error('Authentication error: No token provided'));
+  }
 
-  // Join user's personal room
-  socket.on('join_room', async (data: { userId: string }) => {
-    currentUserId = data.userId;
-    socket.join(data.userId);
-    console.log(`User ${data.userId} joined their room`);
-    
-    // Send acknowledgment
-    socket.emit('room_joined', { userId: data.userId });
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId },
+    });
 
-    // Notify partner that user is online
-    try {
-      const pair = await prisma.pair.findFirst({
-        where: {
-          OR: [{ user1Id: data.userId }, { user2Id: data.userId }],
-        },
-      });
-
-      if (pair) {
-        const partnerId = pair.user1Id === data.userId ? pair.user2Id : pair.user1Id;
-        
-        // Send presence update to partner
-        io.to(partnerId).emit('partner_presence', {
-          userId: data.userId,
-          isOnline: true,
-          timestamp: new Date().toISOString(),
-        });
-
-        console.log(`🟢 User ${data.userId} is now online (notified ${partnerId})`);
-      }
-    } catch (error) {
-      console.error('Error notifying partner presence:', error);
+    if (!user) {
+      return next(new Error('Authentication error: User not found'));
     }
-  });
+
+    (socket as any).user = user;
+    next();
+  } catch (err) {
+    next(new Error('Authentication error: Invalid token'));
+  }
+});
+
+// Socket.IO connection handling
+io.on('connection', async (socket) => {
+  const currentUserId = (socket as any).user.id;
+  console.log('Client connected:', socket.id, 'User:', currentUserId);
+
+  socket.join(currentUserId);
+
+  // Notify partner that user is online
+  try {
+    const pair = await prisma.pair.findFirst({
+      where: {
+        OR: [{ user1Id: currentUserId }, { user2Id: currentUserId }],
+      },
+    });
+
+    if (pair) {
+      const partnerId = pair.user1Id === currentUserId ? pair.user2Id : pair.user1Id;
+      io.to(partnerId).emit('partner_presence', {
+        userId: currentUserId,
+        isOnline: true,
+        timestamp: new Date().toISOString(),
+      });
+      console.log(`🟢 User ${currentUserId} is now online (notified ${partnerId})`);
+    }
+  } catch (error) {
+    console.error('Error notifying partner presence:', error);
+  }
 
   // Heartbeat to keep presence alive
-  socket.on('heartbeat', async (data: { userId: string }) => {
+  socket.on('heartbeat', async () => {
     try {
       const pair = await prisma.pair.findFirst({
         where: {
-          OR: [{ user1Id: data.userId }, { user2Id: data.userId }],
+          OR: [{ user1Id: currentUserId }, { user2Id: currentUserId }],
         },
       });
 
       if (pair) {
-        const partnerId = pair.user1Id === data.userId ? pair.user2Id : pair.user1Id;
-        
-        // Send heartbeat to partner
+        const partnerId = pair.user1Id === currentUserId ? pair.user2Id : pair.user1Id;
         io.to(partnerId).emit('partner_heartbeat', {
-          userId: data.userId,
+          userId: currentUserId,
           timestamp: new Date().toISOString(),
         });
       }
@@ -139,12 +156,6 @@ io.on('connection', (socket) => {
     partnerId: string;
   }) => {
     try {
-      if (!currentUserId) {
-        console.error('❌ No user ID - cannot send photo');
-        return;
-      }
-
-      // VERIFY that the sender is actually paired with the target partner
       const pair = await prisma.pair.findFirst({
         where: {
           OR: [
@@ -166,13 +177,11 @@ io.on('connection', (socket) => {
         return;
       }
 
-      // Get sender info
       const sender = pair.user1Id === currentUserId ? pair.user1 : pair.user2;
 
       console.log(`✅ Verified: ${currentUserId} is paired with ${data.partnerId}`);
       console.log(`📤 Sending photo from ${sender.displayName} to partner`);
 
-      // Send photo ONLY to the verified paired partner
       io.to(data.partnerId).emit('receive_photo', {
         photoId: data.photoId,
         photoData: data.photoData,
@@ -182,7 +191,6 @@ io.on('connection', (socket) => {
         senderId: currentUserId,
       });
 
-      // Send confirmation to sender
       socket.emit('photo_sent', {
         photoId: data.photoId,
         sentAt: new Date().toISOString(),
@@ -210,30 +218,24 @@ io.on('connection', (socket) => {
   socket.on('disconnect', async (reason) => {
     console.log('Client disconnected:', socket.id, 'Reason:', reason);
 
-    // Notify partner that user is offline
-    if (currentUserId) {
-      try {
-        const pair = await prisma.pair.findFirst({
-          where: {
-            OR: [{ user1Id: currentUserId }, { user2Id: currentUserId }],
-          },
+    try {
+      const pair = await prisma.pair.findFirst({
+        where: {
+          OR: [{ user1Id: currentUserId }, { user2Id: currentUserId }],
+        },
+      });
+
+      if (pair) {
+        const partnerId = pair.user1Id === currentUserId ? pair.user2Id : pair.user1Id;
+        io.to(partnerId).emit('partner_presence', {
+          userId: currentUserId,
+          isOnline: false,
+          timestamp: new Date().toISOString(),
         });
-
-        if (pair) {
-          const partnerId = pair.user1Id === currentUserId ? pair.user2Id : pair.user1Id;
-          
-          // Send offline status to partner
-          io.to(partnerId).emit('partner_presence', {
-            userId: currentUserId,
-            isOnline: false,
-            timestamp: new Date().toISOString(),
-          });
-
-          console.log(`⚫ User ${currentUserId} is now offline (notified ${partnerId})`);
-        }
-      } catch (error) {
-        console.error('Error notifying partner offline:', error);
+        console.log(`⚫ User ${currentUserId} is now offline (notified ${partnerId})`);
       }
+    } catch (error) {
+      console.error('Error notifying partner offline:', error);
     }
   });
 

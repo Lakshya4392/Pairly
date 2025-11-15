@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { authenticateWithGoogle } from '../controllers/authController';
 import userService from '../services/userService';
+import { authenticate, AuthRequest } from '../middleware/auth';
 
 const router = Router();
 
@@ -59,15 +60,9 @@ router.post('/sync', async (req: Request, res: Response) => {
 });
 
 // GET /auth/me - Get current user
-router.get('/me', async (req: Request, res: Response) => {
+router.get('/me', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const clerkId = req.headers['x-clerk-user-id'] as string;
-
-    if (!clerkId) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    const user = await userService.getUserByClerkId(clerkId);
+    const user = await userService.getUserByClerkId(req.user!.clerkId);
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
@@ -81,17 +76,11 @@ router.get('/me', async (req: Request, res: Response) => {
 });
 
 // PUT /auth/settings - Update user settings
-router.put('/settings', async (req: Request, res: Response) => {
+router.put('/settings', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const clerkId = req.headers['x-clerk-user-id'] as string;
-
-    if (!clerkId) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
     const { notificationsEnabled, soundEnabled, vibrationEnabled } = req.body;
 
-    const user = await userService.updateSettings(clerkId, {
+    const user = await userService.updateSettings(req.user!.clerkId, {
       notificationsEnabled,
       soundEnabled,
       vibrationEnabled,
@@ -105,17 +94,11 @@ router.put('/settings', async (req: Request, res: Response) => {
 });
 
 // PUT /auth/premium - Update premium status
-router.put('/premium', async (req: Request, res: Response) => {
+router.put('/premium', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const clerkId = req.headers['x-clerk-user-id'] as string;
-
-    if (!clerkId) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
     const { isPremium, plan } = req.body;
 
-    const user = await userService.updatePremiumStatus(clerkId, isPremium, plan);
+    const user = await userService.updatePremiumStatus(req.user!.clerkId, isPremium, plan);
 
     res.json({ success: true, user });
   } catch (error: any) {
