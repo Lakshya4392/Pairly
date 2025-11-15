@@ -62,13 +62,13 @@ model User {
 model Pair {
   id            String    @id @default(cuid())
   user1Id       String    @unique
-  user2Id       String    @unique
-  inviteCode    String?   @unique
+  user2Id       String?   @unique
+  inviteCode    String?
   codeExpiresAt DateTime?
   pairedAt      DateTime  @default(now())
   
   user1            User              @relation("User1", fields: [user1Id], references: [id])
-  user2            User              @relation("User2", fields: [user2Id], references: [id])
+  user2            User?             @relation("User2", fields: [user2Id], references: [id])
   moments          Moment[]
   sharedNotes      SharedNote[]
   timeLockMessages TimeLockMessage[]

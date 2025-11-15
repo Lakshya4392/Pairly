@@ -5,48 +5,25 @@ import { ApiResponse, PairResponse, UserResponse, CodeResponse } from '../types'
 import { generateInviteCode, isCodeExpired, getCodeExpiration } from '../utils/codeGenerator';
 
 /**
- * Generate invite code for pairing
+ * Generate or retrieve an invite code for pairing.
  */
 export const generateCode = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.userId!;
 
-    // Check if user is already paired
-    const existingPair = await prisma.pair.findFirst({
-      where: {
-        OR: [{ user1Id: userId }, { user2Id: userId }],
-      },
-    });
-
-    if (existingPair) {
-      res.status(400).json({
-        success: false,
-        error: 'User is already paired',
-      } as ApiResponse);
-      return;
-    }
-
-    // Generate unique code
-    let code = generateInviteCode();
-    let codeExists = await prisma.pair.findUnique({
-      where: { inviteCode: code },
-    });
-
-    // Regenerate if code already exists
-    while (codeExists) {
-      code = generateInviteCode();
-      codeExists = await prisma.pair.findUnique({
-        where: { inviteCode: code },
-      });
-    }
-
+    // Use upsert to create or update a pair for the user
     const expiresAt = getCodeExpiration();
+    const code = generateInviteCode();
 
-    // Create pair with invite code (user1 only, waiting for user2)
-    await prisma.pair.create({
-      data: {
+    const pair = await prisma.pair.upsert({
+      where: { user1Id: userId },
+      update: {
+        inviteCode: code,
+        codeExpiresAt: expiresAt,
+        user2Id: null, // Disconnect previous partner if any
+      },
+      create: {
         user1Id: userId,
-        user2Id: userId, // Temporary, will be updated when someone joins
         inviteCode: code,
         codeExpiresAt: expiresAt,
       },
@@ -69,7 +46,7 @@ export const generateCode = async (req: AuthRequest, res: Response): Promise<voi
 };
 
 /**
- * Join with invite code
+ * Join a pair using an invite code.
  */
 export const joinWithCode = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -77,72 +54,43 @@ export const joinWithCode = async (req: AuthRequest, res: Response): Promise<voi
     const { code } = req.body;
 
     if (!code || code.length !== 6) {
-      res.status(400).json({
-        success: false,
-        error: 'Invalid code format',
-      } as ApiResponse);
-      return;
+      return res.status(400).json({ success: false, error: 'Invalid code format' });
     }
 
-    // Check if user is already paired
-    const existingPair = await prisma.pair.findFirst({
+    // Find the pair with the invite code
+    const pair = await prisma.pair.findFirst({
       where: {
-        OR: [{ user1Id: userId }, { user2Id: userId }],
-        NOT: { inviteCode: code }, // Allow if it's their own code
+        inviteCode: code,
+        codeExpiresAt: {
+          gt: new Date(),
+        },
       },
-    });
-
-    if (existingPair) {
-      res.status(400).json({
-        success: false,
-        error: 'User is already paired',
-      } as ApiResponse);
-      return;
-    }
-
-    // Find pair with invite code
-    const pair = await prisma.pair.findUnique({
-      where: { inviteCode: code },
       include: {
         user1: true,
       },
     });
 
     if (!pair) {
-      res.status(404).json({
-        success: false,
-        error: 'Invalid code',
-      } as ApiResponse);
-      return;
+      return res.status(404).json({ success: false, error: 'Invalid or expired code' });
     }
 
-    // Check if code is expired
-    if (pair.codeExpiresAt && isCodeExpired(pair.codeExpiresAt)) {
-      // Delete expired pair
-      await prisma.pair.delete({ where: { id: pair.id } });
-      
-      res.status(400).json({
-        success: false,
-        error: 'Code has expired',
-      } as ApiResponse);
-      return;
-    }
-
-    // Check if user is trying to pair with themselves
     if (pair.user1Id === userId) {
-      res.status(400).json({
-        success: false,
-        error: 'Cannot pair with yourself',
-      } as ApiResponse);
-      return;
+      return res.status(400).json({ success: false, error: 'Cannot pair with yourself' });
     }
 
-    // Update pair with user2
+    // Notify the user who entered the code that a partner was found
+    io.to(userId).emit('partner_found', {
+      partnerId: pair.user1.id,
+      partnerName: pair.user1.displayName,
+      partnerPhotoUrl: pair.user1.photoUrl,
+    });
+
+    // Update the pair with the second user
     const updatedPair = await prisma.pair.update({
       where: { id: pair.id },
       data: {
         user2Id: userId,
-        inviteCode: null, // Remove code after successful pairing
+        inviteCode: null,
         codeExpiresAt: null,
       },
       include: {
@@ -151,61 +99,40 @@ export const joinWithCode = async (req: AuthRequest, res: Response): Promise<voi
       },
     });
 
-    // IMMEDIATELY emit socket events to both users
-    const user1Data = {
-      id: updatedPair.user1.id,
-      displayName: updatedPair.user1.displayName,
-      email: updatedPair.user1.email,
-      photoUrl: updatedPair.user1.photoUrl,
-    };
-    
-    const user2Data = {
-      id: updatedPair.user2.id,
-      displayName: updatedPair.user2.displayName,
-      email: updatedPair.user2.email,
-      photoUrl: updatedPair.user2.photoUrl,
-    };
+    // Emit connection events to both users
+    if (updatedPair.user2) {
+      const user1Data = {
+        id: updatedPair.user1.id,
+        displayName: updatedPair.user1.displayName,
+        email: updatedPair.user1.email,
+        photoUrl: updatedPair.user1.photoUrl,
+      };
 
-    // Emit to user1 (who generated code)
-    io.to(pair.user1Id).emit('partner_connected', {
-      partnerId: userId,
-      partner: user2Data,
-      pairId: updatedPair.id,
-    });
-    
-    // Emit to user2 (who entered code)
-    io.to(userId).emit('partner_connected', {
-      partnerId: pair.user1Id,
-      partner: user1Data,
-      pairId: updatedPair.id,
-    });
-    
-    console.log(`✅ Socket events emitted to both users instantly`);
+      const user2Data = {
+        id: updatedPair.user2.id,
+        displayName: updatedPair.user2.displayName,
+        email: updatedPair.user2.email,
+        photoUrl: updatedPair.user2.photoUrl,
+      };
 
-    // Prepare response
-    const partner = updatedPair.user1;
-    const partnerResponse: UserResponse = {
-      id: partner.id,
-      clerkId: partner.clerkId,
-      email: partner.email,
-      displayName: partner.displayName,
-      photoUrl: partner.photoUrl || undefined,
-      createdAt: partner.createdAt.toISOString(),
-    };
+      io.to(pair.user1Id).emit('partner_connected', {
+        partnerId: userId,
+        partner: user2Data,
+        pairId: updatedPair.id,
+      });
 
-    const pairResponse: PairResponse = {
-      id: updatedPair.id,
-      user1Id: updatedPair.user1Id,
-      user2Id: updatedPair.user2Id,
-      pairedAt: updatedPair.pairedAt.toISOString(),
-      partner: partnerResponse,
-    };
+      io.to(userId).emit('partner_connected', {
+        partnerId: pair.user1Id,
+        partner: user1Data,
+        pairId: updatedPair.id,
+      });
+    }
 
     res.json({
       success: true,
       data: {
-        pair: pairResponse,
-        partner: partnerResponse,
+        message: 'Successfully paired!',
+        pair: updatedPair,
       },
     } as ApiResponse);
   } catch (error) {

@@ -55,14 +55,6 @@ class RealtimeService {
       console.log('Socket.IO connected:', this.socket?.id);
       this.isConnected = true;
       this.reconnectAttempts = 0;
-
-      // Join user's personal room
-      this.socket?.emit('join_room', { userId });
-    });
-
-    // Room joined confirmation
-    this.socket.on('room_joined', (data: { userId: string }) => {
-      console.log('Joined room:', data.userId);
     });
 
     // New moment received
@@ -103,6 +95,12 @@ class RealtimeService {
     this.socket.on('photo_reaction', (data: any) => {
       console.log('❤️ Reaction received:', data.reaction);
       this.triggerEvent('photo_reaction', data);
+    });
+
+    // Partner found
+    this.socket.on('partner_found', (data: any) => {
+      console.log('Partner found:', data);
+      this.triggerEvent('partner_found', data);
     });
 
     // Partner connected
@@ -164,9 +162,6 @@ class RealtimeService {
       console.log('Reconnected after', attemptNumber, 'attempts');
       this.isConnected = true;
       this.reconnectAttempts = 0;
-      
-      // Rejoin room
-      this.socket?.emit('join_room', { userId });
       
       this.triggerEvent('reconnect', { attemptNumber });
     });

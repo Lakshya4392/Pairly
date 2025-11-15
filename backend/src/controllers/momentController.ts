@@ -11,77 +11,50 @@ export const uploadMoment = async (req: AuthRequest, res: Response): Promise<voi
   try {
     const userId = req.userId!;
 
-    // Get user to check premium status and daily limit
-    const user = await prisma.user.findUnique({
+    // Get user and pair information in a single query
+    const userWithPair = await prisma.user.findUnique({
       where: { id: userId },
+      include: {
+        pairAsUser1: true,
+        pairAsUser2: true,
+      },
     });
 
-    if (!user) {
-      res.status(404).json({
-        success: false,
-        error: 'User not found',
-      } as ApiResponse);
-      return;
+    if (!userWithPair) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+
+    const pair = userWithPair.pairAsUser1 || userWithPair.pairAsUser2;
+
+    if (!pair) {
+      return res.status(400).json({ success: false, error: 'User is not paired' });
     }
 
     // Check daily limit for free users
-    if (!user.isPremium) {
+    if (!userWithPair.isPremium) {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      // Reset counter if new day
-      if (!user.lastMomentDate || user.lastMomentDate < today) {
+      if (!userWithPair.lastMomentDate || userWithPair.lastMomentDate < today) {
+        userWithPair.dailyMomentsCount = 0;
         await prisma.user.update({
           where: { id: userId },
-          data: {
-            dailyMomentsCount: 0,
-            lastMomentDate: new Date(),
-          },
+          data: { dailyMomentsCount: 0, lastMomentDate: new Date() },
         });
-        user.dailyMomentsCount = 0;
       }
 
-      // Check limit (3 moments per day for free users)
-      if (user.dailyMomentsCount >= 3) {
-        res.status(403).json({
+      if (userWithPair.dailyMomentsCount >= 3) {
+        return res.status(403).json({
           success: false,
           error: 'Daily limit reached',
           message: 'Upgrade to Premium for unlimited moments 💕',
-          upgradeRequired: true,
-          currentCount: user.dailyMomentsCount,
-          limit: 3,
-        } as ApiResponse);
-        return;
+        });
       }
 
-      // Increment counter
       await prisma.user.update({
         where: { id: userId },
-        data: {
-          dailyMomentsCount: user.dailyMomentsCount + 1,
-        },
+        data: { dailyMomentsCount: userWithPair.dailyMomentsCount + 1 },
       });
-
-      console.log(`📊 User ${userId} daily moments: ${user.dailyMomentsCount + 1}/3`);
-    }
-
-    // Check if user is paired
-    const pair = await prisma.pair.findFirst({
-      where: {
-        OR: [{ user1Id: userId }, { user2Id: userId }],
-      },
-      include: {
-        user1: true,
-        user2: true,
-      },
-    });
-
-    if (!pair) {
-      res.status(400).json({
-        success: false,
-        error: 'User is not paired',
-      } as ApiResponse);
-      return;
     }
 
     // Get photo from request
@@ -95,89 +68,47 @@ export const uploadMoment = async (req: AuthRequest, res: Response): Promise<voi
     }
 
     // Compress image using Sharp
-    let photoBuffer: Buffer;
-    try {
-      photoBuffer = await sharp(file.buffer)
-        .resize(1080, 1920, {
-          fit: 'inside',
-          withoutEnlargement: true,
-        })
-        .jpeg({ quality: 85 })
-        .toBuffer();
+    const photoBuffer = await sharp(file.buffer)
+      .resize(1080, 1920, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 80, progressive: true })
+      .toBuffer();
 
-      // Check size
-      if (photoBuffer.length > 500 * 1024) {
-        // Compress more if still too large
-        photoBuffer = await sharp(file.buffer)
-          .resize(1080, 1920, {
-            fit: 'inside',
-            withoutEnlargement: true,
-          })
-          .jpeg({ quality: 70 })
-          .toBuffer();
-      }
-    } catch (sharpError) {
-      console.error('Image compression error:', sharpError);
-      res.status(400).json({
-        success: false,
-        error: 'Failed to process image',
-      } as ApiResponse);
-      return;
-    }
-
-    // Delete previous moment for this pair (ephemeral nature)
-    await prisma.moment.deleteMany({
-      where: { pairId: pair.id },
-    });
-
-    // Create new moment
-    const moment = await prisma.moment.create({
-      data: {
-        pairId: pair.id,
-        uploaderId: userId,
-        photoData: Buffer.from(photoBuffer),
-      },
-    });
-
-    // Get partner ID - ONLY send to paired partner
+    // Get partner ID
     const partnerId = pair.user1Id === userId ? pair.user2Id : pair.user1Id;
-    
-    // Verify partner exists and is actually paired
-    if (!partnerId || partnerId === userId) {
-      console.error('❌ Invalid partner ID - cannot send moment');
-      res.status(400).json({
-        success: false,
-        error: 'Invalid partner configuration',
-      } as ApiResponse);
-      return;
+
+    if (!partnerId) {
+      return res.status(400).json({ success: false, error: 'Partner not found' });
     }
 
-    console.log(`📤 Sending moment from ${userId} to paired partner ${partnerId}`);
-
-    // Emit Socket.IO event ONLY to the paired partner
+    // Emit Socket.IO event immediately
     io.to(partnerId).emit('new_moment', {
-      momentId: moment.id,
       uploadedBy: userId,
-      uploadedAt: moment.uploadedAt.toISOString(),
       photoBase64: photoBuffer.toString('base64'),
-      partnerName: user.displayName,
+      partnerName: userWithPair.displayName,
     });
 
-    // Return response
-    const momentResponse: MomentResponse = {
-      id: moment.id,
-      pairId: moment.pairId,
-      uploaderId: moment.uploaderId,
-      uploadedAt: moment.uploadedAt.toISOString(),
-    };
+    // Perform database operations in the background
+    (async () => {
+      try {
+        await prisma.moment.deleteMany({ where: { pairId: pair.id } });
+        await prisma.moment.create({
+          data: {
+            pairId: pair.id,
+            uploaderId: userId,
+            photoData: photoBuffer,
+          },
+        });
+      } catch (dbError) {
+        console.error('Error saving moment to DB:', dbError);
+      }
+    })();
 
-    res.json({
+    res.status(202).json({
       success: true,
       data: {
-        moment: momentResponse,
-        uploadedAt: moment.uploadedAt.toISOString(),
+        message: 'Moment sent successfully',
       },
-    } as ApiResponse);
+    });
   } catch (error) {
     console.error('Upload moment error:', error);
     res.status(500).json({
