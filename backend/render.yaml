@@ -23,7 +23,7 @@ services:
       - key: PORT
         value: 10000
       - key: CORS_ORIGIN
-        value: "*"
+        value: "https://pairly.app"
 
 databases:
   - name: pairly-db

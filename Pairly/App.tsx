@@ -46,7 +46,10 @@ const tokenCache = {
 };
 
 // Fallback if env variable fails
-const CLERK_KEY = 'pk_test_bmF0aXZlLWRlZXItOTkuY2xlcmsuYWNjb3VudHMuZGV2JA';
+const CLERK_KEY = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
+if (!CLERK_KEY) {
+  throw new Error('Missing EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY environment variable');
+}
 
 // Error Boundary Component
 class ErrorBoundary extends React.Component<
