@@ -75,16 +75,33 @@ app.use('/widget', widgetRoutes);
 io.on('connection', (socket) => {
   console.log('Client connected:', socket.id);
 
-  let currentUserId: string | null = null;
+  let currentUserClerkId: string | null = null; // Clerk ID for socket rooms
+  let currentUserDbId: string | null = null; // Database ID for queries
 
   // Join user's personal room
   socket.on('join_room', async (data: { userId: string }) => {
-    currentUserId = data.userId;
-    socket.join(data.userId);
-    console.log(`User ${data.userId} joined their room`);
-    
-    // Send acknowledgment
-    socket.emit('room_joined', { userId: data.userId });
+    try {
+      currentUserClerkId = data.userId; // This is clerkId
+      
+      // Get database ID from clerkId
+      const user = await prisma.user.findUnique({
+        where: { clerkId: data.userId },
+      });
+      
+      if (user) {
+        currentUserDbId = user.id;
+        socket.join(data.userId); // Join room with clerkId
+        console.log(`✅ User ${user.displayName} (clerk: ${data.userId}, db: ${user.id}) joined room`);
+        
+        // Send acknowledgment
+        socket.emit('room_joined', { userId: data.userId });
+      } else {
+        console.error(`❌ User not found for clerkId: ${data.userId}`);
+      }
+    } catch (error) {
+      console.error('Error in join_room:', error);
+    }
+  });
 
     // Notify partner that user is online
     try {
@@ -144,24 +161,40 @@ io.on('connection', (socket) => {
   }) => {
     try {
       console.log('📸 Received send_photo event:', {
-        from: currentUserId,
+        from: currentUserClerkId,
         to: data.partnerId,
         photoId: data.photoId,
         hasPhotoData: !!data.photoData,
       });
       
-      if (!currentUserId) {
+      if (!currentUserDbId || !currentUserClerkId) {
         console.error('❌ No user ID - cannot send photo');
         return;
       }
 
-      // VERIFY that the sender is actually paired with the target partner
+      // Get partner's database ID from clerkId
+      const partnerUser = await prisma.user.findUnique({
+        where: { clerkId: data.partnerId },
+      });
+      
+      if (!partnerUser) {
+        console.error(`❌ Partner not found for clerkId: ${data.partnerId}`);
+        socket.emit('send_photo_error', {
+          error: 'Partner not found',
+        });
+        return;
+      }
+      
+      console.log(`🔍 Looking for pair: ${currentUserDbId} <-> ${partnerUser.id}`);
+
+      // VERIFY that the sender is actually paired with the target partner (using database IDs)
       const pair = await prisma.pair.findFirst({
         where: {
           OR: [
-            { user1Id: currentUserId, user2Id: data.partnerId },
-            { user1Id: data.partnerId, user2Id: currentUserId },
+            { user1Id: currentUserDbId, user2Id: partnerUser.id },
+            { user1Id: partnerUser.id, user2Id: currentUserDbId },
           ],
+          inviteCode: null, // Only completed pairs
         },
         include: {
           user1: true,
@@ -170,19 +203,21 @@ io.on('connection', (socket) => {
       });
 
       if (!pair) {
-        console.error(`❌ User ${currentUserId} is NOT paired with ${data.partnerId} - blocking photo send`);
+        console.error(`❌ User ${currentUserClerkId} is NOT paired with ${data.partnerId} - blocking photo send`);
         socket.emit('send_photo_error', {
           error: 'Not paired with this user',
         });
         return;
       }
+      
+      console.log(`✅ Pair verified: ${pair.user1.displayName} <-> ${pair.user2.displayName}`);
 
-      // Get sender and partner info
-      const sender = pair.user1Id === currentUserId ? pair.user1 : pair.user2;
-      const partner = pair.user1Id === currentUserId ? pair.user2 : pair.user1;
+      // Get sender and partner info (using database IDs)
+      const sender = pair.user1Id === currentUserDbId ? pair.user1 : pair.user2;
+      const partner = pair.user1Id === currentUserDbId ? pair.user2 : pair.user1;
 
-      console.log(`✅ Verified: ${currentUserId} is paired with ${data.partnerId}`);
-      console.log(`📤 Sending photo from ${sender.displayName} to partner`);
+      console.log(`✅ Verified: ${sender.displayName} (clerk: ${currentUserClerkId}) is paired with ${partner.displayName} (clerk: ${data.partnerId})`);
+      console.log(`📤 Sending photo from ${sender.displayName} to ${partner.displayName}`);
 
       // Check if partner is online (connected to socket)
       const partnerSockets = await io.in(data.partnerId).fetchSockets();
@@ -197,7 +232,7 @@ io.on('connection', (socket) => {
           timestamp: data.timestamp,
           caption: data.caption,
           senderName: sender.displayName,
-          senderId: currentUserId,
+          senderId: currentUserClerkId,
         });
       } else {
         // Partner is offline - send via FCM
@@ -247,25 +282,30 @@ io.on('connection', (socket) => {
     console.log('Client disconnected:', socket.id, 'Reason:', reason);
 
     // Notify partner that user is offline
-    if (currentUserId) {
+    if (currentUserDbId && currentUserClerkId) {
       try {
         const pair = await prisma.pair.findFirst({
           where: {
-            OR: [{ user1Id: currentUserId }, { user2Id: currentUserId }],
+            OR: [{ user1Id: currentUserDbId }, { user2Id: currentUserDbId }],
+            inviteCode: null,
+          },
+          include: {
+            user1: true,
+            user2: true,
           },
         });
 
         if (pair) {
-          const partnerId = pair.user1Id === currentUserId ? pair.user2Id : pair.user1Id;
+          const partner = pair.user1Id === currentUserDbId ? pair.user2 : pair.user1;
           
-          // Send offline status to partner
-          io.to(partnerId).emit('partner_presence', {
-            userId: currentUserId,
+          // Send offline status to partner (using clerkId for socket room)
+          io.to(partner.clerkId).emit('partner_presence', {
+            userId: currentUserClerkId,
             isOnline: false,
             timestamp: new Date().toISOString(),
           });
 
-          console.log(`⚫ User ${currentUserId} is now offline (notified ${partnerId})`);
+          console.log(`⚫ User ${currentUserClerkId} is now offline (notified ${partner.clerkId})`);
         }
       } catch (error) {
         console.error('Error notifying partner offline:', error);
