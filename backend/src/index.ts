@@ -95,36 +95,39 @@ io.on('connection', (socket) => {
         
         // Send acknowledgment
         socket.emit('room_joined', { userId: data.userId });
+        
+        // Notify partner that user is online
+        const pair = await prisma.user.findUnique({
+          where: { id: user.id },
+          include: {
+            pairAsUser1: {
+              include: { user2: true },
+            },
+            pairAsUser2: {
+              include: { user1: true },
+            },
+          },
+        });
+
+        if (pair?.pairAsUser1 || pair?.pairAsUser2) {
+          const partner = pair.pairAsUser1 ? pair.pairAsUser1.user2 : pair.pairAsUser2?.user1;
+          
+          if (partner) {
+            // Send presence update to partner
+            io.to(partner.clerkId).emit('partner_presence', {
+              userId: data.userId,
+              isOnline: true,
+              timestamp: new Date().toISOString(),
+            });
+
+            console.log(`🟢 User ${user.displayName} is now online (notified ${partner.displayName})`);
+          }
+        }
       } else {
         console.error(`❌ User not found for clerkId: ${data.userId}`);
       }
     } catch (error) {
       console.error('Error in join_room:', error);
-    }
-  });
-
-    // Notify partner that user is online
-    try {
-      const pair = await prisma.pair.findFirst({
-        where: {
-          OR: [{ user1Id: data.userId }, { user2Id: data.userId }],
-        },
-      });
-
-      if (pair) {
-        const partnerId = pair.user1Id === data.userId ? pair.user2Id : pair.user1Id;
-        
-        // Send presence update to partner
-        io.to(partnerId).emit('partner_presence', {
-          userId: data.userId,
-          isOnline: true,
-          timestamp: new Date().toISOString(),
-        });
-
-        console.log(`🟢 User ${data.userId} is now online (notified ${partnerId})`);
-      }
-    } catch (error) {
-      console.error('Error notifying partner presence:', error);
     }
   });
 
@@ -265,7 +268,7 @@ io.on('connection', (socket) => {
         error: 'Failed to send photo',
       });
     }
-  });
+  }); // Close send_photo handler
 
   // Acknowledge moment received
   socket.on('moment_received', (data: { momentId: string }) => {
