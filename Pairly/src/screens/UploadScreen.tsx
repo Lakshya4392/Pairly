@@ -93,12 +93,26 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
   const userName = user?.firstName || user?.username || 'User';
 
   useEffect(() => {
-    loadPartnerInfo();
-    loadRecentPhotos();
-    checkDailyLimit();
-    setupPresence();
-    setupPairingListener();
-    setupPhotoReceiveListener();
+    let mounted = true;
+    let cleanupFunctions: (() => void)[] = [];
+    
+    const initialize = async () => {
+      if (!mounted) return;
+      
+      await loadPartnerInfo();
+      await loadRecentPhotos();
+      await checkDailyLimit();
+      setupPresence();
+      
+      // Setup listeners
+      const cleanupPairing = await setupPairingListener();
+      const cleanupPhoto = await setupPhotoReceiveListener();
+      
+      if (cleanupPairing) cleanupFunctions.push(cleanupPairing);
+      if (cleanupPhoto) cleanupFunctions.push(cleanupPhoto);
+    };
+    
+    initialize();
 
     // Heart pulse animation - smooth and romantic
     const pulseHeart = () => {
@@ -116,6 +130,8 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
 
     return () => {
       // Cleanup
+      mounted = false;
+      cleanupFunctions.forEach(fn => fn());
       cleanupPresence();
       clearInterval(interval);
     };
@@ -476,16 +492,24 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
       const LocalPhotoStorage = (await import('../services/LocalPhotoStorage')).default;
       const photos = await LocalPhotoStorage.getAllPhotos();
       
+      // Sort by timestamp (newest first)
+      const sortedPhotos = photos.sort((a, b) => {
+        const timeA = new Date(a.timestamp).getTime();
+        const timeB = new Date(b.timestamp).getTime();
+        return timeB - timeA; // Newest first
+      });
+      
       // Get last 8 photos - get URIs from metadata (2 rows of 4)
       const recentUris = await Promise.all(
-        photos.slice(0, 8).map(async (p) => {
+        sortedPhotos.slice(0, 8).map(async (p) => {
           const uri = await LocalPhotoStorage.getPhotoUri(p.id);
           return uri || '';
         })
       );
       
-      setRecentPhotos(recentUris.filter(uri => uri !== ''));
-      console.log(`✅ Loaded ${recentUris.filter(uri => uri !== '').length} recent photos`);
+      const filteredUris = recentUris.filter(uri => uri !== '');
+      setRecentPhotos(filteredUris);
+      console.log(`✅ Loaded ${filteredUris.length} recent photos (${photos.length} total)`);
     } catch (error) {
       console.error('Error loading recent photos:', error);
     }

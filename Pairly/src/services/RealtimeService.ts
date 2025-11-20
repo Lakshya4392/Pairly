@@ -81,11 +81,18 @@ class RealtimeService {
         const PairingService = (await import('./PairingService')).default;
         const partner = await PairingService.getPartner();
         
-        if (partner && data.senderId === partner.id) {
+        // Compare using clerkId (data.senderId is clerkId from backend)
+        const isFromPartner = partner && (
+          data.senderId === partner.clerkId || 
+          data.senderId === partner.id
+        );
+        
+        if (isFromPartner) {
           console.log('✅ Verified photo is from paired partner');
           this.triggerEvent('receive_photo', data);
         } else {
           console.warn('⚠️ Received photo from non-paired user - ignoring');
+          console.warn('Sender:', data.senderId, 'Partner:', partner?.clerkId, partner?.id);
         }
       } catch (error) {
         console.error('Error verifying photo sender:', error);

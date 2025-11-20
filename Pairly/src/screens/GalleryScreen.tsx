@@ -100,11 +100,17 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
       // Filter out photos without URI
       const validPhotos = loadedPhotos.filter(p => p.uri);
 
+      // Sort by timestamp (newest first)
+      const sortedPhotos = validPhotos.sort((a, b) => {
+        return b.timestamp.getTime() - a.timestamp.getTime();
+      });
+
       // Limit for free users (show only last 10 photos)
-      const availablePhotos = isPremium ? validPhotos : validPhotos.slice(0, 10);
+      const availablePhotos = isPremium ? sortedPhotos : sortedPhotos.slice(0, 10);
       
       setPhotos(availablePhotos);
-      console.log(`✅ Loaded ${availablePhotos.length} photos from storage`);
+      console.log(`✅ Loaded ${availablePhotos.length} photos from storage (${validPhotos.length} total, user + partner)`);
+
     } catch (error) {
       console.error('❌ Error loading photos:', error);
       // Fallback to empty array
