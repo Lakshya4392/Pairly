@@ -32,8 +32,17 @@ public class PairlyWidgetModule extends ReactContextBaseJavaModule {
     public void hasWidgets(Promise promise) {
         try {
             AppWidgetManager appWidgetManager = AppWidgetManager.getInstance(reactContext);
-            int[] appWidgetIds = appWidgetManager.getAppWidgetIds(new ComponentName(reactContext, PairlyWidgetProvider.class));
-            promise.resolve(appWidgetIds.length > 0);
+            
+            // Check all widget types
+            int totalWidgets = 0;
+            totalWidgets += appWidgetManager.getAppWidgetIds(new ComponentName(reactContext, ClassicPhotoWidgetProvider.class)).length;
+            totalWidgets += appWidgetManager.getAppWidgetIds(new ComponentName(reactContext, MinimalistCircleWidgetProvider.class)).length;
+            totalWidgets += appWidgetManager.getAppWidgetIds(new ComponentName(reactContext, PolaroidStyleWidgetProvider.class)).length;
+            totalWidgets += appWidgetManager.getAppWidgetIds(new ComponentName(reactContext, HeartShapeWidgetProvider.class)).length;
+            totalWidgets += appWidgetManager.getAppWidgetIds(new ComponentName(reactContext, DualMomentWidgetProvider.class)).length;
+            totalWidgets += appWidgetManager.getAppWidgetIds(new ComponentName(reactContext, FlipCardWidgetProvider.class)).length;
+            
+            promise.resolve(totalWidgets > 0);
         } catch (Exception e) {
             promise.reject(e);
         }
@@ -44,7 +53,6 @@ public class PairlyWidgetModule extends ReactContextBaseJavaModule {
         try {
             Context context = getReactApplicationContext();
             AppWidgetManager appWidgetManager = AppWidgetManager.getInstance(context);
-            int[] appWidgetIds = appWidgetManager.getAppWidgetIds(new ComponentName(context, PairlyWidgetProvider.class));
 
             // Save the data for later updates
             SharedPreferences.Editor prefs = context.getSharedPreferences(PREFS_NAME, 0).edit();
@@ -53,9 +61,44 @@ public class PairlyWidgetModule extends ReactContextBaseJavaModule {
             prefs.putLong(PREF_TIMESTAMP, (long) timestamp);
             prefs.apply();
 
-            for (int appWidgetId : appWidgetIds) {
-                PairlyWidgetProvider.updateAppWidget(context, appWidgetManager, appWidgetId, photoPath, partnerName, (long) timestamp);
+            long ts = (long) timestamp;
+
+            // Update Classic Photo widgets
+            int[] classicIds = appWidgetManager.getAppWidgetIds(new ComponentName(context, ClassicPhotoWidgetProvider.class));
+            for (int id : classicIds) {
+                ClassicPhotoWidgetProvider.updateAppWidget(context, appWidgetManager, id, photoPath, partnerName, ts);
             }
+
+            // Update Minimalist Circle widgets
+            int[] circleIds = appWidgetManager.getAppWidgetIds(new ComponentName(context, MinimalistCircleWidgetProvider.class));
+            for (int id : circleIds) {
+                MinimalistCircleWidgetProvider.updateAppWidget(context, appWidgetManager, id, photoPath, partnerName, ts);
+            }
+
+            // Update Polaroid widgets
+            int[] polaroidIds = appWidgetManager.getAppWidgetIds(new ComponentName(context, PolaroidStyleWidgetProvider.class));
+            for (int id : polaroidIds) {
+                PolaroidStyleWidgetProvider.updateAppWidget(context, appWidgetManager, id, photoPath, partnerName, ts);
+            }
+
+            // Update Heart Shape widgets
+            int[] heartIds = appWidgetManager.getAppWidgetIds(new ComponentName(context, HeartShapeWidgetProvider.class));
+            for (int id : heartIds) {
+                HeartShapeWidgetProvider.updateAppWidget(context, appWidgetManager, id, photoPath, partnerName, ts);
+            }
+
+            // Update Dual Moment widgets (needs both user and partner photos)
+            int[] dualIds = appWidgetManager.getAppWidgetIds(new ComponentName(context, DualMomentWidgetProvider.class));
+            for (int id : dualIds) {
+                DualMomentWidgetProvider.updateAppWidget(context, appWidgetManager, id, null, photoPath, "You", partnerName, ts);
+            }
+
+            // Update Flip Card widgets
+            int[] flipIds = appWidgetManager.getAppWidgetIds(new ComponentName(context, FlipCardWidgetProvider.class));
+            for (int id : flipIds) {
+                FlipCardWidgetProvider.updateAppWidget(context, appWidgetManager, id, photoPath, partnerName, null, ts);
+            }
+
             promise.resolve(true);
         } catch (Exception e) {
             promise.reject(e);
@@ -67,7 +110,6 @@ public class PairlyWidgetModule extends ReactContextBaseJavaModule {
         try {
             Context context = getReactApplicationContext();
             AppWidgetManager appWidgetManager = AppWidgetManager.getInstance(context);
-            int[] appWidgetIds = appWidgetManager.getAppWidgetIds(new ComponentName(context, PairlyWidgetProvider.class));
 
             // Clear saved data
             SharedPreferences.Editor prefs = context.getSharedPreferences(PREFS_NAME, 0).edit();
@@ -76,9 +118,37 @@ public class PairlyWidgetModule extends ReactContextBaseJavaModule {
             prefs.remove(PREF_TIMESTAMP);
             prefs.apply();
 
-            for (int appWidgetId : appWidgetIds) {
-                PairlyWidgetProvider.updateAppWidget(context, appWidgetManager, appWidgetId, null, null, 0);
+            // Clear all widget types
+            int[] classicIds = appWidgetManager.getAppWidgetIds(new ComponentName(context, ClassicPhotoWidgetProvider.class));
+            for (int id : classicIds) {
+                ClassicPhotoWidgetProvider.updateAppWidget(context, appWidgetManager, id, null, null, 0);
             }
+
+            int[] circleIds = appWidgetManager.getAppWidgetIds(new ComponentName(context, MinimalistCircleWidgetProvider.class));
+            for (int id : circleIds) {
+                MinimalistCircleWidgetProvider.updateAppWidget(context, appWidgetManager, id, null, null, 0);
+            }
+
+            int[] polaroidIds = appWidgetManager.getAppWidgetIds(new ComponentName(context, PolaroidStyleWidgetProvider.class));
+            for (int id : polaroidIds) {
+                PolaroidStyleWidgetProvider.updateAppWidget(context, appWidgetManager, id, null, null, 0);
+            }
+
+            int[] heartIds = appWidgetManager.getAppWidgetIds(new ComponentName(context, HeartShapeWidgetProvider.class));
+            for (int id : heartIds) {
+                HeartShapeWidgetProvider.updateAppWidget(context, appWidgetManager, id, null, null, 0);
+            }
+
+            int[] dualIds = appWidgetManager.getAppWidgetIds(new ComponentName(context, DualMomentWidgetProvider.class));
+            for (int id : dualIds) {
+                DualMomentWidgetProvider.updateAppWidget(context, appWidgetManager, id, null, null, null, null, 0);
+            }
+
+            int[] flipIds = appWidgetManager.getAppWidgetIds(new ComponentName(context, FlipCardWidgetProvider.class));
+            for (int id : flipIds) {
+                FlipCardWidgetProvider.updateAppWidget(context, appWidgetManager, id, null, null, null, 0);
+            }
+
             promise.resolve(true);
         } catch (Exception e) {
             promise.reject(e);

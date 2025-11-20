@@ -1,4 +1,4 @@
-import { API_CONFIG } from '../config/api.config';
+import apiClient from '../utils/apiClient';
 import PremiumService from './PremiumService';
 
 export interface SharedNote {
@@ -13,9 +13,8 @@ class SharedNotesService {
   /**
    * Send a shared note to partner
    */
-  static async sendNote(
+  async sendNote(
     content: string,
-    token: string,
     expiresIn24h: boolean = false
   ): Promise<{ success: boolean; error?: string; note?: SharedNote }> {
     try {
@@ -43,37 +42,21 @@ class SharedNotesService {
         };
       }
 
-      const response = await fetch(`${API_CONFIG.baseUrl}/notes/send`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          content: content.trim(),
-          expiresIn24h,
-        }),
+      const data = await apiClient.post<{ note: SharedNote }>('/notes/send', {
+        content: content.trim(),
+        expiresIn24h,
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        return {
-          success: false,
-          error: data.error || 'Failed to send note',
-        };
-      }
 
       console.log('✅ Note sent successfully');
       return {
         success: true,
         note: data.note,
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending note:', error);
       return {
         success: false,
-        error: 'Network error. Please try again.',
+        error: error.message || 'Network error. Please try again.',
       };
     }
   }
@@ -81,40 +64,23 @@ class SharedNotesService {
   /**
    * Get recent notes
    */
-  static async getRecentNotes(
-    token: string,
+  async getRecentNotes(
     limit: number = 10
   ): Promise<{ success: boolean; notes?: SharedNote[]; error?: string }> {
     try {
-      const response = await fetch(
-        `${API_CONFIG.baseUrl}/notes/recent?limit=${limit}`,
-        {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        }
+      const data = await apiClient.get<{ notes: SharedNote[] }>(
+        `/notes/recent?limit=${limit}`
       );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        return {
-          success: false,
-          error: data.error || 'Failed to fetch notes',
-        };
-      }
 
       return {
         success: true,
         notes: data.notes || [],
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching notes:', error);
       return {
         success: false,
-        error: 'Network error',
+        error: error.message || 'Network error',
       };
     }
   }
@@ -122,37 +88,20 @@ class SharedNotesService {
   /**
    * Delete a note
    */
-  static async deleteNote(
-    noteId: string,
-    token: string
+  async deleteNote(
+    noteId: string
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      const response = await fetch(`${API_CONFIG.baseUrl}/notes/${noteId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        return {
-          success: false,
-          error: data.error || 'Failed to delete note',
-        };
-      }
-
+      await apiClient.delete(`/notes/${noteId}`);
       return { success: true };
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting note:', error);
       return {
         success: false,
-        error: 'Network error',
+        error: error.message || 'Network error',
       };
     }
   }
 }
 
-export default SharedNotesService;
+export default new SharedNotesService();

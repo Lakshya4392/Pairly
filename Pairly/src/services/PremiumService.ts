@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API_CONFIG } from '../config/api.config';
+import apiClient from '../utils/apiClient';
 
 interface PremiumStatus {
   isPremium: boolean;
@@ -11,14 +11,14 @@ interface PremiumStatus {
 }
 
 class PremiumService {
-  private static STORAGE_KEY = '@pairly_premium_status';
-  private static DAILY_LIMIT_FREE = 3;
-  private static DAILY_LIMIT_PREMIUM = 999999; // Unlimited
+  private STORAGE_KEY = '@pairly_premium_status';
+  private DAILY_LIMIT_FREE = 3;
+  private DAILY_LIMIT_PREMIUM = 999999; // Unlimited
 
   /**
    * Check if user has premium access
    */
-  static async isPremium(): Promise<boolean> {
+  async isPremium(): Promise<boolean> {
     try {
       const status = await this.getPremiumStatus();
       
@@ -44,7 +44,7 @@ class PremiumService {
   /**
    * Get full premium status
    */
-  static async getPremiumStatus(): Promise<PremiumStatus> {
+  async getPremiumStatus(): Promise<PremiumStatus> {
     try {
       const data = await AsyncStorage.getItem(this.STORAGE_KEY);
       if (data) {
@@ -68,7 +68,7 @@ class PremiumService {
   /**
    * Set premium status (after purchase or sync)
    */
-  static async setPremiumStatus(
+  async setPremiumStatus(
     isPremium: boolean,
     plan: 'monthly' | 'yearly' = 'monthly',
     expiresAt?: Date
@@ -93,7 +93,7 @@ class PremiumService {
   /**
    * Check if user can send a moment today
    */
-  static async canSendMoment(): Promise<{
+  async canSendMoment(): Promise<{
     canSend: boolean;
     remaining: number;
     limit: number;
@@ -150,7 +150,7 @@ class PremiumService {
   /**
    * Increment daily moment count
    */
-  static async incrementMomentCount(): Promise<void> {
+  async incrementMomentCount(): Promise<void> {
     try {
       const countStr = await AsyncStorage.getItem('@pairly_daily_count');
       const count = countStr ? parseInt(countStr, 10) : 0;
@@ -164,7 +164,7 @@ class PremiumService {
   /**
    * Start free trial (7 days)
    */
-  static async startTrial(): Promise<void> {
+  async startTrial(): Promise<void> {
     try {
       const trialEndDate = new Date();
       trialEndDate.setDate(trialEndDate.getDate() + 7); // 7 days trial
@@ -188,22 +188,12 @@ class PremiumService {
   /**
    * Sync premium status with backend
    */
-  static async syncWithBackend(token: string, userId: string): Promise<void> {
+  async syncWithBackend(): Promise<void> {
     try {
-      const response = await fetch(`${API_CONFIG.baseUrl}/users/${userId}/premium`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        console.warn('Could not sync premium status from backend');
-        return;
-      }
-
-      const data = await response.json();
+      const data = await apiClient.get<{
+        success: boolean;
+        data: { isPremium: boolean; premiumPlan: 'monthly' | 'yearly'; premiumExpiry: string };
+      }>('/users/me/premium');
       
       if (data.success && data.data) {
         if (data.data.isPremium) {
@@ -226,7 +216,7 @@ class PremiumService {
   /**
    * Check if feature is available
    */
-  static async hasFeature(feature: PremiumFeature): Promise<boolean> {
+  async hasFeature(feature: PremiumFeature): Promise<boolean> {
     const isPremium = await this.isPremium();
     
     // All premium features require premium
@@ -236,7 +226,7 @@ class PremiumService {
   /**
    * Get feature lock message
    */
-  static getFeatureLockMessage(feature: PremiumFeature): string {
+  getFeatureLockMessage(feature: PremiumFeature): string {
     const messages: Record<PremiumFeature, string> = {
       'dual-camera': 'Capture the same moment from two worlds 💞',
       'shared-notes': 'Send love notes that appear like magic 📝',
@@ -255,7 +245,7 @@ class PremiumService {
   /**
    * Clear premium status (on logout)
    */
-  static async clearPremiumStatus(): Promise<void> {
+  async clearPremiumStatus(): Promise<void> {
     try {
       await AsyncStorage.removeItem(this.STORAGE_KEY);
       await AsyncStorage.removeItem('@pairly_daily_count');
@@ -278,4 +268,4 @@ export type PremiumFeature =
   | 'app-lock'
   | 'smart-reminders';
 
-export default PremiumService;
+export default new PremiumService();

@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Widget Style 5: Dual Moment (Side by Side) -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="12dp"
+    android:background="@drawable/widget_background_dual">
+
+    <!-- Header -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:paddingBottom="8dp">
+        
+        <TextView
+            android:id="@+id/widget_user_name"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="You"
+            android:textSize="13sp"
+            android:textColor="#4A90E2"
+            android:textStyle="bold"
+            android:textAlignment="center"
+            android:gravity="center"/>
+        
+        <ImageView
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@drawable/ic_heart_filled"
+            android:tint="#FF6B9D"
+            android:layout_marginHorizontal="8dp"/>
+        
+        <TextView
+            android:id="@+id/widget_partner_name"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Partner"
+            android:textSize="13sp"
+            android:textColor="#9B59B6"
+            android:textStyle="bold"
+            android:textAlignment="center"
+            android:gravity="center"/>
+    </LinearLayout>
+
+    <!-- Photos Side by Side -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="horizontal"
+        android:weightSum="2">
+
+        <!-- Your Photo -->
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_marginEnd="4dp">
+
+            <ImageView
+                android:id="@+id/widget_image_user"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="centerCrop"
+                android:contentDescription="Your photo"
+                android:background="@drawable/rounded_corner_left"
+                android:visibility="gone"/>
+
+            <LinearLayout
+                android:id="@+id/widget_placeholder_user"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:background="@drawable/rounded_corner_left_gradient">
+                
+                <ImageView
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:src="@drawable/ic_person_outline"
+                    android:tint="#4A90E2"
+                    android:alpha="0.6"/>
+                
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Your\nmoment"
+                    android:textSize="11sp"
+                    android:textColor="#666666"
+                    android:textAlignment="center"
+                    android:layout_marginTop="6dp"/>
+            </LinearLayout>
+        </FrameLayout>
+
+        <!-- Partner Photo -->
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_marginStart="4dp">
+
+            <ImageView
+                android:id="@+id/widget_image"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="centerCrop"
+                android:contentDescription="Partner photo"
+                android:background="@drawable/rounded_corner_right"
+                android:visibility="gone"/>
+
+            <LinearLayout
+                android:id="@+id/widget_placeholder"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:background="@drawable/rounded_corner_right_gradient">
+                
+                <ImageView
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:src="@drawable/ic_person_outline"
+                    android:tint="#9B59B6"
+                    android:alpha="0.6"/>
+                
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Partner's\nmoment"
+                    android:textSize="11sp"
+                    android:textColor="#666666"
+                    android:textAlignment="center"
+                    android:layout_marginTop="6dp"/>
+            </LinearLayout>
+        </FrameLayout>
+    </LinearLayout>
+
+    <!-- Footer -->
+    <TextView
+        android:id="@+id/widget_timestamp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Shared moments"
+        android:textSize="11sp"
+        android:textColor="#999999"
+        android:textAlignment="center"
+        android:gravity="center"
+        android:paddingTop="8dp"/>
+
+</LinearLayout>

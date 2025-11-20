@@ -1,8 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API_BASE_URL } from '@env';
 import { User, AuthResponse } from '@types';
-import { safeFetch } from '../utils/safeFetch';
+import apiClient from '../utils/apiClient';
 
 const TOKEN_KEY = 'pairly_auth_token';
 const USER_KEY = 'pairly_user';
@@ -105,49 +104,37 @@ class AuthService {
    */
   async authenticateWithBackend(clerkToken: string): Promise<AuthResponse> {
     try {
-      // Validate URL
-      if (!API_BASE_URL || !API_BASE_URL.startsWith('http')) {
-        throw new Error('Invalid API_BASE_URL configuration');
-      }
-
-      // Create timeout controller
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => {
-        controller.abort();
-      }, 10000); // 10 second timeout
-
-      const response = await safeFetch(`${API_BASE_URL}/auth/google`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ idToken: clerkToken }),
-        timeout: 10000,
-      } as any);
-
-      if (!response.ok) {
-        throw new Error(`Authentication failed: ${response.status}`);
-      }
-
-      const data: AuthResponse = await response.json();
+      console.log('🔐 Sending Clerk token to backend...');
       
-      // Store token and user
-      await this.storeToken(data.token);
-      await this.storeUser(data.user);
+      const data = await apiClient.post<AuthResponse>(
+        '/auth/google', 
+        { idToken: clerkToken },
+        { skipAuth: true } // Skip automatic auth header for this endpoint
+      );
 
-      return data;
+      if (!data.success || !data.data) {
+        throw new Error('Invalid response from backend');
+      }
+
+      console.log('✅ Received backend JWT token');
+
+      // Store token and user
+      await this.storeToken(data.data.token);
+      await this.storeUser(data.data.user);
+
+      return data.data;
     } catch (error: any) {
-      console.error('Backend authentication error:', error);
+      console.error('❌ Backend authentication error:', error.message);
       
       // Handle specific protocol errors
       if (error.message && error.message.includes('protocol')) {
-        console.log('Protocol error detected, switching to offline mode');
+        console.log('⚠️ Protocol error detected, switching to offline mode');
         throw new Error('Network configuration error - using offline mode');
       }
       
       // Create a fallback user from Clerk token if backend is not available
-      if (error instanceof TypeError && error.message.includes('Network request failed')) {
-        console.log('Backend not available, creating offline user');
+      if (error.name === 'TimeoutError' || (error instanceof TypeError && error.message.includes('Network request failed'))) {
+        console.log('⚠️ Backend not available, creating offline user');
         // You can decode the Clerk token to get user info if needed
         // For now, we'll just throw the error and let the app continue without backend auth
       }

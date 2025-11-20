@@ -206,7 +206,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   deleteText: {
-    fontFamily: 'Inter-Bold',
     color: colors.error,
     fontFamily: 'monospace',
   },
@@ -217,7 +216,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.lg,
-    fontFamily: 'Inter-SemiBold', fontSize: 16,
+    fontSize: 16,
     color: colors.text,
     textAlign: 'center',
     fontFamily: 'monospace',

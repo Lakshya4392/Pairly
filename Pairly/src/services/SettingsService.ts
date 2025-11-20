@@ -31,28 +31,31 @@ class SettingsService {
    * Get user settings (from cache or storage)
    */
   async getSettings(): Promise<UserSettings> {
-    try {
-      // Return cached if available
-      if (this.cachedSettings) {
-        return this.cachedSettings;
-      }
-
-      // Try to get from local storage
-      const settingsJson = await AsyncStorage.getItem(this.settingsKey);
-      
-      if (settingsJson) {
-        this.cachedSettings = JSON.parse(settingsJson);
-        return this.cachedSettings;
-      }
-
-      // Return defaults
-      this.cachedSettings = { ...DEFAULT_SETTINGS };
+    // 1. Check cache first
+    if (this.cachedSettings) {
       return this.cachedSettings;
-
-    } catch (error) {
-      console.error('Error getting settings:', error);
-      return { ...DEFAULT_SETTINGS };
     }
+
+    let settings: UserSettings | null = null;
+
+    // 2. Try to load from storage
+    try {
+      const settingsJson = await AsyncStorage.getItem(this.settingsKey);
+      if (settingsJson) {
+        settings = JSON.parse(settingsJson) as UserSettings;
+      }
+    } catch (error) {
+      console.error('Error getting settings from storage:', error);
+    }
+
+    // 3. If still no settings, use defaults
+    if (!settings) {
+      settings = { ...DEFAULT_SETTINGS };
+    }
+
+    // 4. Cache and return
+    this.cachedSettings = settings;
+    return settings;
   }
 
   /**

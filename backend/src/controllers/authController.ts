@@ -28,11 +28,10 @@ export const authenticateWithGoogle = async (
     // Verify token with Clerk
     let clerkUser;
     try {
-      // Get session from token
-      const sessions = await clerkClient.sessions.getSessionList();
-      const session = sessions.find((s: any) => s.id === idToken);
-
-      if (!session || !session.userId) {
+      // Verify the JWT token from Clerk
+      const decoded = await clerkClient.verifyToken(idToken);
+      
+      if (!decoded || !decoded.sub) {
         res.status(401).json({
           success: false,
           error: 'Invalid token',
@@ -40,13 +39,13 @@ export const authenticateWithGoogle = async (
         return;
       }
 
-      // Get user from Clerk
-      clerkUser = await clerkClient.users.getUser(session.userId);
-    } catch (clerkError) {
+      // Get user from Clerk using the subject (user ID) from token
+      clerkUser = await clerkClient.users.getUser(decoded.sub);
+    } catch (clerkError: any) {
       console.error('Clerk verification error:', clerkError);
       res.status(401).json({
         success: false,
-        error: 'Token verification failed',
+        error: clerkError.message || 'Token verification failed',
       } as ApiResponse);
       return;
     }

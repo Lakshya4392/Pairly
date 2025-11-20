@@ -100,13 +100,13 @@ export const typography = {
 
   // Accent Text (Romantic)
   accent: {
-    fontFamily: fonts.accent,
+    fontFamily: fonts.primarySemiBold,
     fontSize: fontSizes.lg,
     lineHeight: fontSizes.lg * lineHeights.relaxed,
     fontWeight: fontWeights.regular,
   },
   accentLarge: {
-    fontFamily: fonts.accent,
+    fontFamily: fonts.primarySemiBold,
     fontSize: fontSizes.xxl,
     lineHeight: fontSizes.xxl * lineHeights.relaxed,
     fontWeight: fontWeights.regular,

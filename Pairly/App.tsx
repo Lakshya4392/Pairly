@@ -18,7 +18,6 @@ import {
 
 // Import services
 import WidgetBackgroundService from './src/services/WidgetBackgroundService';
-import ReminderService from './src/services/ReminderService';
 
 // Import theme
 import { paperTheme } from './src/theme';
@@ -93,18 +92,22 @@ export default function App() {
   // Apply fonts globally when loaded
   useEffect(() => {
     if (fontsLoaded) {
-      // Override default Text component
-      const defaultProps = Text.defaultProps || {};
-      Text.defaultProps = {
-        ...defaultProps,
-        style: { fontFamily: 'Inter-Regular' },
+      // Apply default font family globally
+      // This is a common workaround for the deprecation of defaultProps
+      const oldTextRender = (Text as any).render;
+      (Text as any).render = function (...args: any) {
+        const origin = oldTextRender.call(this, ...args);
+        return React.cloneElement(origin, {
+          style: [{ fontFamily: 'Inter-Regular' }, origin.props.style],
+        });
       };
-      
-      // Override default TextInput component
-      const defaultInputProps = TextInput.defaultProps || {};
-      TextInput.defaultProps = {
-        ...defaultInputProps,
-        style: { fontFamily: 'Inter-Regular' },
+
+      const oldTextInputRender = (TextInput as any).render;
+      (TextInput as any).render = function (...args: any) {
+        const origin = oldTextInputRender.call(this, ...args);
+        return React.cloneElement(origin, {
+          style: [{ fontFamily: 'Inter-Regular' }, origin.props.style],
+        });
       };
       
       console.log('✅ Inter fonts loaded and applied globally');
@@ -116,7 +119,6 @@ export default function App() {
     const initializeApp = async () => {
       // Initialize widget and reminders
       WidgetBackgroundService.initialize();
-      ReminderService.scheduleReminders();
       
       // Request notification permissions
       const NotificationService = (await import('./src/services/NotificationService')).default;

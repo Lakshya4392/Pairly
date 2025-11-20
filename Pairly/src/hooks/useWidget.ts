@@ -3,7 +3,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import WidgetService from '../services/WidgetService';
+import widgetService from '../services/WidgetService';
 
 export interface UseWidgetReturn {
   isSupported: boolean;
@@ -17,8 +17,6 @@ export const useWidget = (): UseWidgetReturn => {
   const [isSupported, setIsSupported] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
-
-  const widgetService = WidgetService.getInstance();
 
   // Initialize widget support check
   useEffect(() => {
@@ -63,7 +61,7 @@ export const useWidget = (): UseWidgetReturn => {
       console.error('Error updating widget:', error);
       return false;
     }
-  }, [isSupported, widgetService]);
+  }, [isSupported]);
 
   // Clear widget
   const clearWidget = useCallback(async (): Promise<boolean> => {
@@ -81,7 +79,8 @@ export const useWidget = (): UseWidgetReturn => {
       console.error('Error clearing widget:', error);
       return false;
     }
-  }, [isSupported, widgetService]);
+  }, [isSupported]);
+
 
   return {
     isSupported,

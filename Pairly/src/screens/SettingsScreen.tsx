@@ -64,6 +64,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [showPINSetup, setShowPINSetup] = useState(false);
   const [showThemeSelector, setShowThemeSelector] = useState(false);
   const [showRatingModal, setShowRatingModal] = useState(false);
+  const [highQuality, setHighQuality] = useState(false);
 
   useEffect(() => {
     loadUserInfo();

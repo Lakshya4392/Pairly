@@ -1,6 +1,7 @@
 /**
  * API Client
  * Handles all API requests with automatic retry and error handling
+ * Automatically includes authentication token from AuthService
  */
 
 import { API_CONFIG } from '../config/api.config';
@@ -11,6 +12,7 @@ interface RequestOptions {
   body?: any;
   timeout?: number;
   retries?: number;
+  skipAuth?: boolean; // Skip automatic auth header
 }
 
 class ApiClient {
@@ -25,7 +27,21 @@ class ApiClient {
   }
 
   /**
-   * Make API request with retry logic
+   * Get authentication token dynamically
+   */
+  private async getAuthToken(): Promise<string | null> {
+    try {
+      // Dynamically import to avoid circular dependencies
+      const AuthService = (await import('../services/AuthService')).default;
+      return await AuthService.getToken();
+    } catch (error) {
+      console.error('❌ Failed to get auth token:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Make API request with retry logic and automatic authentication
    */
   async request<T>(
     endpoint: string,
@@ -37,9 +53,22 @@ class ApiClient {
       body,
       timeout = this.defaultTimeout,
       retries = this.defaultRetries,
+      skipAuth = false,
     } = options;
 
     const url = `${this.baseUrl}${endpoint}`;
+    
+    // Get auth token if not skipping auth
+    let authHeaders: Record<string, string> = {};
+    if (!skipAuth) {
+      const token = await this.getAuthToken();
+      if (token) {
+        authHeaders['Authorization'] = `Bearer ${token}`;
+        console.log('🔐 Auth token added to request');
+      } else {
+        console.warn('⚠️ No auth token available for request');
+      }
+    }
     
     let lastError: Error | null = null;
 
@@ -52,7 +81,8 @@ class ApiClient {
           method,
           headers: {
             'Content-Type': 'application/json',
-            ...headers,
+            ...authHeaders,
+            ...headers, // User headers can override auth headers if needed
           },
           body: body ? JSON.stringify(body) : undefined,
           signal: controller.signal,
@@ -62,7 +92,23 @@ class ApiClient {
 
         if (!response.ok) {
           const errorText = await response.text();
-          throw new Error(`HTTP ${response.status}: ${errorText}`);
+          let errorData;
+          try {
+            errorData = JSON.parse(errorText);
+          } catch {
+            errorData = { error: errorText };
+          }
+          
+          // Provide more specific error messages
+          if (response.status === 401) {
+            throw new Error(errorData.error || 'Authentication required. Please sign in again.');
+          } else if (response.status === 403) {
+            throw new Error(errorData.error || 'Access denied.');
+          } else if (response.status === 404) {
+            throw new Error(errorData.error || 'Resource not found.');
+          } else {
+            throw new Error(errorData.error || `HTTP ${response.status}: ${errorText}`);
+          }
         }
 
         const data = await response.json();
@@ -72,7 +118,7 @@ class ApiClient {
         lastError = error;
         
         // Don't retry on certain errors
-        if (error.message?.includes('HTTP 4')) {
+        if (error.message?.includes('HTTP 4') || error.message?.includes('Authentication required')) {
           // Client errors (400-499) shouldn't be retried
           throw error;
         }

@@ -175,6 +175,19 @@ class MomentService {
   }
 
   /**
+   * Get the latest moment from local storage
+   */
+  async getLatestMoment(): Promise<any | null> {
+    try {
+      const photos = await this.getMoments();
+      return photos.length > 0 ? photos[0] : null;
+    } catch (error) {
+      console.error('Error fetching latest moment:', error);
+      return null;
+    }
+  }
+
+  /**
    * Delete moment
    */
   async deleteMoment(momentId: string): Promise<boolean> {

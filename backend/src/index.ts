@@ -6,9 +6,13 @@ import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 import cron from 'node-cron';
 import ScheduledMomentService from './services/scheduledMomentService';
+import FCMService from './services/FCMService';
 
 // Load environment variables
 dotenv.config();
+
+// Initialize FCM
+FCMService.initialize();
 
 // Initialize Express app
 const app = express();
@@ -166,26 +170,51 @@ io.on('connection', (socket) => {
         return;
       }
 
-      // Get sender info
+      // Get sender and partner info
       const sender = pair.user1Id === currentUserId ? pair.user1 : pair.user2;
+      const partner = pair.user1Id === currentUserId ? pair.user2 : pair.user1;
 
       console.log(`✅ Verified: ${currentUserId} is paired with ${data.partnerId}`);
       console.log(`📤 Sending photo from ${sender.displayName} to partner`);
 
-      // Send photo ONLY to the verified paired partner
-      io.to(data.partnerId).emit('receive_photo', {
-        photoId: data.photoId,
-        photoData: data.photoData,
-        timestamp: data.timestamp,
-        caption: data.caption,
-        senderName: sender.displayName,
-        senderId: currentUserId,
-      });
+      // Check if partner is online (connected to socket)
+      const partnerSockets = await io.in(data.partnerId).fetchSockets();
+      const isPartnerOnline = partnerSockets.length > 0;
+
+      if (isPartnerOnline) {
+        // Partner is online - send via Socket.IO
+        console.log('🟢 Partner online - sending via Socket.IO');
+        io.to(data.partnerId).emit('receive_photo', {
+          photoId: data.photoId,
+          photoData: data.photoData,
+          timestamp: data.timestamp,
+          caption: data.caption,
+          senderName: sender.displayName,
+          senderId: currentUserId,
+        });
+      } else {
+        // Partner is offline - send via FCM
+        console.log('⚫ Partner offline - sending via FCM');
+        
+        if (partner.fcmToken) {
+          // Save photo to backend storage first (you'll need to implement this)
+          // For now, we'll just send notification
+          await FCMService.sendNewPhotoNotification(
+            partner.fcmToken,
+            data.photoData, // In production, upload to storage and send URL
+            sender.displayName
+          );
+          console.log('✅ FCM notification sent');
+        } else {
+          console.log('⚠️ Partner has no FCM token - photo will be delivered when they come online');
+        }
+      }
 
       // Send confirmation to sender
       socket.emit('photo_sent', {
         photoId: data.photoId,
         sentAt: new Date().toISOString(),
+        deliveryMethod: isPartnerOnline ? 'socket' : 'fcm',
       });
 
     } catch (error) {

@@ -11,6 +11,8 @@
   <uses-permission android:name="android.permission.USE_FINGERPRINT"/>
   <uses-permission android:name="android.permission.VIBRATE"/>
   <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+  <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
   <queries>
     <intent>
       <action android:name="android.intent.action.VIEW"/>
@@ -29,14 +31,67 @@
       </intent-filter>
     </activity>
 
-    <!-- Pairly Widget Provider -->
-    <receiver android:name=".PairlyWidgetProvider" android:exported="false">
+    <!-- Pairly Widget Providers - 6 Styles -->
+    
+    <!-- Classic Photo Widget -->
+    <receiver android:name=".ClassicPhotoWidgetProvider" android:exported="false">
         <intent-filter>
             <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
         </intent-filter>
         <meta-data
             android:name="android.appwidget.provider"
-            android:resource="@xml/pairly_widget_provider_info" />
+            android:resource="@xml/classic_photo_widget_info" />
+    </receiver>
+    
+    <!-- Minimalist Circle Widget -->
+    <receiver android:name=".MinimalistCircleWidgetProvider" android:exported="false">
+        <intent-filter>
+            <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+        </intent-filter>
+        <meta-data
+            android:name="android.appwidget.provider"
+            android:resource="@xml/minimalist_circle_widget_info" />
+    </receiver>
+    
+    <!-- Polaroid Style Widget -->
+    <receiver android:name=".PolaroidStyleWidgetProvider" android:exported="false">
+        <intent-filter>
+            <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+        </intent-filter>
+        <meta-data
+            android:name="android.appwidget.provider"
+            android:resource="@xml/polaroid_style_widget_info" />
+    </receiver>
+    
+    <!-- Heart Shape Widget -->
+    <receiver android:name=".HeartShapeWidgetProvider" android:exported="false">
+        <intent-filter>
+            <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+        </intent-filter>
+        <meta-data
+            android:name="android.appwidget.provider"
+            android:resource="@xml/heart_shape_widget_info" />
+    </receiver>
+    
+    <!-- Dual Moment Widget -->
+    <receiver android:name=".DualMomentWidgetProvider" android:exported="false">
+        <intent-filter>
+            <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+        </intent-filter>
+        <meta-data
+            android:name="android.appwidget.provider"
+            android:resource="@xml/dual_moment_widget_info" />
+    </receiver>
+    
+    <!-- Flip Card Widget -->
+    <receiver android:name=".FlipCardWidgetProvider" android:exported="false">
+        <intent-filter>
+            <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            <action android:name="com.pairly.FLIP_WIDGET" />
+        </intent-filter>
+        <meta-data
+            android:name="android.appwidget.provider"
+            android:resource="@xml/flip_card_widget_info" />
     </receiver>
 
     <!-- Pairly Foreground Service for Widget Sync -->

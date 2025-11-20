@@ -15,6 +15,9 @@ export interface LocalPhoto {
   caption?: string;
   reaction?: string;
   isDownloaded: boolean;
+  scheduled?: boolean;
+  scheduledTime?: number;
+  duration?: number;
 }
 
 class LocalStorageService {
@@ -47,6 +50,9 @@ class LocalStorageService {
     options?: {
       caption?: string;
       partnerName?: string;
+      scheduled?: boolean;
+      scheduledTime?: number;
+      duration?: number;
     }
   ): Promise<LocalPhoto> {
     try {
@@ -72,6 +78,9 @@ class LocalStorageService {
         partnerName: options?.partnerName,
         caption: options?.caption,
         isDownloaded: true,
+        scheduled: options?.scheduled,
+        scheduledTime: options?.scheduledTime,
+        duration: options?.duration,
       };
 
       // Save metadata

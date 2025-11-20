@@ -20,7 +20,16 @@ interface ThemeSelectorModalProps {
   onSelectTheme: (theme: string) => void;
 }
 
-const themes = [
+type ThemeId = "default" | "pink" | "purple" | "blue" | "green" | "orange";
+
+interface Theme {
+  id: ThemeId;
+  name: string;
+  colors: readonly [string, string];
+  icon: string;
+}
+
+const themes: readonly Theme[] = [
   { id: 'default', name: 'Default', colors: ['#FF6B9D', '#C77DFF'], icon: 'heart' },
   { id: 'pink', name: 'Romantic Pink', colors: ['#FF1493', '#FF69B4'], icon: 'rose' },
   { id: 'purple', name: 'Royal Purple', colors: ['#9B59B6', '#8E44AD'], icon: 'diamond' },
@@ -35,15 +44,15 @@ export const ThemeSelectorModal: React.FC<ThemeSelectorModalProps> = ({
   onSelectTheme,
 }) => {
   const { colors, colorTheme, setColorTheme } = useTheme();
-  const [selectedTheme, setSelectedTheme] = useState(colorTheme);
+  const [selectedTheme, setSelectedTheme] = useState<ThemeId>(colorTheme);
 
   useEffect(() => {
     setSelectedTheme(colorTheme);
   }, [colorTheme]);
 
-  const handleSelectTheme = async (themeId: string) => {
+  const handleSelectTheme = async (themeId: ThemeId) => {
     setSelectedTheme(themeId);
-    await setColorTheme(themeId as any);
+    await setColorTheme(themeId);
     onSelectTheme(themeId);
     setTimeout(() => onClose(), 300);
   };

@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { prisma } from '../index';
 import { ApiResponse } from '../types';
+import FCMService from '../services/FCMService';
 
 /**
  * Get user's premium status
@@ -137,6 +138,55 @@ export const updatePremiumStatus = async (
     res.status(500).json({
       success: false,
       error: 'Failed to update premium status',
+    } as ApiResponse);
+  }
+};
+
+/**
+ * Update user's FCM token
+ */
+export const updateFCMToken = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { userId, fcmToken } = req.body;
+
+    if (!userId || !fcmToken) {
+      res.status(400).json({
+        success: false,
+        error: 'User ID and FCM token are required',
+      } as ApiResponse);
+      return;
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        error: 'User not found',
+      } as ApiResponse);
+      return;
+    }
+
+    // Update FCM token in database
+    await prisma.user.update({
+      where: { id: userId },
+      data: { fcmToken },
+    });
+
+    console.log(`✅ FCM token updated for user ${userId}`);
+
+    res.json({
+      success: true,
+      message: 'FCM token updated successfully',
+    } as ApiResponse);
+  } catch (error) {
+    console.error('Error updating FCM token:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update FCM token',
     } as ApiResponse);
   }
 };

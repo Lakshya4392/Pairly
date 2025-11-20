@@ -14,6 +14,7 @@ import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint
 import com.facebook.react.defaults.DefaultReactNativeHost
 
 import com.pairly.PairlyPackage
+import com.pairly.BatteryOptimizationPackage
 
 import expo.modules.ApplicationLifecycleDispatcher
 import expo.modules.ReactNativeHostWrapper
@@ -28,6 +29,7 @@ class MainApplication : Application(), ReactApplication {
               // Packages that cannot be autolinked yet can be added manually here, for example:
               // add(MyReactNativePackage())
               add(PairlyPackage())
+              add(BatteryOptimizationPackage())
             }
 
           override fun getJSMainModuleName(): String = ".expo/.virtual-metro-entry"

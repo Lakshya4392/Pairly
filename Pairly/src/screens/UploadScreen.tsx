@@ -160,7 +160,7 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
       }
 
       // Send note
-      const result = await SharedNotesService.sendNote(content, token, expiresIn24h);
+      const result = await SharedNotesService.sendNote(content, expiresIn24h);
       
       if (result.success) {
         setAlertMessage(`Your note has been sent to ${partnerName} 💕`);

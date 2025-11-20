@@ -150,13 +150,11 @@ class BackgroundSyncService {
 
         case 'settings':
           return await UserSyncService.updateSettings(
-            task.data.clerkId,
             task.data.settings
           );
 
         case 'premium':
           return await UserSyncService.updatePremiumStatus(
-            task.data.clerkId,
             task.data.isPremium,
             task.data.plan
           );

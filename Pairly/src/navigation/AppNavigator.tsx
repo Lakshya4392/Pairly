@@ -50,7 +50,18 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
     loadBackgroundSyncQueue();
     initializeWidgetService();
     setupRealtimeListeners();
+    initializeFCM();
   }, []);
+
+  const initializeFCM = async () => {
+    try {
+      const FCMService = (await import('../services/FCMService')).default;
+      await FCMService.initialize();
+      console.log('✅ FCM initialized');
+    } catch (error) {
+      console.error('❌ FCM initialization failed:', error);
+    }
+  };
 
   // Refresh premium status only when on settings/premium screen
   useEffect(() => {
@@ -71,9 +82,41 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
 
   useEffect(() => {
     if (isSignedIn && user) {
+      authenticateWithBackend();
       connectRealtime();
     }
   }, [isSignedIn, user]);
+
+  /**
+   * Authenticate with backend using Clerk token
+   */
+  const authenticateWithBackend = async () => {
+    try {
+      console.log('🔐 Authenticating with backend...');
+      
+      // Get Clerk token
+      const clerkToken = await getToken();
+      
+      if (!clerkToken) {
+        console.error('❌ No Clerk token available');
+        return;
+      }
+
+      // Import AuthService dynamically
+      const AuthService = (await import('../services/AuthService')).default;
+      
+      // Authenticate with backend to get JWT token
+      const authResponse = await AuthService.authenticateWithBackend(clerkToken);
+      
+      console.log('✅ Backend authentication successful');
+      console.log('👤 User:', authResponse.user.displayName);
+      console.log('🔑 JWT token stored');
+      
+    } catch (error: any) {
+      console.error('❌ Backend authentication failed:', error.message);
+      // Continue anyway - app can work in offline mode
+    }
+  };
 
   const initializeWidgetService = async () => {
     // Only initialize on Android
@@ -289,7 +332,7 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
       if (currentScreen === 'settings' || currentScreen === 'premium' || currentScreen === 'managePremium') {
         try {
           const UserSyncService = (await import('../services/UserSyncService')).default;
-          const backendUser = await UserSyncService.getUserFromBackend(user.id);
+          const backendUser = await UserSyncService.getUserFromBackend();
           
           if (backendUser) {
             // Only log if status changed

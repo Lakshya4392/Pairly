@@ -1,7 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API_CONFIG } from '../config/api.config';
-
-const API_URL = API_CONFIG.baseUrl;
+import apiClient from '../utils/apiClient';
+import PremiumService from './PremiumService';
 
 interface UserData {
   clerkId: string;
@@ -17,35 +16,25 @@ class UserSyncService {
   /**
    * Sync user with backend after Clerk authentication
    */
-  static async syncUserWithBackend(userData: UserData): Promise<{
+  async syncUserWithBackend(userData: UserData): Promise<{
     success: boolean;
     user?: any;
   }> {
     try {
-      console.log('🌐 Syncing to:', `${API_URL}/auth/sync`);
-      console.log('📦 User data:', userData);
+      console.log('🌐 Syncing user with backend...');
       
-      const apiClient = (await import('../utils/apiClient')).default;
       const data = await apiClient.post<{ success: boolean; user: any }>(
         '/auth/sync',
         userData
       );
 
       console.log('✅ User synced with backend:', data.user.id);
-      console.log('👤 User details:', data.user);
-      console.log('💎 Premium status:', {
-        isPremium: data.user.isPremium,
-        plan: data.user.premiumPlan,
-        expiresAt: data.user.premiumExpiry,
-        trialEndsAt: data.user.trialEndsAt,
-      });
       
       // Store user ID locally
       await AsyncStorage.setItem('@pairly_user_id', data.user.id);
       
       // Sync premium status with local storage
       if (data.user.isPremium) {
-        const PremiumService = (await import('./PremiumService')).default;
         const expiryDate = data.user.premiumExpiry 
           ? new Date(data.user.premiumExpiry) 
           : undefined;
@@ -62,6 +51,7 @@ class UserSyncService {
       return { success: true, user: data.user };
     } catch (error: any) {
       // Silent fail - backend offline is normal for free tier
+      console.warn('Could not sync user with backend:', error.message);
       return { success: false };
     }
   }
@@ -69,24 +59,9 @@ class UserSyncService {
   /**
    * Get user from backend
    */
-  static async getUserFromBackend(clerkId: string) {
+  async getUserFromBackend() {
     try {
-      // Longer timeout for Render cold start (free tier spins down after 15 min)
-      const response = await fetch(`${API_URL}/auth/me`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-clerk-user-id': clerkId,
-        },
-        signal: AbortSignal.timeout(60000), // 60 second timeout for cold start
-      });
-
-      if (!response.ok) {
-        // Silent fail - don't log errors
-        return null;
-      }
-
-      const data = await response.json();
+      const data = await apiClient.get<{ user: any }>('/auth/me');
       return data.user;
     } catch (error: any) {
       // Completely silent - backend offline is normal for free tier
@@ -97,28 +72,15 @@ class UserSyncService {
   /**
    * Update premium status in backend
    */
-  static async updatePremiumStatus(
-    clerkId: string,
+  async updatePremiumStatus(
     isPremium: boolean,
     plan?: 'monthly' | 'yearly'
   ): Promise<boolean> {
     try {
-      const response = await fetch(`${API_URL}/auth/premium`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-clerk-user-id': clerkId,
-        },
-        body: JSON.stringify({ isPremium, plan }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to update premium status');
-      }
-
+      await apiClient.put('/auth/premium', { isPremium, plan });
       console.log('✅ Premium status updated in backend');
       return true;
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error updating premium status:', error);
       return false;
     }
@@ -127,8 +89,7 @@ class UserSyncService {
   /**
    * Update settings in backend
    */
-  static async updateSettings(
-    clerkId: string,
+  async updateSettings(
     settings: {
       notificationsEnabled?: boolean;
       soundEnabled?: boolean;
@@ -136,22 +97,10 @@ class UserSyncService {
     }
   ): Promise<boolean> {
     try {
-      const response = await fetch(`${API_URL}/auth/settings`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-clerk-user-id': clerkId,
-        },
-        body: JSON.stringify(settings),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to update settings');
-      }
-
+      await apiClient.put('/auth/settings', settings);
       console.log('✅ Settings updated in backend');
       return true;
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error updating settings:', error);
       return false;
     }
@@ -160,9 +109,9 @@ class UserSyncService {
   /**
    * Check if user is premium from backend
    */
-  static async checkPremiumStatus(clerkId: string): Promise<boolean> {
+  async checkPremiumStatus(): Promise<boolean> {
     try {
-      const user = await this.getUserFromBackend(clerkId);
+      const user = await this.getUserFromBackend();
       
       if (!user) return false;
 
@@ -173,7 +122,7 @@ class UserSyncService {
         
         if (now > expiry) {
           // Premium expired
-          await this.updatePremiumStatus(clerkId, false);
+          await this.updatePremiumStatus(false);
           return false;
         }
         
@@ -181,11 +130,11 @@ class UserSyncService {
       }
 
       return user.isPremium || false;
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error checking premium status:', error);
       return false;
     }
   }
 }
 
-export default UserSyncService;
+export default new UserSyncService();

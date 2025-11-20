@@ -64,7 +64,7 @@ export const ManagePremiumScreen: React.FC<ManagePremiumScreenProps> = ({
         
         if (user) {
           const UserSyncService = (await import('../services/UserSyncService')).default;
-          await UserSyncService.updatePremiumStatus(user.id, false);
+          await UserSyncService.updatePremiumStatus(false);
           console.log('✅ Premium canceled in backend');
         }
       } catch (syncError) {

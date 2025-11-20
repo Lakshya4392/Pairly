@@ -1,59 +1,69 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API_BASE_URL } from '@env';
 import AuthService from './AuthService';
 import { Pair, ApiResponse, PairResponse, CodeResponse } from '@types';
+import apiClient from '../utils/apiClient';
 
 const PAIR_KEY = 'pairly_pair';
 
 class PairingService {
   private pair: Pair | null = null;
-
-
-
-
+  private retryAttempts = 3;
+  private retryDelay = 2000; // 2 seconds
 
   /**
-   * Generate invite code - FAST & ALWAYS WORKS
+   * Generate invite code - BULLETPROOF WITH RETRY MECHANISM
    */
   async generateCode(): Promise<string> {
-    try {
-      const authHeader = await AuthService.getAuthHeader();
-      
-      const response = await fetch(`${API_BASE_URL}/pairs/generate-code`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeader,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Backend error');
+    console.log('🔄 Generating invite code...');
+    
+    for (let attempt = 1; attempt <= this.retryAttempts; attempt++) {
+      try {
+        console.log(`📡 Attempt ${attempt}/${this.retryAttempts} to generate code`);
+        
+        const data = await apiClient.post<ApiResponse<CodeResponse>>('/pairs/generate-code');
+        
+        if (data.success && data.data?.code) {
+          console.log(`✅ Code generated successfully: ${data.data.code}`);
+          console.log(`⏰ Code expires at: ${data.data.expiresAt}`);
+          
+          // Store code info locally for reference
+          await AsyncStorage.setItem('current_invite_code', data.data.code);
+          await AsyncStorage.setItem('code_expires_at', data.data.expiresAt);
+          
+          return data.data.code;
+        }
+        
+        throw new Error('Invalid response from server');
+        
+      } catch (error: any) {
+        console.error(`❌ Attempt ${attempt} failed:`, error.message);
+        
+        if (attempt === this.retryAttempts) {
+          console.log('⚠️ All attempts failed, generating offline code');
+          return this.generateOfflineCode();
+        }
+        
+        // Wait before retry
+        console.log(`⏳ Waiting ${this.retryDelay}ms before retry...`);
+        await new Promise(resolve => setTimeout(resolve, this.retryDelay));
       }
-
-      const data: ApiResponse<CodeResponse> = await response.json();
-      
-      if (data.success && data.data) {
-        return data.data.code;
-      }
-      
-      throw new Error('Invalid response');
-      
-    } catch (error: any) {
-      // Instant fallback to offline code
-      return this.generateOfflineCode();
     }
+    
+    // Fallback (should never reach here)
+    return this.generateOfflineCode();
   }
 
   /**
    * Generate offline code when backend is not available
    */
   private generateOfflineCode(): string {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Exclude confusing characters
     let code = '';
     for (let i = 0; i < 6; i++) {
       code += chars.charAt(Math.floor(Math.random() * chars.length));
     }
+    
+    console.log(`🔄 Generated offline code: ${code}`);
     
     // Store offline code locally
     this.storeOfflineCode(code);
@@ -67,49 +77,135 @@ class PairingService {
     try {
       await AsyncStorage.setItem('offline_invite_code', code);
       await AsyncStorage.setItem('offline_code_timestamp', Date.now().toString());
+      console.log('💾 Offline code stored locally');
     } catch (error) {
-      console.error('Error storing offline code:', error);
+      console.error('❌ Error storing offline code:', error);
     }
   }
 
   /**
-   * Join with invite code - FAST CONNECTION
+   * Join with invite code - BULLETPROOF WITH VALIDATION & RETRY
    */
   async joinWithCode(code: string): Promise<Pair> {
-    const authHeader = await AuthService.getAuthHeader();
+    console.log(`🔄 Joining with code: ${code}`);
     
-    const response = await fetch(`${API_BASE_URL}/pairs/join`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...authHeader,
-      },
-      body: JSON.stringify({ code }),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Invalid code');
+    // Validate code format
+    if (!code || typeof code !== 'string' || code.trim().length !== 6) {
+      throw new Error('Please enter a valid 6-character code');
     }
-
-    const data: ApiResponse<{ pair: PairResponse; partner: any }> = await response.json();
     
-    if (!data.success || !data.data) {
-      throw new Error('Invalid response');
+    const cleanCode = code.toUpperCase().trim();
+    console.log(`📝 Cleaned code: ${cleanCode}`);
+    
+    for (let attempt = 1; attempt <= this.retryAttempts; attempt++) {
+      try {
+        console.log(`📡 Attempt ${attempt}/${this.retryAttempts} to join with code`);
+        
+        const data = await apiClient.post<ApiResponse<{ pair: PairResponse; partner: any; message?: string }>>('/pairs/join', { 
+          code: cleanCode 
+        });
+
+        if (!data.success) {
+          // Handle specific error messages from backend
+          const errorMessage = data.error || 'Failed to join with code';
+          console.error(`❌ Backend error: ${errorMessage}`);
+          throw new Error(errorMessage);
+        }
+
+        if (!data.data?.pair || !data.data?.partner) {
+          throw new Error('Invalid response from server');
+        }
+
+        console.log(`✅ Successfully joined with code!`);
+        console.log(`🤝 Paired with: ${data.data.partner.displayName}`);
+
+        const pair: Pair = {
+          id: data.data.pair.id,
+          user1Id: data.data.pair.user1Id,
+          user2Id: data.data.pair.user2Id,
+          pairedAt: data.data.pair.pairedAt,
+          partner: data.data.partner,
+        };
+
+        // Store pair data immediately
+        await this.storePair(pair);
+        
+        // Clear any stored codes
+        await AsyncStorage.removeItem('current_invite_code');
+        await AsyncStorage.removeItem('code_expires_at');
+        await AsyncStorage.removeItem('offline_invite_code');
+        
+        console.log('💾 Pair data stored successfully');
+
+        return pair;
+        
+      } catch (error: any) {
+        console.error(`❌ Attempt ${attempt} failed:`, error.message);
+        
+        // Don't retry for specific errors
+        if (error.message.includes('Invalid code') || 
+            error.message.includes('expired') || 
+            error.message.includes('already paired') ||
+            error.message.includes('cannot use your own')) {
+          throw error;
+        }
+        
+        if (attempt === this.retryAttempts) {
+          throw new Error(`Failed to join after ${this.retryAttempts} attempts. Please check your connection and try again.`);
+        }
+        
+        // Wait before retry
+        console.log(`⏳ Waiting ${this.retryDelay}ms before retry...`);
+        await new Promise(resolve => setTimeout(resolve, this.retryDelay));
+      }
     }
+    
+    throw new Error('Unexpected error occurred');
+  }
 
-    const pair: Pair = {
-      id: data.data.pair.id,
-      user1Id: data.data.pair.user1Id,
-      user2Id: data.data.pair.user2Id,
-      pairedAt: data.data.pair.pairedAt,
-      partner: data.data.partner,
-    };
+  /**
+   * Check if current code is still valid
+   */
+  async isCurrentCodeValid(): Promise<boolean> {
+    try {
+      const expiresAtStr = await AsyncStorage.getItem('code_expires_at');
+      if (!expiresAtStr) return false;
+      
+      const expiresAt = new Date(expiresAtStr);
+      const now = new Date();
+      
+      return now < expiresAt;
+    } catch (error) {
+      console.error('Error checking code validity:', error);
+      return false;
+    }
+  }
 
-    // Store in parallel, don't wait
-    this.storePair(pair);
-
-    return pair;
+  /**
+   * Get remaining time for current code
+   */
+  async getRemainingTime(): Promise<string | null> {
+    try {
+      const expiresAtStr = await AsyncStorage.getItem('code_expires_at');
+      if (!expiresAtStr) return null;
+      
+      const expiresAt = new Date(expiresAtStr);
+      const now = new Date();
+      const remaining = expiresAt.getTime() - now.getTime();
+      
+      if (remaining <= 0) return null;
+      
+      const minutes = Math.floor(remaining / (1000 * 60));
+      const seconds = Math.floor((remaining % (1000 * 60)) / 1000);
+      
+      if (minutes > 0) {
+        return `${minutes}m ${seconds}s`;
+      }
+      return `${seconds}s`;
+    } catch (error) {
+      console.error('Error getting remaining time:', error);
+      return null;
+    }
   }
 
   /**
@@ -117,21 +213,7 @@ class PairingService {
    */
   async disconnect(): Promise<void> {
     try {
-      const authHeader = await AuthService.getAuthHeader();
-      
-      const response = await fetch(`${API_BASE_URL}/pairs/disconnect`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeader,
-        },
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to disconnect');
-      }
-
+      await apiClient.delete('/pairs/disconnect');
       // Remove pair from local storage
       await this.removePair();
     } catch (error) {

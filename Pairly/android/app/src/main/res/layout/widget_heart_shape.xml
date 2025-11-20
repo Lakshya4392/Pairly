@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Widget Style 4: Heart Shape -->
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp"
+    android:background="@drawable/widget_background_heart">
+
+    <!-- Heart Container -->
+    <FrameLayout
+        android:id="@+id/heart_container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_above="@id/widget_partner_name"
+        android:layout_marginBottom="16dp">
+
+        <!-- Heart Shaped Photo -->
+        <ImageView
+            android:id="@+id/widget_image"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="centerCrop"
+            android:contentDescription="Partner photo"
+            android:background="@drawable/heart_shape_mask"
+            android:visibility="gone"/>
+
+        <!-- Empty Heart -->
+        <FrameLayout
+            android:id="@+id/widget_placeholder"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/heart_shape_empty">
+            
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:orientation="vertical"
+                android:gravity="center">
+                
+                <ImageView
+                    android:layout_width="52dp"
+                    android:layout_height="52dp"
+                    android:src="@drawable/ic_heart_pulse"
+                    android:tint="#FF6B9D"
+                    android:alpha="0.8"/>
+                
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Share love"
+                    android:textSize="14sp"
+                    android:textColor="#FF6B9D"
+                    android:textStyle="bold"
+                    android:layout_marginTop="8dp"/>
+                
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Send your first moment"
+                    android:textSize="11sp"
+                    android:textColor="#999999"
+                    android:layout_marginTop="4dp"/>
+            </LinearLayout>
+        </FrameLayout>
+    </FrameLayout>
+
+    <!-- Partner Name -->
+    <TextView
+        android:id="@+id/widget_partner_name"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:text="Partner"
+        android:textSize="15sp"
+        android:textColor="#FF6B9D"
+        android:textStyle="bold"
+        android:textAlignment="center"
+        android:gravity="center"
+        android:drawableStart="@drawable/ic_heart_small"
+        android:drawablePadding="6dp"/>
+
+</RelativeLayout>

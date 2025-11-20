@@ -21,10 +21,33 @@ export const isCodeExpired = (expiresAt: Date): boolean => {
 };
 
 /**
- * Get code expiration date (24 hours from now)
+ * Get code expiration date (15 minutes from now)
  */
 export const getCodeExpiration = (): Date => {
   const expiration = new Date();
-  expiration.setHours(expiration.getHours() + 24);
+  expiration.setMinutes(expiration.getMinutes() + 15);
   return expiration;
+};
+
+/**
+ * Get remaining time for code expiration
+ */
+export const getRemainingTime = (expiresAt: Date): number => {
+  const now = new Date();
+  const remaining = expiresAt.getTime() - now.getTime();
+  return Math.max(0, remaining);
+};
+
+/**
+ * Format remaining time as human readable
+ */
+export const formatRemainingTime = (expiresAt: Date): string => {
+  const remaining = getRemainingTime(expiresAt);
+  const minutes = Math.floor(remaining / (1000 * 60));
+  const seconds = Math.floor((remaining % (1000 * 60)) / 1000);
+  
+  if (minutes > 0) {
+    return `${minutes}m ${seconds}s`;
+  }
+  return `${seconds}s`;
 };

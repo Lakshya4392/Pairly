@@ -6,6 +6,8 @@ import {
   Dimensions,
   ScrollView,
   TouchableOpacity,
+  Platform,
+  Alert,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -20,6 +22,7 @@ import { colors as defaultColors, gradients } from '../theme/colorsIOS';
 import { spacing, borderRadius } from '../theme/spacingIOS';
 import { shadows } from '../theme/shadowsIOS';
 import { typography } from '../utils/fonts';
+import BatteryOptimizationService from '../services/BatteryOptimizationService';
 
 const { width } = Dimensions.get('window');
 
@@ -53,12 +56,73 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }
       description: 'Your moments are encrypted and shared only between you two',
       color: colors.mint || colors.primary,
     },
+    {
+      id: 4,
+      icon: 'battery-charging',
+      title: 'Always Updated',
+      description: 'Allow battery optimization to keep your widget always up-to-date',
+      color: colors.success || colors.primary,
+      requiresAction: true,
+    },
   ];
   const [currentIndex, setCurrentIndex] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
   const scrollX = useSharedValue(0);
 
-  const handleNext = () => {
+  const handleNext = async () => {
+    const currentSlide = slides[currentIndex];
+    
+    // If this is the battery optimization slide, request permission
+    if (currentSlide.requiresAction && Platform.OS === 'android') {
+      try {
+        const isAlreadyIgnoring = await BatteryOptimizationService.isIgnoringBatteryOptimizations();
+        
+        if (!isAlreadyIgnoring) {
+          Alert.alert(
+            'Battery Optimization',
+            'To keep your widget always updated, please allow Pairly to run in the background without restrictions.',
+            [
+              {
+                text: 'Not Now',
+                style: 'cancel',
+                onPress: () => {
+                  // Continue to next slide or complete
+                  if (currentIndex < slides.length - 1) {
+                    const nextIndex = currentIndex + 1;
+                    setCurrentIndex(nextIndex);
+                    scrollViewRef.current?.scrollTo({ x: nextIndex * width, animated: true });
+                  } else {
+                    onComplete();
+                  }
+                },
+              },
+              {
+                text: 'Allow',
+                onPress: async () => {
+                  await BatteryOptimizationService.requestIgnoreBatteryOptimizations();
+                  
+                  // Continue after user returns from settings
+                  setTimeout(() => {
+                    if (currentIndex < slides.length - 1) {
+                      const nextIndex = currentIndex + 1;
+                      setCurrentIndex(nextIndex);
+                      scrollViewRef.current?.scrollTo({ x: nextIndex * width, animated: true });
+                    } else {
+                      onComplete();
+                    }
+                  }, 500);
+                },
+              },
+            ]
+          );
+          return;
+        }
+      } catch (error) {
+        console.error('Error checking battery optimization:', error);
+      }
+    }
+    
+    // Normal navigation
     if (currentIndex < slides.length - 1) {
       const nextIndex = currentIndex + 1;
       setCurrentIndex(nextIndex);
