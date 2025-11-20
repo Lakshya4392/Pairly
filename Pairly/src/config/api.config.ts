@@ -10,15 +10,7 @@ import { Platform } from 'react-native';
  * Get API base URL based on environment
  */
 export const getApiUrl = (): string => {
-  // ALWAYS use environment variable if set (highest priority)
-  const envApiUrl = process.env.EXPO_PUBLIC_API_URL;
-  
-  if (envApiUrl && envApiUrl.trim() !== '' && envApiUrl !== 'https://api.pairly.app') {
-    console.log('✅ Using API URL from .env:', envApiUrl);
-    return envApiUrl;
-  }
-
-  // Fallback to Render production URL (for APK builds)
+  // Use Render backend (works from any network)
   const renderUrl = 'https://pairly-60qj.onrender.com';
   console.log('✅ Using Render backend URL:', renderUrl);
   return renderUrl;
@@ -28,17 +20,10 @@ export const getApiUrl = (): string => {
  * Get Socket.IO URL
  */
 export const getSocketUrl = (): string => {
-  const envSocketUrl = process.env.EXPO_PUBLIC_SOCKET_URL;
-  
-  if (envSocketUrl && envSocketUrl.trim() !== '' && envSocketUrl !== 'https://api.pairly.app') {
-    console.log('✅ Using Socket URL from .env:', envSocketUrl);
-    return envSocketUrl;
-  }
-
-  // Use same as API URL (Render backend)
-  const apiUrl = getApiUrl();
-  console.log('✅ Using Socket URL same as API:', apiUrl);
-  return apiUrl;
+  // Use Render backend (works from any network)
+  const renderUrl = 'https://pairly-60qj.onrender.com';
+  console.log('✅ Using Render Socket URL:', renderUrl);
+  return renderUrl;
 };
 
 /**
@@ -70,4 +55,6 @@ if (__DEV__) {
   console.log('  Base URL:', API_CONFIG.baseUrl);
   console.log('  Socket URL:', API_CONFIG.socketUrl);
   console.log('  Environment:', isDevelopment ? 'Development' : 'Production');
+  console.log('  __DEV__:', __DEV__);
+  console.log('  process.env.EXPO_PUBLIC_API_URL:', process.env.EXPO_PUBLIC_API_URL);
 }

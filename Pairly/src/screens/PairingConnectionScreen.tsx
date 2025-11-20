@@ -44,21 +44,28 @@ export const PairingConnectionScreen: React.FC<PairingConnectionScreenProps> = (
   const connectLineAnim = new Animated.Value(0);
   const successScaleAnim = new Animated.Value(0);
 
-  // Setup realtime listener for partner connection
+  // Setup realtime listener for partner connection with polling fallback
   useEffect(() => {
     let mounted = true;
     let timeoutId: NodeJS.Timeout;
+    let pollingInterval: NodeJS.Timeout;
 
     const setupListener = async () => {
       try {
         const RealtimeService = (await import('../services/RealtimeService')).default;
         const PairingService = (await import('../services/PairingService')).default;
         
+        console.log('🔌 Setting up connection listeners...');
+        
         // Listen for partner connection
         const handlePartnerConnected = async (data: any) => {
           console.log('🎉 Partner connected event received:', data);
           
           if (!mounted) return;
+          
+          // Clear polling since we got the event
+          if (pollingInterval) clearInterval(pollingInterval);
+          if (timeoutId) clearTimeout(timeoutId);
           
           // Store partner info from socket event
           if (data.partner) {
@@ -106,18 +113,63 @@ export const PairingConnectionScreen: React.FC<PairingConnectionScreenProps> = (
         };
 
         RealtimeService.on('partner_connected', handlePartnerConnected);
+        RealtimeService.on('pairing_success', handlePartnerConnected);
 
-        // Set timeout for connection (15 seconds - faster feedback)
-        timeoutId = setTimeout(() => {
+        // Polling fallback - check every 2 seconds for pairing success
+        console.log('⏰ Starting polling for pairing status...');
+        let pollCount = 0;
+        pollingInterval = setInterval(async () => {
+          if (!mounted || mode !== 'waiting') {
+            clearInterval(pollingInterval);
+            return;
+          }
+          
+          pollCount++;
+          console.log(`🔄 Polling attempt ${pollCount}...`);
+          
+          try {
+            const partner = await PairingService.getPartner();
+            if (partner && mounted) {
+              console.log('✅ Pairing found via polling!');
+              clearInterval(pollingInterval);
+              if (timeoutId) clearTimeout(timeoutId);
+              setPartnerName(partner.displayName || 'Partner');
+              setMode('connected');
+            }
+          } catch (error) {
+            console.log('⚠️ Polling check failed:', error);
+          }
+        }, 2000); // Poll every 2 seconds
+
+        // Final timeout after 15 seconds
+        timeoutId = setTimeout(async () => {
           if (mounted && mode === 'waiting') {
-            console.log('⏱️ Still waiting...');
-            setTimeoutReached(true);
+            console.log('⏱️ Final timeout reached');
+            clearInterval(pollingInterval);
+            
+            // One last check
+            try {
+              const partner = await PairingService.getPartner();
+              if (partner && mounted) {
+                console.log('✅ Pairing found on final check!');
+                setPartnerName(partner.displayName || 'Partner');
+                setMode('connected');
+              } else {
+                console.log('❌ No pairing found after timeout');
+                setTimeoutReached(true);
+              }
+            } catch (error) {
+              console.error('Error on final check:', error);
+              setTimeoutReached(true);
+            }
           }
         }, 15000);
 
         return () => {
           RealtimeService.off('partner_connected', handlePartnerConnected);
+          RealtimeService.off('pairing_success', handlePartnerConnected);
           if (timeoutId) clearTimeout(timeoutId);
+          if (pollingInterval) clearInterval(pollingInterval);
         };
       } catch (error) {
         console.error('Error setting up realtime listener:', error);
@@ -129,6 +181,7 @@ export const PairingConnectionScreen: React.FC<PairingConnectionScreenProps> = (
     return () => {
       mounted = false;
       if (timeoutId) clearTimeout(timeoutId);
+      if (pollingInterval) clearInterval(pollingInterval);
     };
   }, []);
 

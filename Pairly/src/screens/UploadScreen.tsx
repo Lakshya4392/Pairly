@@ -97,6 +97,7 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
     loadRecentPhotos();
     checkDailyLimit();
     setupPresence();
+    setupPairingListener();
 
     // Heart pulse animation - smooth and romantic
     const pulseHeart = () => {
@@ -390,6 +391,38 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
       // Fallback to solo mode if pairing service fails
       setPartnerName('Solo Mode');
       setIsPartnerConnected(false);
+    }
+  };
+
+  const setupPairingListener = async () => {
+    try {
+      const RealtimeService = (await import('../services/RealtimeService')).default;
+      
+      // Listen for partner connected events
+      const handlePartnerConnected = async (data: any) => {
+        console.log('🎉 Partner connected on home screen, reloading partner info...');
+        await loadPartnerInfo();
+      };
+
+      // Listen for partner disconnected events
+      const handlePartnerDisconnected = async (data: any) => {
+        console.log('💔 Partner disconnected, updating UI...');
+        setPartnerName('Solo Mode');
+        setIsPartnerConnected(false);
+      };
+
+      RealtimeService.on('partner_connected', handlePartnerConnected);
+      RealtimeService.on('pairing_success', handlePartnerConnected);
+      RealtimeService.on('partner_disconnected', handlePartnerDisconnected);
+
+      // Cleanup
+      return () => {
+        RealtimeService.off('partner_connected', handlePartnerConnected);
+        RealtimeService.off('pairing_success', handlePartnerConnected);
+        RealtimeService.off('partner_disconnected', handlePartnerDisconnected);
+      };
+    } catch (error) {
+      console.error('Error setting up pairing listener:', error);
     }
   };
 

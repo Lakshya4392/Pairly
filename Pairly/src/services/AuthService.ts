@@ -152,11 +152,41 @@ class AuthService {
   }
 
   /**
-   * Sign out user
+   * Sign out user - Clear all data
    */
   async signOut(): Promise<void> {
+    console.log('🔄 Signing out and clearing all data...');
+    
+    // Clear auth data
     await this.removeToken();
     await this.removeUser();
+    
+    // Clear pairing data
+    try {
+      await AsyncStorage.removeItem('pairly_pair');
+      await AsyncStorage.removeItem('partner_info');
+      await AsyncStorage.removeItem('partner_id');
+      await AsyncStorage.removeItem('current_invite_code');
+      await AsyncStorage.removeItem('code_expires_at');
+      await AsyncStorage.removeItem('offline_invite_code');
+      console.log('✅ All pairing data cleared');
+    } catch (error) {
+      console.error('Error clearing pairing data:', error);
+    }
+    
+    // Clear other app data
+    try {
+      const keys = await AsyncStorage.getAllKeys();
+      const pairlyKeys = keys.filter(key => key.startsWith('@pairly_') || key.startsWith('pairly_'));
+      if (pairlyKeys.length > 0) {
+        await AsyncStorage.multiRemove(pairlyKeys);
+        console.log(`✅ Cleared ${pairlyKeys.length} app data keys`);
+      }
+    } catch (error) {
+      console.error('Error clearing app data:', error);
+    }
+    
+    console.log('✅ Sign out complete');
   }
 
   /**

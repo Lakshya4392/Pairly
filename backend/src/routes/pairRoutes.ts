@@ -1,11 +1,14 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
-import { generateCode, joinWithCode, disconnect } from '../controllers/pairController';
+import { generateCode, joinWithCode, disconnect, getCurrentPair } from '../controllers/pairController';
 
 const router = Router();
 
 // All pairing routes require authentication
 router.use(authenticate);
+
+// GET /pairs/current - Get current pair info
+router.get('/current', getCurrentPair);
 
 // POST /pairs/generate-code - Generate invite code
 router.post('/generate-code', generateCode);

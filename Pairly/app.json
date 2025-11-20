@@ -60,7 +60,9 @@
     "extra": {
       "eas": {
         "projectId": "323693d7-995a-4dd2-ba1d-5569c263d4c8"
-      }
+      },
+      "apiUrl": "http://10.30.27.39:3000",
+      "socketUrl": "http://10.30.27.39:3000"
     }
   }
 }

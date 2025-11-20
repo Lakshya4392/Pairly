@@ -1,5 +1,5 @@
 import { io, Socket } from 'socket.io-client';
-import { SOCKET_URL } from '@env';
+import { API_CONFIG } from '../config/api.config';
 import AuthService from './AuthService';
 
 type EventCallback = (data: any) => void;
@@ -23,7 +23,8 @@ class RealtimeService {
     try {
       const token = await AuthService.getToken();
 
-      this.socket = io(SOCKET_URL, {
+      console.log('🔌 Connecting to Socket.IO:', API_CONFIG.socketUrl);
+      this.socket = io(API_CONFIG.socketUrl, {
         auth: {
           token,
         },
@@ -107,8 +108,14 @@ class RealtimeService {
 
     // Partner connected
     this.socket.on('partner_connected', (data: any) => {
-      console.log('Partner connected:', data);
+      console.log('🎉 Partner connected event received:', data);
       this.triggerEvent('partner_connected', data);
+    });
+
+    // Pairing success
+    this.socket.on('pairing_success', (data: any) => {
+      console.log('🎉 Pairing success event received:', data);
+      this.triggerEvent('pairing_success', data);
     });
 
     // Partner disconnected

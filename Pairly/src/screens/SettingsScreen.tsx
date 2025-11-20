@@ -72,6 +72,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     loadPartnerInfo();
     loadAppLockSettings();
     loadAllPremiumSettings();
+    setupDisconnectListener();
   }, [user]);
 
   const loadSettings = async () => {
@@ -112,6 +113,30 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       console.error('Error loading partner:', error);
       setPartnerName(null);
       setIsPartnerConnected(false);
+    }
+  };
+
+  const setupDisconnectListener = async () => {
+    try {
+      const RealtimeService = (await import('../services/RealtimeService')).default;
+      
+      // Listen for partner disconnected event
+      const handlePartnerDisconnected = async (data: any) => {
+        console.log('💔 Partner disconnected you, updating UI...');
+        setPartnerName(null);
+        setIsPartnerConnected(false);
+        setSuccessMessage('Your partner has disconnected');
+        setShowSuccessAlert(true);
+      };
+
+      RealtimeService.on('partner_disconnected', handlePartnerDisconnected);
+
+      // Cleanup
+      return () => {
+        RealtimeService.off('partner_disconnected', handlePartnerDisconnected);
+      };
+    } catch (error) {
+      console.error('Error setting up disconnect listener:', error);
     }
   };
 
@@ -342,19 +367,32 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
   const confirmUnpair = async () => {
     try {
-      // Clear partner info from local storage
+      console.log('🔄 Unpairing from partner...');
+      
+      // Call backend API to disconnect
+      const PairingService = (await import('../services/PairingService')).default;
+      await PairingService.disconnect();
+      
+      // Clear local storage
       await AsyncStorage.removeItem('partner_info');
       await AsyncStorage.removeItem('partner_id');
       
-      // TODO: Call backend API to remove pairing
-      // await fetch(`${API_BASE_URL}/api/pairing/unpair/${user.id}`, { method: 'DELETE' });
+      // Update UI state
+      setPartnerName(null);
+      setIsPartnerConnected(false);
       
-      setSuccessMessage('You have been unpaired from your partner');
-      setShowSuccessAlert(true);
       console.log('✅ Unpaired successfully');
-    } catch (error) {
+      setSuccessMessage('Successfully disconnected from your partner');
+      setShowSuccessAlert(true);
+      
+      // Reload partner info to confirm
+      setTimeout(() => {
+        loadPartnerInfo();
+      }, 1000);
+      
+    } catch (error: any) {
       console.error('❌ Unpair error:', error);
-      setSuccessMessage('Failed to unpair. Please try again.');
+      setSuccessMessage(error.message || 'Failed to unpair. Please try again.');
       setShowSuccessAlert(true);
     }
   };

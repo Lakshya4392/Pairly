@@ -267,16 +267,25 @@ export const joinWithCode = async (req: AuthRequest, res: Response): Promise<voi
 
     // IMMEDIATELY emit socket events to both users with retry mechanism
     const emitWithRetry = async (userId: string, event: string, data: any, retries = 3) => {
+      const userRoom = `user_${userId}`;
+      
       for (let i = 0; i < retries; i++) {
         try {
+          // Emit to user's room (primary method)
+          io.to(userRoom).emit(event, data);
+          console.log(`✅ Socket event '${event}' sent to room ${userRoom} (attempt ${i + 1})`);
+          
+          // Also emit to userId directly as fallback
           io.to(userId).emit(event, data);
-          console.log(`✅ Socket event '${event}' sent to ${userId} (attempt ${i + 1})`);
+          console.log(`✅ Socket event '${event}' sent to ${userId} directly (attempt ${i + 1})`);
           break;
         } catch (error) {
           console.error(`❌ Socket emit failed for ${userId} (attempt ${i + 1}):`, error);
           if (i === retries - 1) {
             console.error(`❌ Failed to emit to ${userId} after ${retries} attempts`);
           }
+          // Wait 100ms before retry
+          await new Promise(resolve => setTimeout(resolve, 100));
         }
       }
     };
@@ -297,15 +306,19 @@ export const joinWithCode = async (req: AuthRequest, res: Response): Promise<voi
       timestamp: new Date().toISOString(),
     });
 
-    // Also emit pairing success event
+    // Also emit pairing success event with full partner data
     await emitWithRetry(pair.user1Id, 'pairing_success', {
       partnerId: userId,
+      partner: user2Data,
       partnerName: user2Data.displayName,
+      pairId: updatedPair.id,
     });
     
     await emitWithRetry(userId, 'pairing_success', {
       partnerId: pair.user1Id,
+      partner: user1Data,
       partnerName: user1Data.displayName,
+      pairId: updatedPair.id,
     });
 
     console.log(`✅ All socket events emitted successfully for pair ${updatedPair.id}`);
@@ -398,6 +411,66 @@ export const joinWithCode = async (req: AuthRequest, res: Response): Promise<voi
 };
 
 /**
+ * Get current pair info
+ */
+export const getCurrentPair = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.userId!;
+
+    // Find user's pair
+    const pair = await prisma.pair.findFirst({
+      where: {
+        OR: [{ user1Id: userId }, { user2Id: userId }],
+      },
+      include: {
+        user1: true,
+        user2: true,
+      },
+    });
+
+    if (!pair) {
+      res.json({
+        success: true,
+        data: null,
+      } as ApiResponse);
+      return;
+    }
+
+    // Get partner info
+    const partnerId = pair.user1Id === userId ? pair.user2Id : pair.user1Id;
+    const partner = pair.user1Id === userId ? pair.user2 : pair.user1;
+
+    const partnerData = {
+      id: partner.id,
+      clerkId: partner.clerkId,
+      displayName: partner.displayName,
+      email: partner.email,
+      photoUrl: partner.photoUrl,
+      createdAt: partner.createdAt.toISOString(),
+    };
+
+    res.json({
+      success: true,
+      data: {
+        pair: {
+          id: pair.id,
+          user1Id: pair.user1Id,
+          user2Id: pair.user2Id,
+          pairedAt: pair.pairedAt.toISOString(),
+        },
+        partner: partnerData,
+      },
+    } as ApiResponse);
+  } catch (error) {
+    console.error('Get current pair error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get pair info',
+    } as ApiResponse);
+  }
+};
+
+/**
  * Disconnect from partner
  */
 export const disconnect = async (req: AuthRequest, res: Response): Promise<void> => {
@@ -427,10 +500,14 @@ export const disconnect = async (req: AuthRequest, res: Response): Promise<void>
       where: { id: pair.id },
     });
 
-    // Emit socket event to partner
-    io.to(partnerId).emit('partner_disconnected', {
+    // Emit socket event to partner (using user room)
+    const partnerRoom = `user_${partnerId}`;
+    io.to(partnerRoom).emit('partner_disconnected', {
       reason: 'Partner disconnected',
+      userId: userId,
     });
+    
+    console.log(`✅ Disconnect event sent to partner: ${partnerRoom}`);
 
     res.json({
       success: true,

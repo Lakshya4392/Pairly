@@ -24,6 +24,8 @@ class ApiClient {
     this.baseUrl = API_CONFIG.baseUrl;
     this.defaultTimeout = API_CONFIG.timeout;
     this.defaultRetries = API_CONFIG.retryAttempts;
+    
+    console.log('🌐 ApiClient initialized with baseUrl:', this.baseUrl);
   }
 
   /**
@@ -56,7 +58,11 @@ class ApiClient {
       skipAuth = false,
     } = options;
 
-    const url = `${this.baseUrl}${endpoint}`;
+    // Always use fresh baseUrl from config (in case it changed)
+    const currentBaseUrl = API_CONFIG.baseUrl;
+    const url = `${currentBaseUrl}${endpoint}`;
+    
+    console.log(`📡 API Request: ${method} ${url}`);
     
     // Get auth token if not skipping auth
     let authHeaders: Record<string, string> = {};

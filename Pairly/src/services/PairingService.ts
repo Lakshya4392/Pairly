@@ -283,11 +283,48 @@ class PairingService {
   }
 
   /**
-   * Get partner info
+   * Get partner info - with backend sync and validation
    */
   async getPartner() {
+    // First try local storage
     const pair = await this.getPair();
-    return pair?.partner || null;
+    
+    // Always validate with backend to ensure pairing still exists
+    try {
+      console.log('🔄 Validating partner info with backend...');
+      const data = await apiClient.get<ApiResponse<{ pair: PairResponse; partner: any }>>('/pairs/current');
+      
+      if (data.success && data.data?.pair && data.data?.partner) {
+        console.log('✅ Partner validated from backend:', data.data.partner.displayName);
+        
+        // Store/update the pair locally
+        const fetchedPair: Pair = {
+          id: data.data.pair.id,
+          user1Id: data.data.pair.user1Id,
+          user2Id: data.data.pair.user2Id,
+          pairedAt: data.data.pair.pairedAt,
+          partner: data.data.partner,
+        };
+        
+        await this.storePair(fetchedPair);
+        return data.data.partner;
+      } else {
+        // No pairing on backend, clear local storage
+        console.log('⚠️ No pairing found on backend, clearing local data');
+        await this.removePair();
+        return null;
+      }
+    } catch (error: any) {
+      console.log('⚠️ Backend validation failed:', error.message);
+      
+      // If backend is unreachable, use local cache
+      if (pair?.partner) {
+        console.log('📦 Using cached partner data (backend offline)');
+        return pair.partner;
+      }
+      
+      return null;
+    }
   }
 }
 
