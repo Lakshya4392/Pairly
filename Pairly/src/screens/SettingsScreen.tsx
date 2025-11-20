@@ -67,13 +67,25 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [highQuality, setHighQuality] = useState(false);
 
   useEffect(() => {
-    loadUserInfo();
-    loadSettings();
-    loadPartnerInfo();
-    loadAppLockSettings();
-    loadAllPremiumSettings();
-    setupDisconnectListener();
-  }, [user]);
+    let mounted = true;
+    
+    const loadAll = async () => {
+      if (!mounted) return;
+      
+      await loadUserInfo();
+      await loadSettings();
+      await loadPartnerInfo();
+      await loadAppLockSettings();
+      await loadAllPremiumSettings();
+      setupDisconnectListener();
+    };
+    
+    loadAll();
+    
+    return () => {
+      mounted = false;
+    };
+  }, []); // Empty dependency - load once on mount
 
   const loadSettings = async () => {
     try {

@@ -143,6 +143,13 @@ io.on('connection', (socket) => {
     partnerId: string;
   }) => {
     try {
+      console.log('📸 Received send_photo event:', {
+        from: currentUserId,
+        to: data.partnerId,
+        photoId: data.photoId,
+        hasPhotoData: !!data.photoData,
+      });
+      
       if (!currentUserId) {
         console.error('❌ No user ID - cannot send photo');
         return;

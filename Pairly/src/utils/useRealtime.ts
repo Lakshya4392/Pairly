@@ -5,6 +5,7 @@ import MomentService from '@services/MomentService';
 interface UseRealtimeOptions {
   userId: string;
   onNewMoment?: (data: any) => void;
+  onReceivePhoto?: (data: any) => void;
   onPartnerConnected?: (data: any) => void;
   onPartnerDisconnected?: (data: any) => void;
   onPartnerUpdated?: (data: any) => void;
@@ -18,6 +19,7 @@ export const useRealtime = (options: UseRealtimeOptions) => {
   const {
     userId,
     onNewMoment,
+    onReceivePhoto,
     onPartnerConnected,
     onPartnerDisconnected,
     onPartnerUpdated,
@@ -43,6 +45,25 @@ export const useRealtime = (options: UseRealtimeOptions) => {
       }
     },
     [onNewMoment]
+  );
+
+  // Handle receive photo
+  const handleReceivePhoto = useCallback(
+    async (data: any) => {
+      console.log('📥 Receive photo event:', data);
+      
+      try {
+        // Save photo locally using MomentService
+        const saved = await MomentService.receivePhoto(data);
+        
+        if (saved && onReceivePhoto) {
+          onReceivePhoto(data);
+        }
+      } catch (error) {
+        console.error('Error saving received photo:', error);
+      }
+    },
+    [onReceivePhoto]
   );
 
   // Handle partner connected
@@ -94,6 +115,7 @@ export const useRealtime = (options: UseRealtimeOptions) => {
         
         // Register event listeners
         RealtimeService.on('new_moment', handleNewMoment);
+        RealtimeService.on('receive_photo', handleReceivePhoto);
         RealtimeService.on('partner_connected', handlePartnerConnected);
         RealtimeService.on('partner_disconnected', handlePartnerDisconnected);
         RealtimeService.on('partner_updated', handlePartnerUpdated);
@@ -108,6 +130,7 @@ export const useRealtime = (options: UseRealtimeOptions) => {
     // Cleanup on unmount
     return () => {
       RealtimeService.off('new_moment', handleNewMoment);
+      RealtimeService.off('receive_photo', handleReceivePhoto);
       RealtimeService.off('partner_connected', handlePartnerConnected);
       RealtimeService.off('partner_disconnected', handlePartnerDisconnected);
       RealtimeService.off('partner_updated', handlePartnerUpdated);
@@ -116,6 +139,7 @@ export const useRealtime = (options: UseRealtimeOptions) => {
   }, [
     userId,
     handleNewMoment,
+    handleReceivePhoto,
     handlePartnerConnected,
     handlePartnerDisconnected,
     handlePartnerUpdated,

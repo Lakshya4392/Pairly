@@ -9,6 +9,8 @@ class PairingService {
   private pair: Pair | null = null;
   private retryAttempts = 3;
   private retryDelay = 2000; // 2 seconds
+  private lastValidationTime: number = 0;
+  private validationCacheDuration = 30000; // 30 seconds cache
 
   /**
    * Generate invite code - BULLETPROOF WITH RETRY MECHANISM
@@ -283,9 +285,16 @@ class PairingService {
   }
 
   /**
-   * Get partner info - with optional backend sync
+   * Get partner info - with optional backend sync and caching
    */
   async getPartner() {
+    // Return cached data if recent (within 30 seconds)
+    const now = Date.now();
+    if (this.pair && (now - this.lastValidationTime) < this.validationCacheDuration) {
+      console.log('📦 Using cached partner data (validated recently)');
+      return this.pair.partner;
+    }
+    
     // Try to validate with backend first (source of truth)
     try {
       const data = await apiClient.get<ApiResponse<{ pair: PairResponse; partner: any }>>('/pairs/current');
@@ -332,6 +341,7 @@ class PairingService {
         };
         
         await this.storePair(fetchedPair);
+        this.lastValidationTime = Date.now(); // Update cache timestamp
         return data.data.partner;
       } else if (data.success && !data.data) {
         // Backend says no pairing exists, clear local storage

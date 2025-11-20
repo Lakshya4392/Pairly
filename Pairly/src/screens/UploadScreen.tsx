@@ -98,6 +98,7 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
     checkDailyLimit();
     setupPresence();
     setupPairingListener();
+    setupPhotoReceiveListener();
 
     // Heart pulse animation - smooth and romantic
     const pulseHeart = () => {
@@ -426,6 +427,48 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
     }
   };
 
+  const setupPhotoReceiveListener = async () => {
+    try {
+      const RealtimeService = (await import('../services/RealtimeService')).default;
+      const MomentService = (await import('../services/MomentService')).default;
+      
+      // Listen for received photos
+      const handleReceivePhoto = async (data: any) => {
+        console.log('📥 Photo received from partner on home screen!');
+        
+        try {
+          // Save photo locally
+          await MomentService.receivePhoto(data);
+          
+          // Reload recent photos to show the new one
+          await loadRecentPhotos();
+          
+          // Update widget
+          try {
+            const WidgetService = (await import('../services/WidgetService')).default;
+            await WidgetService.updateWidget();
+            console.log('✅ Widget updated with received photo');
+          } catch (error) {
+            console.log('⚠️ Widget update skipped:', error);
+          }
+          
+          console.log('✅ Received photo saved and displayed');
+        } catch (error) {
+          console.error('Error handling received photo:', error);
+        }
+      };
+
+      RealtimeService.on('receive_photo', handleReceivePhoto);
+
+      // Cleanup
+      return () => {
+        RealtimeService.off('receive_photo', handleReceivePhoto);
+      };
+    } catch (error) {
+      console.error('Error setting up photo receive listener:', error);
+    }
+  };
+
 
 
   const loadRecentPhotos = async () => {
@@ -433,15 +476,16 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
       const LocalPhotoStorage = (await import('../services/LocalPhotoStorage')).default;
       const photos = await LocalPhotoStorage.getAllPhotos();
       
-      // Get last 4 photos - get URIs from metadata
+      // Get last 8 photos - get URIs from metadata (2 rows of 4)
       const recentUris = await Promise.all(
-        photos.slice(0, 4).map(async (p) => {
+        photos.slice(0, 8).map(async (p) => {
           const uri = await LocalPhotoStorage.getPhotoUri(p.id);
           return uri || '';
         })
       );
       
       setRecentPhotos(recentUris.filter(uri => uri !== ''));
+      console.log(`✅ Loaded ${recentUris.filter(uri => uri !== '').length} recent photos`);
     } catch (error) {
       console.error('Error loading recent photos:', error);
     }
@@ -611,6 +655,15 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
       
       // Reload recent photos with animation
       await loadRecentPhotos();
+      
+      // Update widget with latest photo
+      try {
+        const WidgetService = (await import('../services/WidgetService')).default;
+        await WidgetService.updateWidget();
+        console.log('✅ Widget updated with latest photo');
+      } catch (error) {
+        console.log('⚠️ Widget update skipped:', error);
+      }
     } catch (error: any) {
       setAlertMessage(error.message || 'Failed to upload photo');
       setShowErrorAlert(true);
@@ -834,7 +887,7 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
             </View>
             <View style={styles.recentPhotosGrid}>
               {recentPhotos.length > 0 ? (
-                recentPhotos.slice(0, 4).map((photoUri, index) => (
+                recentPhotos.slice(0, 8).map((photoUri, index) => (
                   <View key={index} style={styles.recentPhotoThumb}>
                     {photoUri ? (
                       <Image 
@@ -1289,14 +1342,15 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
   },
   recentPhotosGrid: {
     flexDirection: 'row',
-    gap: spacing.md,
+    flexWrap: 'wrap',
+    gap: spacing.sm,
     marginBottom: spacing.lg,
   },
   recentPhotoThumb: {
-    flex: 1,
+    width: '23%', // 4 columns with gaps
     aspectRatio: 1,
     backgroundColor: colors.backgroundSecondary,
-    borderRadius: borderRadius.lg,
+    borderRadius: borderRadius.md,
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',

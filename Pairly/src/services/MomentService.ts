@@ -77,15 +77,26 @@ class MomentService {
       const compressedPhoto = await PhotoService.compressPhoto({ uri: photo.uri, width: 0, height: 0, type: 'image/jpeg', fileName: '', fileSize: 0 }, quality);
 
       // 6. Send to ONLY the paired partner via Socket.IO
+      // Use clerkId for socket room identification
+      const partnerSocketId = partner.clerkId || partner.id;
+      
+      console.log('📤 Sending photo with data:', {
+        photoId: localPhoto.id,
+        partnerId: partnerSocketId,
+        partnerName: partner.displayName,
+        hasPhotoData: !!compressedPhoto.base64,
+        photoDataLength: compressedPhoto.base64?.length || 0,
+      });
+      
       RealtimeService.emit('send_photo', {
         photoId: localPhoto.id,
         photoData: compressedPhoto.base64,
         timestamp: localPhoto.timestamp,
         caption: note || photo.caption,
-        partnerId: partner.id, // ONLY send to this specific partner ID
+        partnerId: partnerSocketId, // Use clerkId for socket
       });
 
-      console.log(`📤 Photo sent ONLY to paired partner ${partner.displayName} (${partner.id})`);
+      console.log(`📤 Photo sent to partner ${partner.displayName} (${partnerSocketId})`);
 
       return {
         success: true,
