@@ -89,10 +89,13 @@ export const generateCode = async (req: AuthRequest, res: Response): Promise<voi
     const expiresAt = getCodeExpiration();
 
     // Create pair with invite code (user1 only, waiting for user2)
+    // IMPORTANT: We temporarily set user2Id same as user1Id because Prisma requires it
+    // This will be updated when someone joins with the code
+    // We use inviteCode presence to identify incomplete pairs
     const newPair = await prisma.pair.create({
       data: {
         user1Id: userId,
-        user2Id: userId, // Temporary, will be updated when someone joins
+        user2Id: userId, // Temporary - indicates incomplete pairing
         inviteCode: code,
         codeExpiresAt: expiresAt,
       },
@@ -417,10 +420,11 @@ export const getCurrentPair = async (req: AuthRequest, res: Response): Promise<v
   try {
     const userId = req.userId!;
 
-    // Find user's pair
+    // Find user's pair (exclude incomplete pairs with invite codes)
     const pair = await prisma.pair.findFirst({
       where: {
         OR: [{ user1Id: userId }, { user2Id: userId }],
+        inviteCode: null, // Only return completed pairs (no pending invite code)
       },
       include: {
         user1: true,
@@ -429,6 +433,16 @@ export const getCurrentPair = async (req: AuthRequest, res: Response): Promise<v
     });
 
     if (!pair) {
+      res.json({
+        success: true,
+        data: null,
+      } as ApiResponse);
+      return;
+    }
+
+    // Check if it's a self-pairing (incomplete pair)
+    if (pair.user1Id === pair.user2Id) {
+      console.log(`⚠️ Incomplete pair detected for user ${userId}, returning null`);
       res.json({
         success: true,
         data: null,

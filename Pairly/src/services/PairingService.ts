@@ -283,19 +283,44 @@ class PairingService {
   }
 
   /**
-   * Get partner info - with backend sync and validation
+   * Get partner info - with optional backend sync
    */
   async getPartner() {
-    // First try local storage
-    const pair = await this.getPair();
-    
-    // Always validate with backend to ensure pairing still exists
+    // Try to validate with backend first (source of truth)
     try {
-      console.log('🔄 Validating partner info with backend...');
       const data = await apiClient.get<ApiResponse<{ pair: PairResponse; partner: any }>>('/pairs/current');
       
       if (data.success && data.data?.pair && data.data?.partner) {
         console.log('✅ Partner validated from backend:', data.data.partner.displayName);
+        
+        // Validate it's not self-pairing (check multiple fields)
+        const AuthService = (await import('./AuthService')).default;
+        const currentUser = await AuthService.getUser();
+        
+        if (currentUser) {
+          const isSelfPaired = 
+            data.data.partner.clerkId === currentUser.id ||
+            data.data.partner.id === currentUser.id ||
+            data.data.partner.displayName === currentUser.firstName ||
+            data.data.partner.email === currentUser.primaryEmailAddress?.emailAddress;
+          
+          if (isSelfPaired) {
+            console.error('❌ Invalid pairing detected: User paired with self!');
+            console.error('Current user:', currentUser.firstName, currentUser.id);
+            console.error('Partner:', data.data.partner.displayName, data.data.partner.clerkId);
+            
+            // Clear local AND backend pairing
+            try {
+              await apiClient.delete('/pairs/disconnect');
+              console.log('✅ Invalid pairing cleared from backend');
+            } catch (error) {
+              console.error('Failed to clear backend pairing:', error);
+            }
+            
+            await this.removePair();
+            return null;
+          }
+        }
         
         // Store/update the pair locally
         const fetchedPair: Pair = {
@@ -308,23 +333,25 @@ class PairingService {
         
         await this.storePair(fetchedPair);
         return data.data.partner;
-      } else {
-        // No pairing on backend, clear local storage
+      } else if (data.success && !data.data) {
+        // Backend says no pairing exists, clear local storage
         console.log('⚠️ No pairing found on backend, clearing local data');
         await this.removePair();
         return null;
       }
     } catch (error: any) {
-      console.log('⚠️ Backend validation failed:', error.message);
+      // Backend validation failed - use local cache with caution
+      console.log('⚠️ Backend validation skipped:', error.message);
       
-      // If backend is unreachable, use local cache
+      // Try local storage as fallback
+      const pair = await this.getPair();
       if (pair?.partner) {
-        console.log('📦 Using cached partner data (backend offline)');
+        console.log('📦 Using cached partner data');
         return pair.partner;
       }
-      
-      return null;
     }
+    
+    return null;
   }
 }
 
