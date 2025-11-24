@@ -32,13 +32,17 @@ class FCMService {
   }
 
   /**
-   * Send FCM notification to user
+   * Send FCM notification to user with visible notification
    */
   async sendNotification(
     fcmToken: string,
     data: {
       type: string;
       [key: string]: any;
+    },
+    notification?: {
+      title: string;
+      body: string;
     }
   ): Promise<boolean> {
     if (!this.initialized) {
@@ -47,7 +51,7 @@ class FCMService {
     }
 
     try {
-      const message = {
+      const message: any = {
         token: fcmToken,
         data: {
           ...data,
@@ -59,10 +63,26 @@ class FCMService {
         },
         android: {
           priority: 'high' as const,
-          // Data-only message (no notification UI)
-          // This allows background processing
+          notification: notification ? {
+            title: notification.title,
+            body: notification.body,
+            sound: 'default',
+            channelId: 'moments',
+            icon: 'ic_notification',
+            color: '#FF6B9D',
+            tag: 'moment',
+            clickAction: 'FLUTTER_NOTIFICATION_CLICK',
+          } : undefined,
         },
       };
+
+      // Add notification for display
+      if (notification) {
+        message.notification = {
+          title: notification.title,
+          body: notification.body,
+        };
+      }
 
       const response = await admin.messaging().send(message);
       console.log('✅ FCM notification sent:', response);
@@ -74,18 +94,28 @@ class FCMService {
   }
 
   /**
-   * Send new photo notification
+   * Send new photo notification with base64 data for instant widget update
    */
   async sendNewPhotoNotification(
     fcmToken: string,
-    photoUrl: string,
-    partnerName: string
+    photoBase64: string,
+    partnerName: string,
+    momentId: string
   ): Promise<boolean> {
-    return this.sendNotification(fcmToken, {
-      type: 'new_photo',
-      photoUrl,
-      partnerName,
-    });
+    return this.sendNotification(
+      fcmToken,
+      {
+        type: 'new_moment',
+        photoBase64,
+        partnerName,
+        momentId,
+        timestamp: Date.now().toString(),
+      },
+      {
+        title: `💕 New Moment from ${partnerName}`,
+        body: 'Tap to view your special moment together',
+      }
+    );
   }
 
   /**

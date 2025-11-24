@@ -154,6 +154,12 @@ export const uploadMoment = async (req: AuthRequest, res: Response): Promise<voi
 
     console.log(`📤 Sending moment from ${userId} to paired partner ${partnerId}`);
 
+    // Get partner info for notifications
+    const partner = await prisma.user.findUnique({
+      where: { id: partnerId },
+      select: { fcmToken: true, clerkId: true },
+    });
+
     // Emit Socket.IO event ONLY to the paired partner
     io.to(partnerId).emit('new_moment', {
       momentId: moment.id,
@@ -162,6 +168,42 @@ export const uploadMoment = async (req: AuthRequest, res: Response): Promise<voi
       photoBase64: photoBuffer.toString('base64'),
       partnerName: user.displayName,
     });
+
+    // Send delivery confirmation to sender
+    io.to(userId).emit('moment_sent_confirmation', {
+      momentId: moment.id,
+      sentAt: moment.uploadedAt.toISOString(),
+      partnerName: pair.user1Id === userId ? pair.user2.displayName : pair.user1.displayName,
+      deliveryMethod: 'socket',
+    });
+
+    // Send FCM notification for instant widget update (even if app is closed)
+    try {
+      if (partner?.fcmToken) {
+        const FCMService = (await import('../services/FCMService')).default;
+        const fcmSent = await FCMService.sendNewPhotoNotification(
+          partner.fcmToken,
+          photoBuffer.toString('base64'),
+          user.displayName || 'Your Partner',
+          moment.id
+        );
+        
+        if (fcmSent) {
+          console.log('✅ FCM notification sent to partner');
+          
+          // Send FCM delivery confirmation to sender
+          io.to(userId).emit('moment_delivered', {
+            momentId: moment.id,
+            deliveredAt: new Date().toISOString(),
+            deliveryMethod: 'fcm',
+          });
+        }
+      } else {
+        console.log('⚠️ Partner has no FCM token registered');
+      }
+    } catch (fcmError) {
+      console.log('⚠️ FCM notification failed (non-critical):', fcmError);
+    }
 
     // Return response
     const momentResponse: MomentResponse = {

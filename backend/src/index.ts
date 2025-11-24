@@ -18,16 +18,39 @@ FCMService.initialize();
 const app = express();
 const httpServer = createServer(app);
 
-// Initialize Socket.IO
+// Initialize Socket.IO with optimized settings
 const io = new Server(httpServer, {
   cors: {
     origin: '*', // Configure properly in production
     methods: ['GET', 'POST'],
   },
+  // Performance optimizations - tuned for fast, reliable connections
+  pingTimeout: 5000, // 5s - Faster timeout detection
+  pingInterval: 8000, // 8s - Check connection frequently (synced with frontend heartbeat)
+  upgradeTimeout: 2000, // 2s - Even faster upgrade to WebSocket
+  maxHttpBufferSize: 1e6, // 1MB max message size
+  transports: ['websocket', 'polling'], // WebSocket preferred
+  allowEIO3: true, // Support older clients
+  perMessageDeflate: false, // Disable compression for speed (matches frontend)
+  connectTimeout: 5000, // 5s - Fast connection timeout
 });
 
-// Initialize Prisma Client
-export const prisma = new PrismaClient();
+// Initialize Prisma Client with connection pooling
+export const prisma = new PrismaClient({
+  log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
+  datasources: {
+    db: {
+      url: process.env.DATABASE_URL,
+    },
+  },
+});
+
+// Connection pool optimization
+prisma.$connect().then(() => {
+  console.log('✅ Database connected with connection pooling');
+}).catch((error) => {
+  console.error('❌ Database connection failed:', error);
+});
 
 // Middleware
 app.use(cors());
@@ -273,6 +296,41 @@ io.on('connection', (socket) => {
   // Acknowledge moment received
   socket.on('moment_received', (data: { momentId: string }) => {
     console.log(`Moment ${data.momentId} received by client`);
+  });
+
+  // Handle moment received acknowledgment (send back to sender)
+  socket.on('moment_received_ack', async (data: { momentId: string; receivedAt: string }) => {
+    try {
+      if (!currentUserDbId) return;
+
+      // Find the moment to get sender info
+      const moment = await prisma.moment.findUnique({
+        where: { id: data.momentId },
+        include: {
+          pair: {
+            include: {
+              user1: true,
+              user2: true,
+            },
+          },
+        },
+      });
+
+      if (moment) {
+        // Send acknowledgment to the sender
+        const senderId = moment.uploaderId;
+        const sender = moment.pair.user1Id === senderId ? moment.pair.user1 : moment.pair.user2;
+        
+        io.to(sender.clerkId).emit('moment_received_ack', {
+          momentId: data.momentId,
+          receivedAt: data.receivedAt,
+        });
+
+        console.log(`✅ Delivery receipt sent to ${sender.displayName}`);
+      }
+    } catch (error) {
+      console.error('Error handling moment acknowledgment:', error);
+    }
   });
 
   // Handle reconnection

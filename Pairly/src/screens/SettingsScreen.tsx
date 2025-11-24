@@ -19,6 +19,7 @@ import { ThemeSelectorModal } from '../components/ThemeSelectorModal';
 
 import { PINSetupModal } from '../components/PINSetupModal';
 import { RatingModal } from '../components/RatingModal';
+import { ReminderSettingsModal } from '../components/ReminderSettingsModal';
 import { useTheme } from '../contexts/ThemeContext';
 import { colors as defaultColors, gradients } from '../theme/colorsIOS';
 import { spacing, borderRadius, layout } from '../theme/spacingIOS';
@@ -64,6 +65,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [showPINSetup, setShowPINSetup] = useState(false);
   const [showThemeSelector, setShowThemeSelector] = useState(false);
   const [showRatingModal, setShowRatingModal] = useState(false);
+  const [showReminderSettings, setShowReminderSettings] = useState(false);
   const [highQuality, setHighQuality] = useState(false);
 
   useEffect(() => {
@@ -72,12 +74,22 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     const loadAll = async () => {
       if (!mounted) return;
       
-      await loadUserInfo();
-      await loadSettings();
-      await loadPartnerInfo();
-      await loadAppLockSettings();
-      await loadAllPremiumSettings();
-      setupDisconnectListener();
+      // Load critical data in parallel (FAST!)
+      await Promise.all([
+        loadUserInfo(),
+        loadPartnerInfo(),
+      ]);
+      
+      // Load non-critical data in background
+      if (mounted) {
+        Promise.all([
+          loadSettings(),
+          loadAppLockSettings(),
+          loadAllPremiumSettings(),
+        ]).catch(err => console.error('Background load error:', err));
+        
+        setupDisconnectListener();
+      }
     };
     
     loadAll();
@@ -112,7 +124,14 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const loadPartnerInfo = async () => {
     try {
       const PairingService = (await import('../services/PairingService')).default;
-      const partner = await PairingService.getPartner();
+      const apiCache = (await import('../utils/apiCache')).default;
+      
+      // Use cache to prevent duplicate calls
+      const partner = await apiCache.get(
+        'partner_info',
+        () => PairingService.getPartner(),
+        30000 // 30 seconds cache
+      );
       
       if (partner) {
         setPartnerName(partner.displayName);
@@ -724,43 +743,14 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       <SectionHeader title="SMART REMINDERS (PREMIUM)" />
       <View style={styles.section}>
         <SettingItem
-          icon="sunny"
-          title="Good Morning Reminder"
-          subtitle="Remind to say good morning"
+          icon="time"
+          title="Reminder Settings"
+          subtitle="Set exact times for daily reminders"
           isPremiumFeature={!isPremium}
-          onPress={() => !isPremium && handlePremiumFeature('Smart Reminders')}
+          onPress={() => setShowReminderSettings(true)}
           rightElement={
-            <Switch
-              value={goodMorningReminder}
-              onValueChange={handleToggleGoodMorning}
-              trackColor={{ false: colors.border, true: colors.primaryLight }}
-              thumbColor={goodMorningReminder ? colors.primary : colors.textTertiary}
-              disabled={!isPremium}
-            />
+            <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
           }
-        />
-        <SettingItem
-          icon="moon"
-          title="Good Night Reminder"
-          subtitle="Remind to say good night"
-          isPremiumFeature={!isPremium}
-          onPress={() => !isPremium && handlePremiumFeature('Smart Reminders')}
-          rightElement={
-            <Switch
-              value={goodNightReminder}
-              onValueChange={handleToggleGoodNight}
-              trackColor={{ false: colors.border, true: colors.primaryLight }}
-              thumbColor={goodNightReminder ? colors.primary : colors.textTertiary}
-              disabled={!isPremium}
-            />
-          }
-        />
-        <SettingItem
-          icon="heart"
-          title="Anniversary Reminder"
-          subtitle="Never forget special dates"
-          isPremiumFeature={!isPremium}
-          onPress={() => !isPremium && handlePremiumFeature('Smart Reminders')}
           isLast
         />
       </View>
@@ -1008,6 +998,18 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           },
         ]}
         onClose={() => setShowSuccessAlert(false)}
+      />
+
+      {/* Reminder Settings Modal */}
+      <ReminderSettingsModal
+        visible={showReminderSettings}
+        onClose={() => setShowReminderSettings(false)}
+        partnerName={partnerName || 'Partner'}
+        isPremium={isPremium}
+        onUpgrade={() => {
+          setShowReminderSettings(false);
+          onUpgradeToPremium?.();
+        }}
       />
       
       {/* Header */}

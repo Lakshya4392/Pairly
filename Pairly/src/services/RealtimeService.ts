@@ -1,5 +1,6 @@
 import { io, Socket } from 'socket.io-client';
 import { API_CONFIG } from '../config/api.config';
+import { APP_CONFIG, log } from '../config/app.config';
 import AuthService from './AuthService';
 
 type EventCallback = (data: any) => void;
@@ -16,32 +17,43 @@ class RealtimeService {
    */
   async connect(userId: string): Promise<void> {
     if (this.socket && this.isConnected) {
-      console.log('Already connected to Socket.IO');
+      log.debug('Already connected to Socket.IO');
       return;
     }
 
     try {
       const token = await AuthService.getToken();
 
-      console.log('🔌 Connecting to Socket.IO:', API_CONFIG.socketUrl);
+      // Start performance timer
+      if (APP_CONFIG.enablePerformanceMonitoring) {
+        try {
+          const PerformanceMonitor = (await import('./PerformanceMonitor')).default;
+          PerformanceMonitor.startTimer('socket_connection');
+        } catch (error) {
+          // Ignore
+        }
+      }
+
+      log.network('Connecting to Socket.IO:', API_CONFIG.socketUrl);
       this.socket = io(API_CONFIG.socketUrl, {
         auth: {
           token,
         },
-        transports: ['polling', 'websocket'], // Polling first for faster initial connection
+        transports: ['websocket'], // WebSocket only (faster, no polling fallback)
         reconnection: true,
-        reconnectionAttempts: this.maxReconnectAttempts,
-        reconnectionDelay: 500, // Faster reconnection
-        reconnectionDelayMax: 3000, // Reduced max delay
-        timeout: 10000, // 10 second timeout - faster
-        forceNew: false, // Reuse existing connection
-        upgrade: true, // Upgrade to websocket after polling connects
+        reconnectionAttempts: 3, // Reduced from 5
+        reconnectionDelay: 1000, // 1 second
+        reconnectionDelayMax: 3000, // 3 seconds max
+        timeout: 10000, // 10 seconds (backend cold start on Render)
+        forceNew: false,
+        autoConnect: true,
+        multiplex: false,
       });
 
       this.setupEventHandlers(userId);
     } catch (error) {
       // Silent fail - app works without realtime features
-      console.log('⚠️ Realtime features unavailable (backend offline)');
+      log.debug('Realtime features unavailable');
     }
   }
 
@@ -52,10 +64,20 @@ class RealtimeService {
     if (!this.socket) return;
 
     // Connection successful
-    this.socket.on('connect', () => {
-      console.log('Socket.IO connected:', this.socket?.id);
+    this.socket.on('connect', async () => {
+      log.network('Socket.IO connected:', this.socket?.id);
       this.isConnected = true;
       this.reconnectAttempts = 0;
+
+      // Record connection performance
+      if (APP_CONFIG.enablePerformanceMonitoring) {
+        try {
+          const PerformanceMonitor = (await import('./PerformanceMonitor')).default;
+          PerformanceMonitor.endTimer('socket_connection');
+        } catch (error) {
+          // Ignore
+        }
+      }
 
       // Join user's personal room
       this.socket?.emit('join_room', { userId });
@@ -63,18 +85,18 @@ class RealtimeService {
 
     // Room joined confirmation
     this.socket.on('room_joined', (data: { userId: string }) => {
-      console.log('Joined room:', data.userId);
+      log.debug('Joined room:', data.userId);
     });
 
     // New moment received
     this.socket.on('new_moment', (data: any) => {
-      console.log('New moment received:', data);
+      log.debug('New moment received');
       this.triggerEvent('new_moment', data);
     });
 
     // Photo received from partner - VERIFY it's from our paired partner
     this.socket.on('receive_photo', async (data: any) => {
-      console.log('📥 Photo received from partner:', data.senderName);
+      log.debug('Photo received from partner:', data.senderName);
       
       // Verify sender is our paired partner
       try {
@@ -88,7 +110,41 @@ class RealtimeService {
         );
         
         if (isFromPartner) {
-          console.log('✅ Verified photo is from paired partner');
+          log.debug('Verified photo is from paired partner');
+          
+          // Import optimized services
+          const LocalPhotoStorage = (await import('./LocalPhotoStorage')).default;
+          const OptimizedWidgetService = (await import('./OptimizedWidgetService')).default;
+          
+          // Start performance timer
+          let PerformanceMonitor: any = null;
+          if (APP_CONFIG.enablePerformanceMonitoring) {
+            PerformanceMonitor = (await import('./PerformanceMonitor')).default;
+            PerformanceMonitor.startTimer('photo_receive');
+          }
+          
+          // Save photo and update widget immediately
+          if (data.photoBase64) {
+            const photoUri = await LocalPhotoStorage.savePhoto(
+              `data:image/jpeg;base64,${data.photoBase64}`,
+              'partner',
+              false
+            );
+            
+            if (photoUri) {
+              const actualUri = await LocalPhotoStorage.getPhotoUri(photoUri);
+              if (actualUri) {
+                if (PerformanceMonitor) PerformanceMonitor.startTimer('widget_update');
+                await OptimizedWidgetService.onPhotoReceived(actualUri, data.senderName || 'Partner');
+                if (PerformanceMonitor) PerformanceMonitor.endTimer('widget_update');
+                log.debug('Widget updated from Socket.IO');
+              }
+            }
+          }
+          
+          // End performance timer
+          if (PerformanceMonitor) PerformanceMonitor.endTimer('photo_receive');
+          
           this.triggerEvent('receive_photo', data);
         } else {
           console.warn('⚠️ Received photo from non-paired user - ignoring');
@@ -161,9 +217,18 @@ class RealtimeService {
     });
 
     // Disconnection
-    this.socket.on('disconnect', (reason: string) => {
-      console.log('Socket.IO disconnected:', reason);
+    this.socket.on('disconnect', async (reason: string) => {
+      console.log('⚠️ Socket.IO disconnected:', reason);
       this.isConnected = false;
+      
+      // Record connection drop
+      try {
+        const PerformanceMonitor = (await import('./PerformanceMonitor')).default;
+        PerformanceMonitor.recordConnectionDrop();
+      } catch (error) {
+        // Ignore
+      }
+      
       this.triggerEvent('disconnect', { reason });
     });
 
@@ -251,13 +316,19 @@ class RealtimeService {
   }
 
   /**
-   * Emit event to server
+   * Emit event to server - SAFE with error handling
    */
   emit(event: string, data: any): void {
-    if (this.socket && this.isConnected) {
-      this.socket.emit(event, data);
-    } else {
-      console.warn('Cannot emit event, socket not connected');
+    try {
+      if (this.socket && this.isConnected) {
+        this.socket.emit(event, data);
+        log.debug(`📤 Emitted ${event}`);
+      } else {
+        console.warn(`⚠️ Cannot emit ${event}, socket not connected`);
+      }
+    } catch (error: any) {
+      console.error(`❌ Error emitting ${event}:`, error.message);
+      // Don't throw - fail gracefully
     }
   }
 

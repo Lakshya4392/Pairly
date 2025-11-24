@@ -129,7 +129,7 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
     return date.toLocaleDateString();
   };
 
-  const PhotoItem = ({ photo, index }: { photo: Photo; index: number }) => (
+  const PhotoItem = React.memo(({ photo, index }: { photo: Photo; index: number }) => (
     <TouchableOpacity
       style={[
         styles.photoItem,
@@ -138,7 +138,11 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
       onPress={() => setSelectedPhoto(photo)}
       activeOpacity={0.8}
     >
-      <Image source={{ uri: photo.uri }} style={styles.photoImage} />
+      <Image 
+        source={{ uri: photo.uri }} 
+        style={styles.photoImage}
+        resizeMode="cover"
+      />
       <View style={styles.photoOverlay}>
         <View style={[
           styles.senderIndicator,
@@ -152,7 +156,7 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
         </View>
       </View>
     </TouchableOpacity>
-  );
+  ));
 
   const TimelineItem = ({ photo }: { photo: Photo }) => (
     <TouchableOpacity

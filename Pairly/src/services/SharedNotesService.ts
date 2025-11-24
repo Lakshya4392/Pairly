@@ -1,5 +1,6 @@
 import apiClient from '../utils/apiClient';
 import PremiumService from './PremiumService';
+import SafeOperations from '../utils/SafeOperations';
 
 export interface SharedNote {
   id: string;
@@ -12,53 +13,60 @@ export interface SharedNote {
 class SharedNotesService {
   /**
    * Send a shared note to partner
+   * BULLETPROOF: No dismiss errors, fast, reliable
    */
   async sendNote(
     content: string,
     expiresIn24h: boolean = false
   ): Promise<{ success: boolean; error?: string; note?: SharedNote }> {
-    try {
-      // Check if user has premium
-      const hasPremium = await PremiumService.isPremium();
-      if (!hasPremium) {
+    return SafeOperations.executeWithTimeout(
+      async () => {
+        // Check if user has premium
+        const hasPremium = await PremiumService.isPremium();
+        if (!hasPremium) {
+          return {
+            success: false,
+            error: 'Premium feature',
+          };
+        }
+
+        // Validate content
+        if (!content || content.trim().length === 0) {
+          return {
+            success: false,
+            error: 'Note cannot be empty',
+          };
+        }
+
+        if (content.length > 500) {
+          return {
+            success: false,
+            error: 'Note is too long (max 500 characters)',
+          };
+        }
+
+        const data = await apiClient.post<{ note: SharedNote }>('/notes/send', {
+          content: content.trim(),
+          expiresIn24h,
+        });
+
+        console.log('✅ Note sent successfully');
         return {
-          success: false,
-          error: 'Premium feature',
+          success: true,
+          note: data.note,
         };
+      },
+      10000, // 10 second timeout
+      'Note sending timed out'
+    ).then(result => {
+      if (result.success && result.data) {
+        return result.data;
       }
-
-      // Validate content
-      if (!content || content.trim().length === 0) {
-        return {
-          success: false,
-          error: 'Note cannot be empty',
-        };
-      }
-
-      if (content.length > 500) {
-        return {
-          success: false,
-          error: 'Note is too long (max 500 characters)',
-        };
-      }
-
-      const data = await apiClient.post<{ note: SharedNote }>('/notes/send', {
-        content: content.trim(),
-        expiresIn24h,
-      });
-
-      console.log('✅ Note sent successfully');
-      return {
-        success: true,
-        note: data.note,
-      };
-    } catch (error: any) {
-      console.error('Error sending note:', error);
       return {
         success: false,
-        error: error.message || 'Network error. Please try again.',
+        error: result.error || 'Failed to send note',
       };
-    }
+    });
   }
 
   /**

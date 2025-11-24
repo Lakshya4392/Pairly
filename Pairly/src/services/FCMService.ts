@@ -117,6 +117,9 @@ class FCMService {
 
     // Handle different message types
     switch (data.type) {
+      case 'new_moment':
+        await this.handleNewMoment(data);
+        break;
       case 'new_photo':
         await this.handleNewPhoto(data);
         break;
@@ -132,15 +135,75 @@ class FCMService {
   }
 
   /**
-   * Handle new photo notification
+   * Handle new moment notification (with base64 photo data)
    */
-  private async handleNewPhoto(data: any): Promise<void> {
+  private async handleNewMoment(data: any): Promise<void> {
     try {
-      console.log('📸 New photo received via FCM');
+      console.log('📸 New moment received via FCM');
 
       // Import services dynamically to avoid circular dependencies
       const LocalPhotoStorage = (await import('./LocalPhotoStorage')).default;
-      const WidgetService = (await import('./WidgetService')).default;
+      const OptimizedWidgetService = (await import('./OptimizedWidgetService')).default;
+      const EnhancedNotificationService = (await import('./EnhancedNotificationService')).default;
+      const PerformanceMonitor = (await import('./PerformanceMonitor')).default;
+
+      // Start performance timer
+      PerformanceMonitor.startTimer('photo_receive');
+
+      // Get photo base64 from FCM data
+      const photoBase64 = data.photoBase64;
+      if (!photoBase64) {
+        console.log('⚠️ No photo data in FCM message');
+        return;
+      }
+
+      // Save photo locally
+      const photoUri = await LocalPhotoStorage.savePhoto(
+        `data:image/jpeg;base64,${photoBase64}`,
+        'partner',
+        false
+      );
+
+      if (!photoUri) {
+        console.error('❌ Failed to save photo locally');
+        return;
+      }
+
+      // Get actual file URI for widget
+      const actualUri = await LocalPhotoStorage.getPhotoUri(photoUri);
+      
+      // Update widget immediately with optimized service
+      if (actualUri) {
+        PerformanceMonitor.startTimer('widget_update');
+        await OptimizedWidgetService.onPhotoReceived(actualUri, data.partnerName || 'Partner');
+        PerformanceMonitor.endTimer('widget_update');
+        console.log('✅ Widget updated from FCM');
+      }
+
+      // End performance timer
+      PerformanceMonitor.endTimer('photo_receive');
+
+      // Show enhanced notification with sound
+      await EnhancedNotificationService.showMomentNotification(
+        data.partnerName || 'Partner',
+        data.momentId || 'unknown'
+      );
+
+    } catch (error) {
+      console.error('❌ Error handling new moment:', error);
+    }
+  }
+
+  /**
+   * Handle new photo notification (legacy - for URL-based photos)
+   */
+  private async handleNewPhoto(data: any): Promise<void> {
+    try {
+      console.log('📸 New photo received via FCM (URL)');
+
+      // Import services dynamically to avoid circular dependencies
+      const LocalPhotoStorage = (await import('./LocalPhotoStorage')).default;
+      const OptimizedWidgetService = (await import('./OptimizedWidgetService')).default;
 
       // Fetch photo from backend
       const photoUrl = data.photoUrl;
@@ -160,10 +223,13 @@ class FCMService {
         false
       );
 
-      // Update widget
+      // Update widget with optimized service
       if (photoUri) {
-        await WidgetService.onPhotoReceived(photoUri, data.partnerName || 'Partner');
-        console.log('✅ Widget updated from FCM');
+        const actualUri = await LocalPhotoStorage.getPhotoUri(photoUri);
+        if (actualUri) {
+          await OptimizedWidgetService.onPhotoReceived(actualUri, data.partnerName || 'Partner');
+          console.log('✅ Widget updated from FCM');
+        }
       }
     } catch (error) {
       console.error('❌ Error handling new photo:', error);

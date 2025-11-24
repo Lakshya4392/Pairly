@@ -39,16 +39,20 @@ class SocketConnectionService {
         this.socket = null;
       }
 
-      // Create new socket connection
+      // Create new socket connection with optimized settings
       this.socket = io(API_CONFIG.baseUrl, {
-        transports: ['websocket', 'polling'], // Fallback to polling if websocket fails
-        timeout: 10000, // 10 second timeout
+        transports: ['websocket', 'polling'], // WebSocket first, polling fallback
+        timeout: 5000, // 5 second timeout (matches backend)
         reconnection: true,
         reconnectionAttempts: this.maxReconnectAttempts,
         reconnectionDelay: this.reconnectDelay,
         reconnectionDelayMax: this.maxReconnectDelay,
         maxHttpBufferSize: 1e6, // 1MB buffer
         forceNew: true,
+        // Additional optimizations
+        upgrade: true, // Allow transport upgrade
+        rememberUpgrade: true, // Remember successful upgrade
+        perMessageDeflate: false, // Disable compression for speed
       });
 
       this.setupEventHandlers();
@@ -149,7 +153,7 @@ class SocketConnectionService {
   }
 
   /**
-   * Join user room with retry mechanism
+   * Join user room with fast retry mechanism
    */
   private async joinUserRoom(retries = 3): Promise<void> {
     if (!this.socket || !this.userId) return;
@@ -160,11 +164,11 @@ class SocketConnectionService {
         
         this.socket.emit('join_room', { userId: this.userId });
         
-        // Wait for confirmation
+        // Wait for confirmation with shorter timeout
         await new Promise<void>((resolve, reject) => {
           const timeout = setTimeout(() => {
             reject(new Error('Room join timeout'));
-          }, 5000);
+          }, 3000); // Reduced from 5s to 3s
 
           this.socket?.once('room_joined', () => {
             clearTimeout(timeout);
@@ -180,7 +184,8 @@ class SocketConnectionService {
         if (attempt === retries) {
           console.error('❌ Failed to join room after all attempts');
         } else {
-          await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+          // Faster retry - 500ms instead of 1s per attempt
+          await new Promise(resolve => setTimeout(resolve, 500 * attempt));
         }
       }
     }
@@ -198,7 +203,7 @@ class SocketConnectionService {
       if (this.socket?.connected && this.userId) {
         this.socket.emit('heartbeat', { userId: this.userId });
       }
-    }, 30000); // Every 30 seconds
+    }, 15000); // Every 15 seconds - faster heartbeat for better connection
   }
 
   /**
@@ -212,13 +217,15 @@ class SocketConnectionService {
   }
 
   /**
-   * Handle connection errors with exponential backoff
+   * Handle connection errors with fast exponential backoff
    */
   private handleConnectionError(): void {
     this.reconnectAttempts++;
     
     if (this.reconnectAttempts <= this.maxReconnectAttempts) {
-      const delay = Math.min(this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1), this.maxReconnectDelay);
+      // Faster initial retry: 500ms, 1s, 2s, 4s, 8s, 16s, max 30s
+      const baseDelay = 500; // Start with 500ms instead of 1s
+      const delay = Math.min(baseDelay * Math.pow(2, this.reconnectAttempts - 1), this.maxReconnectDelay);
       console.log(`🔄 Retrying connection in ${delay}ms (attempt ${this.reconnectAttempts})`);
       
       setTimeout(() => {
@@ -321,7 +328,7 @@ class SocketConnectionService {
   }
 
   /**
-   * Emit event with retry mechanism
+   * Emit event with fast retry mechanism
    */
   async emit(event: string, data: any, retries = 3): Promise<void> {
     if (!this.socket) {
@@ -335,7 +342,14 @@ class SocketConnectionService {
           console.log(`📤 Emitted ${event} successfully`);
           return;
         } else {
-          throw new Error('Socket not connected');
+          // If not connected, try to reconnect quickly
+          if (attempt < retries && this.userId) {
+            console.log(`⚡ Socket not connected, attempting quick reconnect...`);
+            this.reconnect();
+            await new Promise(resolve => setTimeout(resolve, 500)); // Wait 500ms for reconnection
+          } else {
+            throw new Error('Socket not connected');
+          }
         }
       } catch (error) {
         console.error(`❌ Emit attempt ${attempt} failed:`, error);
@@ -344,8 +358,8 @@ class SocketConnectionService {
           throw new Error(`Failed to emit ${event} after ${retries} attempts`);
         }
         
-        // Wait and retry
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Faster retry - 500ms instead of 1s
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
     }
   }

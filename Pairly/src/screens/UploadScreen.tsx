@@ -92,7 +92,12 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
   // Get user name from Clerk
   const userName = user?.firstName || user?.username || 'User';
 
+  // Track if already initialized to prevent multiple loads
+  const [isInitialized, setIsInitialized] = useState(false);
+  
   useEffect(() => {
+    if (isInitialized) return; // Already initialized
+    
     let mounted = true;
     let cleanupFunctions: (() => void)[] = [];
     
@@ -110,6 +115,8 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
       
       if (cleanupPairing) cleanupFunctions.push(cleanupPairing);
       if (cleanupPhoto) cleanupFunctions.push(cleanupPhoto);
+      
+      setIsInitialized(true);
     };
     
     initialize();
@@ -135,13 +142,9 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
       cleanupPresence();
       clearInterval(interval);
     };
-  }, []);
+  }, [isInitialized]);
 
-  useEffect(() => {
-    if (user) {
-      console.log('✅ Clerk user loaded:', user.firstName, user.username);
-    }
-  }, [user]);
+  // Remove this - unnecessary logging on every render
 
   const checkDailyLimit = async () => {
     try {

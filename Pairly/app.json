@@ -33,8 +33,12 @@
         "android.permission.ACCESS_NETWORK_STATE",
         "android.permission.VIBRATE",
         "android.permission.RECEIVE_BOOT_COMPLETED",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECORD_AUDIO",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.WAKE_LOCK",
+        "com.google.android.c2dm.permission.RECEIVE"
       ],
+      "googleServicesFile": "./google-services.json",
       "intentFilters": [
         {
           "action": "VIEW",
@@ -55,7 +59,19 @@
       "expo-secure-store",
       "expo-image-picker",
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      "@react-native-firebase/app",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#FF6B9D",
+          "sounds": [
+            "./assets/notification-sound.wav"
+          ],
+          "mode": "production"
+        }
+      ]
     ],
     "extra": {
       "eas": {
