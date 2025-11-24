@@ -30,7 +30,11 @@ interface ReminderSettings {
   dailyMoment: { enabled: boolean; time: string };
   goodMorning: { enabled: boolean; time: string };
   goodNight: { enabled: boolean; time: string };
+  anniversary: { enabled: boolean; date: string | null };
+  dailyLimit: { enabled: boolean };
   partnerActivity: { enabled: boolean };
+  dualComplete: { enabled: boolean };
+  timeLockUnlock: { enabled: boolean };
 }
 
 export const ReminderSettingsModal: React.FC<ReminderSettingsModalProps> = ({
@@ -47,7 +51,11 @@ export const ReminderSettingsModal: React.FC<ReminderSettingsModalProps> = ({
     dailyMoment: { enabled: false, time: '09:00' },
     goodMorning: { enabled: false, time: '08:00' },
     goodNight: { enabled: false, time: '22:00' },
+    anniversary: { enabled: false, date: null },
+    dailyLimit: { enabled: true },
     partnerActivity: { enabled: true },
+    dualComplete: { enabled: true },
+    timeLockUnlock: { enabled: true },
   });
   
   const [showTimePicker, setShowTimePicker] = useState<{

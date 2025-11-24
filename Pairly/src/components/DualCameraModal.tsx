@@ -33,10 +33,42 @@ export const DualCameraModal: React.FC<DualCameraModalProps> = ({
   const { colors } = useTheme();
   const styles = React.useMemo(() => createStyles(colors), [colors]);
   const [title, setTitle] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  // Debug log
+  React.useEffect(() => {
+    console.log('🎬 DualCameraModal visible:', visible);
+    
+    // Reset title when modal opens
+    if (visible) {
+      console.log('✅ Modal opened - resetting title');
+      setTitle('');
+      setIsProcessing(false);
+    }
+  }, [visible]);
 
   const handleCapture = () => {
+    console.log('📸 Capture button clicked with title:', title);
+    
+    if (isProcessing) {
+      console.log('⚠️ Already processing, ignoring click');
+      return;
+    }
+    
     if (title.trim()) {
+      setIsProcessing(true);
+      console.log('✅ Starting capture process...');
       onCapture(title.trim());
+      setTitle('');
+      // Don't call onClose here - let parent handle it
+    } else {
+      console.log('⚠️ Title is empty');
+    }
+  };
+  
+  const handleClose = () => {
+    console.log('🚪 Modal close requested');
+    if (!isProcessing) {
       setTitle('');
       onClose();
     }
@@ -47,7 +79,7 @@ export const DualCameraModal: React.FC<DualCameraModalProps> = ({
       visible={visible}
       transparent
       animationType="fade"
-      onRequestClose={onClose}
+      onRequestClose={handleClose}
     >
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -56,7 +88,7 @@ export const DualCameraModal: React.FC<DualCameraModalProps> = ({
         <TouchableOpacity
           style={styles.backdrop}
           activeOpacity={1}
-          onPress={onClose}
+          onPress={handleClose}
         />
         
         <View style={styles.container}>
@@ -145,16 +177,16 @@ export const DualCameraModal: React.FC<DualCameraModalProps> = ({
             <View style={styles.actions}>
               <TouchableOpacity
                 style={styles.cancelButton}
-                onPress={onClose}
+                onPress={handleClose}
                 activeOpacity={0.7}
               >
                 <Text style={styles.cancelText}>Cancel</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.captureButton, !title.trim() && styles.captureButtonDisabled]}
+                style={[styles.captureButton, (!title.trim() || isProcessing) && styles.captureButtonDisabled]}
                 onPress={handleCapture}
-                disabled={!title.trim()}
+                disabled={!title.trim() || isProcessing}
                 activeOpacity={0.8}
               >
                 <LinearGradient

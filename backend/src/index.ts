@@ -265,12 +265,12 @@ io.on('connection', (socket) => {
         console.log('⚫ Partner offline - sending via FCM');
         
         if (partner.fcmToken) {
-          // Save photo to backend storage first (you'll need to implement this)
-          // For now, we'll just send notification
+          // Send notification with photo data
           await FCMService.sendNewPhotoNotification(
             partner.fcmToken,
-            data.photoData, // In production, upload to storage and send URL
-            sender.displayName
+            data.photoData,
+            sender.displayName,
+            data.photoId // 4th argument: momentId
           );
           console.log('✅ FCM notification sent');
         } else {

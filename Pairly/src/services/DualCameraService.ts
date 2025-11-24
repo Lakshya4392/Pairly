@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_CONFIG } from '../config/api.config';
+import SafeOperations from '../utils/SafeOperations';
 
 interface DualMoment {
   id: string;
@@ -16,48 +17,79 @@ class DualCameraService {
 
   /**
    * Create a new dual camera moment
+   * BULLETPROOF: Fast, reliable, with timeout protection
    */
   static async createDualMoment(title: string, photoUri: string, token: string): Promise<{
     success: boolean;
     momentId?: string;
     error?: string;
   }> {
-    try {
-      // Save to backend
-      const response = await fetch(`${API_CONFIG.baseUrl}/dual-moments`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+    return SafeOperations.executeWithTimeout(
+      async () => {
+        console.log('📸 Creating dual moment:', title);
+        
+        // Save locally first (instant)
+        const localId = `dual_${Date.now()}`;
+        await this.saveDualMomentLocally({
+          id: localId,
           title,
-          photoUri,
-        }),
-      });
+          myPhoto: photoUri,
+          createdAt: new Date(),
+          isComplete: false,
+        });
+        
+        console.log('✅ Saved locally:', localId);
 
-      if (!response.ok) {
-        const error = await response.json();
-        return { success: false, error: error.message || 'Failed to create dual moment' };
+        // Try to save to backend
+        try {
+          const response = await fetch(`${API_CONFIG.baseUrl}/dual-moments`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              title,
+              photoUri,
+            }),
+          });
+
+          if (!response.ok) {
+            const error = await response.json();
+            console.warn('⚠️ Backend save failed:', error.message);
+            // Still return success since saved locally
+            return { 
+              success: true, 
+              momentId: localId,
+              error: 'Saved locally, will sync later'
+            };
+          }
+
+          const data = await response.json();
+          console.log('✅ Dual moment created on backend:', data.data.id);
+          
+          return { success: true, momentId: data.data.id };
+        } catch (networkError: any) {
+          console.warn('⚠️ Network error, using local save:', networkError.message);
+          // Return success with local ID
+          return { 
+            success: true, 
+            momentId: localId,
+            error: 'Saved locally, will sync when online'
+          };
+        }
+      },
+      10000, // 10 second timeout
+      'Dual moment creation timed out'
+    ).then(result => {
+      if (result.success && result.data) {
+        return result.data;
       }
-
-      const data = await response.json();
-
-      // Save locally
-      await this.saveDualMomentLocally({
-        id: data.data.id,
-        title,
-        myPhoto: photoUri,
-        createdAt: new Date(),
-        isComplete: false,
-      });
-
-      console.log('✅ Dual moment created:', data.data.id);
-      return { success: true, momentId: data.data.id };
-    } catch (error) {
-      console.error('❌ Error creating dual moment:', error);
-      return { success: false, error: 'Network error' };
-    }
+      return {
+        success: false,
+        error: result.error || 'Failed to create dual moment',
+      };
+    });
   }
 
   /**

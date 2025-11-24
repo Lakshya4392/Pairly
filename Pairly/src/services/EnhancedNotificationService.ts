@@ -6,7 +6,7 @@
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
-import NotificationService from './notificationService';
+import NotificationService from './NotificationService';
 
 // Configure notification behavior with sound and vibration
 Notifications.setNotificationHandler({

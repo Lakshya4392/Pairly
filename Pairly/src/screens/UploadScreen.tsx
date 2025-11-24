@@ -295,30 +295,62 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
   };
 
   const handleOpenDualCameraModal = async () => {
-    // Check if partner is connected
-    if (!isPartnerConnected) {
-      setAlertMessage('Please connect with your partner first 💕');
-      setShowErrorAlert(true);
-      return;
-    }
+    try {
+      console.log('🎬 Dual Camera button clicked!');
+      console.log('Partner connected:', isPartnerConnected);
+      console.log('Premium status:', isPremium);
+      
+      // Check if partner is connected
+      if (!isPartnerConnected) {
+        console.log('⚠️ No partner connected - showing alert');
+        setAlertMessage('Please connect with your partner first 💕');
+        setShowErrorAlert(true);
+        return;
+      }
 
-    // Check premium
-    const hasPremium = await PremiumService.isPremium();
-    if (!hasPremium) {
-      setShowUpgradePrompt(true);
-      return;
-    }
+      // Check premium
+      const hasPremium = await PremiumService.isPremium();
+      console.log('Premium check result:', hasPremium);
+      
+      if (!hasPremium) {
+        console.log('⚠️ No premium - showing upgrade prompt');
+        setShowUpgradePrompt(true);
+        return;
+      }
 
-    setShowDualCameraModal(true);
+      console.log('✅ Opening dual camera modal...');
+      
+      // Use setTimeout to ensure state update happens after current render cycle
+      setTimeout(() => {
+        console.log('🔄 Setting showDualCameraModal to true');
+        setShowDualCameraModal(true);
+      }, 0);
+    } catch (error) {
+      console.error('❌ Error opening dual camera modal:', error);
+    }
   };
 
   const handleCaptureDualMoment = async (title: string) => {
     try {
+      console.log('📸 Starting dual camera capture with title:', title);
+      
+      // Close modal first
+      setShowDualCameraModal(false);
+      
+      // Small delay to let modal close smoothly
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
       // Capture photo
       const PhotoService = (await import('../services/PhotoService')).default;
+      console.log('📷 Opening camera...');
       const photo = await PhotoService.capturePhoto();
       
-      if (!photo) return; // User cancelled
+      if (!photo) {
+        console.log('⚠️ User cancelled photo capture');
+        return; // User cancelled
+      }
+
+      console.log('✅ Photo captured:', photo.uri);
 
       // Get token
       const token = await getToken();
@@ -328,20 +360,32 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
         return;
       }
 
+      // Show uploading state
+      setUploading(true);
+
       // Create dual moment
       const DualCameraService = (await import('../services/DualCameraService')).default;
+      console.log('📤 Creating dual moment...');
       const result = await DualCameraService.createDualMoment(title, photo.uri, token);
       
+      setUploading(false);
+      
       if (result.success) {
-        setAlertMessage(`Your photo is saved! Waiting for ${partnerName} to add theirs 💞`);
+        console.log('✅ Dual moment created successfully');
+        setAlertMessage(`✨ Your photo is saved!\n\nWaiting for ${partnerName} to add theirs 💞`);
         setShowSuccessAlert(true);
+        
+        // Reload recent photos
+        await loadRecentPhotos();
       } else {
+        console.error('❌ Failed to create dual moment:', result.error);
         setAlertMessage(result.error || 'Failed to create dual moment');
         setShowErrorAlert(true);
       }
-    } catch (error) {
-      console.error('Error capturing dual moment:', error);
-      setAlertMessage('Failed to capture photo. Please try again.');
+    } catch (error: any) {
+      console.error('❌ Error capturing dual moment:', error);
+      setUploading(false);
+      setAlertMessage(error.message || 'Failed to capture photo. Please try again.');
       setShowErrorAlert(true);
     }
   };
