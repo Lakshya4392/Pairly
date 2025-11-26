@@ -506,11 +506,19 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
           // Reload recent photos to show the new one
           await loadRecentPhotos();
           
-          // Update widget
+          // Update widget with latest photo
           try {
             const WidgetService = (await import('../services/WidgetService')).default;
-            await WidgetService.updateWidget();
-            console.log('✅ Widget updated with received photo');
+            const LocalPhotoStorage = (await import('../services/LocalPhotoStorage')).default;
+            const photos = await LocalPhotoStorage.getAllPhotos();
+            if (photos.length > 0) {
+              const latestPhoto = photos[0];
+              const photoUri = await LocalPhotoStorage.getPhotoUri(latestPhoto.id);
+              if (photoUri) {
+                await WidgetService.updateWidget(photoUri, partnerName);
+                console.log('✅ Widget updated with received photo');
+              }
+            }
           } catch (error) {
             console.log('⚠️ Widget update skipped:', error);
           }
@@ -729,9 +737,11 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
       
       // Update widget with latest photo
       try {
-        const WidgetService = (await import('../services/WidgetService')).default;
-        await WidgetService.updateWidget();
-        console.log('✅ Widget updated with latest photo');
+        if (selectedPhotoUri) {
+          const WidgetService = (await import('../services/WidgetService')).default;
+          await WidgetService.updateWidget(selectedPhotoUri, partnerName);
+          console.log('✅ Widget updated with latest photo');
+        }
       } catch (error) {
         console.log('⚠️ Widget update skipped:', error);
       }
@@ -874,11 +884,13 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
       >
         {/* Hero Card with Capture Button */}
         <View style={styles.heroCard}>
-          <Text style={styles.heroTitle}>Share Your Moment</Text>
+          <Text style={styles.heroTitle}>
+            {!isPartnerConnected ? 'Capture Your Moment' : `Share with ${partnerName}`}
+          </Text>
           <Text style={styles.heroSubtitle}>
             {!isPartnerConnected
-              ? 'Capture and save your memories' 
-              : 'Capture a special moment together'
+              ? 'Save your memories and moments' 
+              : 'Create and share beautiful moments together 💕'
             }
           </Text>
           

@@ -1,5 +1,6 @@
 import { io, Socket } from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { AppState, AppStateStatus } from 'react-native';
 import { API_CONFIG } from '../config/api.config';
 
 /**
@@ -12,11 +13,13 @@ class SocketConnectionService {
   private isConnecting = false;
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 10;
-  private reconnectDelay = 1000; // Start with 1 second
   private maxReconnectDelay = 30000; // Max 30 seconds
   private heartbeatInterval: NodeJS.Timeout | null = null;
   private connectionListeners: Array<(connected: boolean) => void> = [];
   private pairingListeners: Array<(data: any) => void> = [];
+  // ⚡ IMPROVED: Background state handler
+  private appStateSubscription: any = null;
+  private lastAppState: AppStateStatus = 'active';
 
   /**
    * Initialize socket connection with bulletproof error handling
@@ -33,29 +36,43 @@ class SocketConnectionService {
     try {
       console.log(`🔌 Initializing socket connection for user: ${userId}`);
       
+      // ⚡ IMPROVED: Get auth token for secure connection
+      const token = await AsyncStorage.getItem('auth_token');
+      if (!token) {
+        console.warn('⚠️ No auth token found, socket may not authenticate properly');
+      }
+      
       // Disconnect existing socket if any
       if (this.socket) {
         this.socket.disconnect();
         this.socket = null;
       }
 
-      // Create new socket connection with optimized settings
+      // Create new socket connection with optimized settings for INSTANT connection
       this.socket = io(API_CONFIG.baseUrl, {
-        transports: ['websocket', 'polling'], // WebSocket first, polling fallback
-        timeout: 5000, // 5 second timeout (matches backend)
+        // ⚡ IMPROVED: Security - Pass auth token
+        auth: {
+          token: token || undefined,
+        },
+        // ⚡ IMPROVED: Polling first for Render cold starts, then upgrade to WebSocket
+        transports: ['polling', 'websocket'], // Polling first for reliability
+        timeout: 20000, // 20 second timeout for Render cold starts
         reconnection: true,
-        reconnectionAttempts: this.maxReconnectAttempts,
-        reconnectionDelay: this.reconnectDelay,
-        reconnectionDelayMax: this.maxReconnectDelay,
-        maxHttpBufferSize: 1e6, // 1MB buffer
+        reconnectionAttempts: 3, // Reduced from 10
+        reconnectionDelay: 1000, // Increased from 500ms
+        reconnectionDelayMax: 10000, // Reduced from 30s
         forceNew: true,
         // Additional optimizations
-        upgrade: true, // Allow transport upgrade
+        upgrade: true, // Allow upgrade to WebSocket
         rememberUpgrade: true, // Remember successful upgrade
-        perMessageDeflate: false, // Disable compression for speed
+        autoConnect: true, // Auto-connect immediately
       });
 
       this.setupEventHandlers();
+      
+      // ⚡ IMPROVED: Setup background state handler for mobile
+      this.setupAppStateHandler();
+      
       this.isConnecting = false;
 
       console.log('✅ Socket connection initialized');
@@ -64,6 +81,57 @@ class SocketConnectionService {
       this.isConnecting = false;
       throw error;
     }
+  }
+
+  /**
+   * ⚡ IMPROVED: Handle app background/foreground state changes
+   * Critical for mobile - reconnect socket when app comes to foreground
+   */
+  private setupAppStateHandler(): void {
+    // Remove existing listener if any
+    if (this.appStateSubscription) {
+      this.appStateSubscription.remove();
+    }
+
+    this.appStateSubscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+      console.log(`📱 App state changed: ${this.lastAppState} → ${nextAppState}`);
+
+      // App came to foreground from background
+      if (this.lastAppState.match(/inactive|background/) && nextAppState === 'active') {
+        console.log('🔄 App came to foreground - checking socket connection...');
+        
+        // Check if socket is disconnected and reconnect
+        if (this.socket && !this.socket.connected && this.userId) {
+          console.log('⚡ Socket disconnected in background - reconnecting...');
+          this.reconnect();
+          
+          // Also restart heartbeat
+          setTimeout(() => {
+            if (this.socket?.connected) {
+              this.startHeartbeat();
+              console.log('✅ Socket reconnected after app foreground');
+            }
+          }, 1000);
+        } else if (this.socket?.connected) {
+          console.log('✅ Socket already connected');
+          // Send a heartbeat to confirm connection
+          if (this.userId) {
+            this.socket.emit('heartbeat', { userId: this.userId });
+          }
+        }
+      }
+
+      // App going to background
+      if (nextAppState.match(/inactive|background/)) {
+        console.log('📱 App going to background - socket will stay connected');
+        // Don't disconnect - let it stay connected for background notifications
+        // Socket.io will handle reconnection automatically when needed
+      }
+
+      this.lastAppState = nextAppState;
+    });
+
+    console.log('✅ App state handler setup complete');
   }
 
   /**
@@ -76,7 +144,6 @@ class SocketConnectionService {
     this.socket.on('connect', () => {
       console.log('✅ Socket connected:', this.socket?.id);
       this.reconnectAttempts = 0;
-      this.reconnectDelay = 1000; // Reset delay
       
       // Join user room immediately
       this.joinUserRoom();
@@ -105,9 +172,20 @@ class SocketConnectionService {
       this.handleConnectionError();
     });
 
-    this.socket.on('reconnect', (attemptNumber) => {
-      console.log(`🔄 Socket reconnected after ${attemptNumber} attempts`);
+    this.socket.on('reconnect', async (attemptNumber) => {
+      console.log(`✅ Socket reconnected after ${attemptNumber} attempts`);
       this.reconnectAttempts = 0;
+      
+      // Process any queued moments after reconnection
+      try {
+        const MomentService = (await import('./MomentService')).default;
+        setTimeout(async () => {
+          await MomentService.processQueuedMoments();
+          console.log('✅ Queued moments processed after socket reconnect');
+        }, 1000);
+      } catch (error) {
+        // Silent - don't break reconnection flow
+      }
     });
 
     this.socket.on('reconnect_error', (error) => {
@@ -125,15 +203,20 @@ class SocketConnectionService {
       console.log('🏠 Joined room successfully:', data.userId);
     });
 
-    // Pairing events
+    // Pairing events - INSTANT NOTIFICATIONS
     this.socket.on('partner_connected', (data) => {
       console.log('🤝 Partner connected:', data);
-      this.notifyPairingListeners(data);
+      this.notifyPairingListeners({ type: 'partner_connected', ...data });
     });
 
     this.socket.on('pairing_success', (data) => {
       console.log('🎉 Pairing successful:', data);
       this.notifyPairingListeners({ type: 'pairing_success', ...data });
+    });
+
+    this.socket.on('code_used', (data) => {
+      console.log('✅ Your code was used by partner:', data);
+      this.notifyPairingListeners({ type: 'code_used', ...data });
     });
 
     this.socket.on('partner_disconnected', (data) => {
@@ -217,22 +300,22 @@ class SocketConnectionService {
   }
 
   /**
-   * Handle connection errors with fast exponential backoff
+   * Handle connection errors with exponential backoff
    */
   private handleConnectionError(): void {
     this.reconnectAttempts++;
     
     if (this.reconnectAttempts <= this.maxReconnectAttempts) {
-      // Faster initial retry: 500ms, 1s, 2s, 4s, 8s, 16s, max 30s
-      const baseDelay = 500; // Start with 500ms instead of 1s
+      // Exponential backoff: 1s, 2s, 4s
+      const baseDelay = 1000;
       const delay = Math.min(baseDelay * Math.pow(2, this.reconnectAttempts - 1), this.maxReconnectDelay);
-      console.log(`🔄 Retrying connection in ${delay}ms (attempt ${this.reconnectAttempts})`);
+      console.log(`🔄 Retrying connection in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
       
       setTimeout(() => {
         this.reconnect();
       }, delay);
     } else {
-      console.error('❌ Max reconnection attempts reached');
+      console.log('⚠️ Max reconnection attempts reached - will retry when network changes');
       this.notifyConnectionListeners(false);
     }
   }
@@ -328,7 +411,7 @@ class SocketConnectionService {
   }
 
   /**
-   * Emit event with fast retry mechanism
+   * ⚡ IMPROVED: Emit event with acknowledgment callback for reliability
    */
   async emit(event: string, data: any, retries = 3): Promise<void> {
     if (!this.socket) {
@@ -338,8 +421,22 @@ class SocketConnectionService {
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
         if (this.socket.connected) {
-          this.socket.emit(event, data);
-          console.log(`📤 Emitted ${event} successfully`);
+          // ⚡ IMPROVED: Reliability - Use acknowledgment callback
+          await new Promise<void>((resolve, reject) => {
+            const timeout = setTimeout(() => {
+              reject(new Error(`Acknowledgment timeout for ${event}`));
+            }, 5000); // 5 second timeout
+
+            this.socket!.emit(event, data, (response: any) => {
+              clearTimeout(timeout);
+              if (response?.success !== false) {
+                console.log(`📤 Emitted ${event} successfully with ack`);
+                resolve();
+              } else {
+                reject(new Error(response?.error || 'Server rejected event'));
+              }
+            });
+          });
           return;
         } else {
           // If not connected, try to reconnect quickly
@@ -365,12 +462,35 @@ class SocketConnectionService {
   }
 
   /**
+   * ⚡ NEW: Emit without acknowledgment (fire and forget) - for non-critical events
+   */
+  emitFireAndForget(event: string, data: any): void {
+    if (!this.socket) {
+      console.warn('Socket not initialized');
+      return;
+    }
+
+    if (this.socket.connected) {
+      this.socket.emit(event, data);
+      console.log(`📤 Emitted ${event} (fire and forget)`);
+    } else {
+      console.warn(`⚠️ Cannot emit ${event}, socket not connected`);
+    }
+  }
+
+  /**
    * Disconnect socket
    */
   disconnect(): void {
     console.log('🔌 Disconnecting socket...');
     
     this.stopHeartbeat();
+    
+    // ⚡ IMPROVED: Remove app state listener
+    if (this.appStateSubscription) {
+      this.appStateSubscription.remove();
+      this.appStateSubscription = null;
+    }
     
     if (this.socket) {
       this.socket.disconnect();

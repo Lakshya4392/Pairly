@@ -37,6 +37,7 @@ export const PairingConnectionScreen: React.FC<PairingConnectionScreenProps> = (
   const [mode, setMode] = useState<'waiting' | 'connected'>(initialMode);
   const [partnerName, setPartnerName] = useState(initialPartnerName);
   const [timeoutReached, setTimeoutReached] = useState(false);
+  const [remainingTime, setRemainingTime] = useState<string>('15:00');
   
   // Animations
   const pulseAnim = new Animated.Value(1);
@@ -44,28 +45,29 @@ export const PairingConnectionScreen: React.FC<PairingConnectionScreenProps> = (
   const connectLineAnim = new Animated.Value(0);
   const successScaleAnim = new Animated.Value(0);
 
-  // Setup realtime listener for partner connection with polling fallback
+  // Setup INSTANT realtime listener - NO TIMEOUT until code expires (15 minutes)
   useEffect(() => {
     let mounted = true;
-    let timeoutId: NodeJS.Timeout;
     let pollingInterval: NodeJS.Timeout;
+    let countdownInterval: NodeJS.Timeout;
+    let socketListenerCleanup: (() => void) | null = null;
 
     const setupListener = async () => {
       try {
-        const RealtimeService = (await import('../services/RealtimeService')).default;
+        const SocketConnectionService = (await import('../services/SocketConnectionService')).default;
         const PairingService = (await import('../services/PairingService')).default;
         
-        console.log('🔌 Setting up connection listeners...');
+        console.log('🔌 Setting up INSTANT connection listeners...');
         
-        // Listen for partner connection
-        const handlePartnerConnected = async (data: any) => {
-          console.log('🎉 Partner connected event received:', data);
+        // Listen for partner connection via socket
+        const handlePairingEvent = async (data: any) => {
+          console.log('🎉 Pairing event received:', data);
           
           if (!mounted) return;
           
           // Clear polling since we got the event
           if (pollingInterval) clearInterval(pollingInterval);
-          if (timeoutId) clearTimeout(timeoutId);
+          if (countdownInterval) clearInterval(countdownInterval);
           
           // Store partner info from socket event
           if (data.partner) {
@@ -81,17 +83,26 @@ export const PairingConnectionScreen: React.FC<PairingConnectionScreenProps> = (
             // Create pair object and store it
             const pair: any = {
               id: data.pairId || 'temp-id',
-              user1Id: data.partnerId,
+              user1Id: data.partnerId || data.partner.id,
               user2Id: data.userId || '',
               pairedAt: new Date().toISOString(),
               partner: partnerInfo,
             };
             
             await PairingService.storePair(pair);
+            console.log('✅ Pair data stored from socket event');
             
             if (mounted) {
               setPartnerName(partnerInfo.displayName);
               setMode('connected');
+              
+              // Auto-redirect to home after 2 seconds
+              setTimeout(() => {
+                if (mounted) {
+                  console.log('🏠 Auto-redirecting to home...');
+                  onGoHome();
+                }
+              }, 2000);
             }
           } else {
             // Fallback: try to get partner info from service
@@ -100,6 +111,14 @@ export const PairingConnectionScreen: React.FC<PairingConnectionScreenProps> = (
               if (partner && mounted) {
                 setPartnerName(partner.displayName || 'Partner');
                 setMode('connected');
+                
+                // Auto-redirect to home after 2 seconds
+                setTimeout(() => {
+                  if (mounted) {
+                    console.log('🏠 Auto-redirecting to home...');
+                    onGoHome();
+                  }
+                }, 2000);
               }
             } catch (error) {
               console.error('Error getting partner info:', error);
@@ -107,16 +126,57 @@ export const PairingConnectionScreen: React.FC<PairingConnectionScreenProps> = (
               if (mounted) {
                 setPartnerName('Partner');
                 setMode('connected');
+                
+                // Auto-redirect to home after 2 seconds
+                setTimeout(() => {
+                  if (mounted) {
+                    console.log('🏠 Auto-redirecting to home...');
+                    onGoHome();
+                  }
+                }, 2000);
               }
             }
           }
         };
 
-        RealtimeService.on('partner_connected', handlePartnerConnected);
-        RealtimeService.on('pairing_success', handlePartnerConnected);
+        // Subscribe to socket pairing events
+        const unsubscribe = SocketConnectionService.onPairingEvent(handlePairingEvent);
+        socketListenerCleanup = unsubscribe;
 
-        // Polling fallback - check every 2 seconds for pairing success
-        console.log('⏰ Starting polling for pairing status...');
+        // Start countdown timer for code expiry (15 minutes)
+        const startTime = Date.now();
+        const expiryDuration = 15 * 60 * 1000; // 15 minutes in milliseconds
+        
+        countdownInterval = setInterval(() => {
+          if (!mounted || mode !== 'waiting') {
+            clearInterval(countdownInterval);
+            return;
+          }
+          
+          const elapsed = Date.now() - startTime;
+          const remaining = expiryDuration - elapsed;
+          
+          if (remaining <= 0) {
+            // Code expired
+            clearInterval(countdownInterval);
+            clearInterval(pollingInterval);
+            if (mounted) {
+              setTimeoutReached(true);
+              setRemainingTime('0:00');
+            }
+          } else {
+            // Update countdown
+            const minutes = Math.floor(remaining / (60 * 1000));
+            const seconds = Math.floor((remaining % (60 * 1000)) / 1000);
+            if (mounted) {
+              setRemainingTime(`${minutes}:${seconds.toString().padStart(2, '0')}`);
+            }
+          }
+        }, 1000); // Update every second
+
+        // AGGRESSIVE polling fallback - check every 1 second for INSTANT detection
+        // NO TIMEOUT - will continue until code expires (15 minutes)
+        console.log('⏰ Starting AGGRESSIVE polling for pairing status (15 min timeout)...');
         let pollCount = 0;
         pollingInterval = setInterval(async () => {
           if (!mounted || mode !== 'waiting') {
@@ -124,51 +184,48 @@ export const PairingConnectionScreen: React.FC<PairingConnectionScreenProps> = (
             return;
           }
           
+          // Check if code expired
+          const elapsed = Date.now() - startTime;
+          if (elapsed >= expiryDuration) {
+            console.log('⏱️ Code expired after 15 minutes');
+            clearInterval(pollingInterval);
+            if (mounted) {
+              setTimeoutReached(true);
+            }
+            return;
+          }
+          
           pollCount++;
-          console.log(`🔄 Polling attempt ${pollCount}...`);
+          if (pollCount % 10 === 0) {
+            // Log every 10 seconds to avoid spam
+            console.log(`🔄 Still waiting for partner... (${pollCount}s elapsed)`);
+          }
           
           try {
             const partner = await PairingService.getPartner();
             if (partner && mounted) {
               console.log('✅ Pairing found via polling!');
               clearInterval(pollingInterval);
-              if (timeoutId) clearTimeout(timeoutId);
+              clearInterval(countdownInterval);
               setPartnerName(partner.displayName || 'Partner');
               setMode('connected');
+              
+              // Auto-redirect to home after 2 seconds
+              setTimeout(() => {
+                if (mounted) {
+                  console.log('🏠 Auto-redirecting to home...');
+                  onGoHome();
+                }
+              }, 2000);
             }
           } catch (error) {
-            console.log('⚠️ Polling check failed:', error);
+            // Silent - polling will continue
           }
-        }, 2000); // Poll every 2 seconds
-
-        // Final timeout after 15 seconds
-        timeoutId = setTimeout(async () => {
-          if (mounted && mode === 'waiting') {
-            console.log('⏱️ Final timeout reached');
-            clearInterval(pollingInterval);
-            
-            // One last check
-            try {
-              const partner = await PairingService.getPartner();
-              if (partner && mounted) {
-                console.log('✅ Pairing found on final check!');
-                setPartnerName(partner.displayName || 'Partner');
-                setMode('connected');
-              } else {
-                console.log('❌ No pairing found after timeout');
-                setTimeoutReached(true);
-              }
-            } catch (error) {
-              console.error('Error on final check:', error);
-              setTimeoutReached(true);
-            }
-          }
-        }, 15000);
+        }, 1000); // Poll every 1 second for INSTANT detection
 
         return () => {
-          RealtimeService.off('partner_connected', handlePartnerConnected);
-          RealtimeService.off('pairing_success', handlePartnerConnected);
-          if (timeoutId) clearTimeout(timeoutId);
+          if (socketListenerCleanup) socketListenerCleanup();
+          if (countdownInterval) clearInterval(countdownInterval);
           if (pollingInterval) clearInterval(pollingInterval);
         };
       } catch (error) {
@@ -180,7 +237,8 @@ export const PairingConnectionScreen: React.FC<PairingConnectionScreenProps> = (
 
     return () => {
       mounted = false;
-      if (timeoutId) clearTimeout(timeoutId);
+      if (socketListenerCleanup) socketListenerCleanup();
+      if (countdownInterval) clearInterval(countdownInterval);
       if (pollingInterval) clearInterval(pollingInterval);
     };
   }, []);
@@ -365,7 +423,7 @@ export const PairingConnectionScreen: React.FC<PairingConnectionScreenProps> = (
           </View>
         </View>
 
-        {/* Status Message */}
+        {/* Status Message with Countdown */}
         <View style={styles.statusContainer}>
           {mode === 'waiting' ? (
             <>
@@ -376,8 +434,8 @@ export const PairingConnectionScreen: React.FC<PairingConnectionScreenProps> = (
               />
               <Text style={[styles.statusText, timeoutReached && styles.statusTextError]}>
                 {timeoutReached 
-                  ? 'Connection timeout - Make sure your partner enters the code'
-                  : 'Waiting for your partner to enter the code'
+                  ? 'Code expired - Please generate a new code'
+                  : `Waiting for partner • Code expires in ${remainingTime}`
                 }
               </Text>
             </>

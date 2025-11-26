@@ -10,6 +10,7 @@ import { SettingsScreen } from '../screens/SettingsScreen';
 import { PremiumScreen } from '../screens/PremiumScreen';
 import { ManagePremiumScreen } from '../screens/ManagePremiumScreen';
 import { GalleryScreen } from '../screens/GalleryScreen';
+import { SocketTestScreen } from '../screens/SocketTestScreen';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_CONFIG } from '../config/api.config';
@@ -24,7 +25,8 @@ type Screen =
   | 'settings'
   | 'premium'
   | 'managePremium'
-  | 'gallery';
+  | 'gallery'
+  | 'socketTest';
 
 interface AppNavigatorProps {
   // Add any props if needed
@@ -163,17 +165,48 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
     try {
       if (!user) return;
 
+      // ⚡ FIXED: Store auth token BEFORE connecting socket
+      const clerkToken = await getToken();
+      if (clerkToken) {
+        await AsyncStorage.setItem('auth_token', clerkToken);
+        console.log('✅ Auth token stored for socket connection');
+      }
+
+      // Initialize BOTH socket services for instant connection
+      const SocketConnectionService = (await import('../services/SocketConnectionService')).default;
       const RealtimeService = (await import('../services/RealtimeService')).default;
+      const MomentService = (await import('../services/MomentService')).default;
       
       // Check if already connected
-      if (RealtimeService.getConnectionStatus()) {
-        console.log('✅ Already connected to realtime');
-        return;
+      if (SocketConnectionService.isConnected()) {
+        console.log('✅ Already connected to socket');
+      } else {
+        // Initialize socket connection for INSTANT pairing
+        await SocketConnectionService.initialize(user.id);
+        console.log('✅ Socket connection initialized');
       }
       
-      await RealtimeService.connect(user.id);
-      console.log('✅ Realtime connected');
+      // Also connect RealtimeService
+      if (!RealtimeService.getConnectionStatus()) {
+        await RealtimeService.connect(user.id);
+        console.log('✅ Realtime connected');
+        
+        // Start heartbeat
+        RealtimeService.startHeartbeat(user.id);
+        console.log('✅ Heartbeat started');
+        
+        // Process any queued moments after connection
+        setTimeout(async () => {
+          try {
+            await MomentService.processQueuedMoments();
+            console.log('✅ Queued moments processed');
+          } catch (error) {
+            console.error('Error processing queued moments:', error);
+          }
+        }, 2000); // Wait 2 seconds for connection to stabilize
+      }
     } catch (error) {
+      console.log('⚠️ Realtime connection error (backend may be offline):', error);
       // Silent - backend offline is normal
     }
   };
@@ -273,14 +306,26 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
       // Listen for delivery confirmations (sender side)
       RealtimeService.on('moment_sent_confirmation', async (data: any) => {
         console.log('✅ Moment sent to', data.partnerName);
+        
+        // Show sent notification
+        try {
+          const EnhancedNotificationService = (await import('../services/EnhancedNotificationService')).default;
+          await EnhancedNotificationService.showMomentSentNotification(data.partnerName || 'Partner');
+        } catch (error) {
+          console.error('Error showing notification:', error);
+        }
       });
 
       RealtimeService.on('moment_delivered', async (data: any) => {
         console.log('✅ Moment delivered via', data.deliveryMethod);
         
         // Show delivery notification
-        const EnhancedNotificationService = (await import('../services/EnhancedNotificationService')).default;
-        await EnhancedNotificationService.showDeliveryNotification(data.partnerName || 'Partner');
+        try {
+          const EnhancedNotificationService = (await import('../services/EnhancedNotificationService')).default;
+          await EnhancedNotificationService.showDeliveryNotification(data.partnerName || 'Partner');
+        } catch (error) {
+          console.error('Error showing notification:', error);
+        }
       });
 
       RealtimeService.on('moment_received_ack', async (data: any) => {
@@ -468,6 +513,10 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
     setCurrentScreen('gallery');
   };
 
+  const handleNavigateToSocketTest = () => {
+    setCurrentScreen('socketTest');
+  };
+
   const handleShowConnectionScreen = (code: string, userName: string) => {
     setConnectionData({
       code,
@@ -584,6 +633,9 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
             isPremium={isPremium}
           />
         );
+      
+      case 'socketTest':
+        return <SocketTestScreen />;
       
       case 'settings':
         return (

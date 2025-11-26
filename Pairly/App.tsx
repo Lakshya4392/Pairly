@@ -26,20 +26,26 @@ import { ThemeProvider as PairlyThemeProvider } from './src/contexts/ThemeContex
 // Import navigation
 import { AppNavigator } from './src/navigation/AppNavigator';
 
-// Simple token cache
+// ⚡ IMPROVED: Robust token cache with error handling and logging
 const tokenCache = {
   async getToken(key: string) {
     try {
-      return await SecureStore.getItemAsync(key);
+      const token = await SecureStore.getItemAsync(key);
+      if (token) {
+        console.log('✅ Token retrieved from SecureStore:', key);
+      }
+      return token;
     } catch (err) {
+      console.error('❌ Error getting token from SecureStore:', err);
       return null;
     }
   },
   async saveToken(key: string, value: string) {
     try {
-      return await SecureStore.setItemAsync(key, value);
+      await SecureStore.setItemAsync(key, value);
+      console.log('✅ Token saved to SecureStore:', key);
     } catch (err) {
-      return;
+      console.error('❌ Error saving token to SecureStore:', err);
     }
   },
 };

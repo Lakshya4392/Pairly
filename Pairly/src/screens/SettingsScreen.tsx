@@ -393,7 +393,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   };
 
   const handleUnpairPartner = () => {
-    setShowUnpairAlert(true);
+    if (isPartnerConnected && partnerName) {
+      setShowUnpairAlert(true);
+    }
   };
 
   const confirmUnpair = async () => {
@@ -643,17 +645,21 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     }
 
     return (
-      <View style={styles.partnerCardSettings}>
+      <TouchableOpacity 
+        style={styles.partnerCardSettings}
+        onPress={handleUnpairPartner}
+        activeOpacity={0.7}
+      >
         <View style={styles.partnerIconSettings}>
           <Ionicons name="heart" size={24} color={colors.secondary} />
         </View>
         <View style={styles.partnerInfoSettings}>
           <Text style={styles.partnerLabelSettings}>Connected with</Text>
           <Text style={styles.partnerNameSettings}>{partnerName}</Text>
-          <Text style={styles.partnerSinceSettings}>Paired together</Text>
+          <Text style={styles.partnerSinceSettings}>Tap to unpair</Text>
         </View>
-        <View style={styles.onlineIndicatorSettings} />
-      </View>
+        <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
+      </TouchableOpacity>
     );
   };
 
@@ -693,15 +699,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       <SectionHeader title="PARTNER" />
       <View style={styles.section}>
         <PartnerCard />
-        {isPartnerConnected && (
-          <SettingItem
-            icon="link-outline"
-            title="Unpair Partner"
-            subtitle="Disconnect from your partner"
-            onPress={handleUnpairPartner}
-            isLast
-          />
-        )}
       </View>
     </ScrollView>
     );

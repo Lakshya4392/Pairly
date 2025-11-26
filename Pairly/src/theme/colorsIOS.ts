@@ -32,13 +32,13 @@ export const colors = {
   surface: '#FFFFFF',
   surfaceElevated: '#FFFFFF',
 
-  // Dark Mode Colors
-  darkBg: '#0F172A',
-  darkCard: '#1E293B',
-  darkCardElevated: '#334155',
-  darkBorder: '#475569',
-  darkText: '#F1F5F9',
-  darkTextSecondary: '#CBD5E1',
+  // Dark Mode Colors - Charcoal/Black Theme
+  darkBg: '#0A0A0A',           // Pure black background
+  darkCard: '#1A1A1A',         // Dark charcoal cards
+  darkCardElevated: '#2A2A2A', // Elevated charcoal
+  darkBorder: '#3A3A3A',       // Subtle borders
+  darkText: '#FFFFFF',         // Pure white text
+  darkTextSecondary: '#B0B0B0', // Light gray text
 
   // Text Colors - iOS Hierarchy
   text: '#0F172A',
@@ -112,9 +112,9 @@ export const gradients = {
   background: ['#FFFFFF', '#F8FAFC'],
   backgroundSubtle: ['#F8FAFC', '#F1F5F9'],
   
-  // Dark mode gradients
-  darkBg: ['#0F172A', '#1E293B'],
-  darkCard: ['#1E293B', '#334155'],
+  // Dark mode gradients - Charcoal/Black
+  darkBg: ['#0A0A0A', '#1A1A1A'],
+  darkCard: ['#1A1A1A', '#2A2A2A'],
   
   // Button gradients
   button: ['#6366F1', '#8B5CF6'],

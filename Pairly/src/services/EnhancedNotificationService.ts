@@ -106,6 +106,80 @@ class EnhancedNotificationService {
   }
 
   /**
+   * Show notification when moment is sent successfully
+   */
+  static async showMomentSentNotification(partnerName: string): Promise<void> {
+    try {
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: '✅ Moment Sent',
+          body: `Sent to ${partnerName}`,
+          data: { 
+            type: 'moment_sent',
+            partnerName,
+          },
+          sound: 'default',
+          priority: Notifications.AndroidNotificationPriority.DEFAULT,
+        },
+        trigger: null,
+      });
+
+      console.log('✅ Sent notification shown');
+    } catch (error) {
+      console.error('Error showing sent notification:', error);
+    }
+  }
+
+  /**
+   * Show notification when moment send failed
+   */
+  static async showMomentSendFailedNotification(partnerName: string): Promise<void> {
+    try {
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: '⚠️ Send Failed',
+          body: `Will retry sending to ${partnerName}`,
+          data: { 
+            type: 'moment_send_failed',
+            partnerName,
+          },
+          sound: 'default',
+          priority: Notifications.AndroidNotificationPriority.HIGH,
+        },
+        trigger: null,
+      });
+
+      console.log('✅ Send failed notification shown');
+    } catch (error) {
+      console.error('Error showing send failed notification:', error);
+    }
+  }
+
+  /**
+   * Show notification when moment is queued
+   */
+  static async showMomentQueuedNotification(): Promise<void> {
+    try {
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: '📦 Moment Queued',
+          body: 'Will send when connection is restored',
+          data: { 
+            type: 'moment_queued',
+          },
+          sound: 'default',
+          priority: Notifications.AndroidNotificationPriority.DEFAULT,
+        },
+        trigger: null,
+      });
+
+      console.log('✅ Queued notification shown');
+    } catch (error) {
+      console.error('Error showing queued notification:', error);
+    }
+  }
+
+  /**
    * Clear all moment notifications
    */
   static async clearMomentNotifications(): Promise<void> {

@@ -22,7 +22,7 @@ export interface UploadResult {
 class MomentService {
   /**
    * Upload photo - Save locally and send to partner via Socket.IO
-   * BULLETPROOF: No dismiss errors, fast, reliable
+   * BULLETPROOF: No dismiss errors, fast, reliable with RETRY mechanism
    */
   async uploadPhoto(photo: Photo, note?: string): Promise<UploadResult> {
     return SafeOperations.executeWithTimeout(
@@ -43,10 +43,21 @@ class MomentService {
         
         if (!partner || !partner.id) {
           console.log('⚠️ No partner paired - photo saved locally only');
+          // Queue for later sending
+          await this.queueMomentForSending(localPhoto.id, photo.uri, note);
+          
+          // Show notification - queued
+          try {
+            const EnhancedNotificationService = (await import('./EnhancedNotificationService')).default;
+            await EnhancedNotificationService.showMomentQueuedNotification();
+          } catch (error) {
+            console.error('Error showing notification:', error);
+          }
+          
           return {
             success: true,
             momentId: localPhoto.id,
-            error: 'No partner connected',
+            error: 'No partner connected - will send when paired',
           };
         }
 
@@ -54,10 +65,11 @@ class MomentService {
         const isPaired = await PairingService.isPaired();
         if (!isPaired) {
           console.log('⚠️ Not in a valid pair - photo saved locally only');
+          await this.queueMomentForSending(localPhoto.id, photo.uri, note);
           return {
             success: true,
             momentId: localPhoto.id,
-            error: 'Not paired with anyone',
+            error: 'Not paired - will send when paired',
           };
         }
 
@@ -65,11 +77,21 @@ class MomentService {
 
         // 4. Check if realtime connected
         if (!RealtimeService.getConnectionStatus()) {
-          console.log('⚠️ Not connected to server - will send when online');
+          console.log('⚠️ Not connected to server - queueing for later');
+          await this.queueMomentForSending(localPhoto.id, photo.uri, note, partner.id);
+          
+          // Show notification - queued for offline
+          try {
+            const EnhancedNotificationService = (await import('./EnhancedNotificationService')).default;
+            await EnhancedNotificationService.showMomentQueuedNotification();
+          } catch (error) {
+            console.error('Error showing notification:', error);
+          }
+          
           return {
             success: true,
             momentId: localPhoto.id,
-            error: 'Offline - will send when connected',
+            error: 'Offline - queued for sending',
           };
         }
 
@@ -81,7 +103,7 @@ class MomentService {
           quality
         );
 
-        // 6. Send to ONLY the paired partner via Socket.IO
+        // 6. Send to ONLY the paired partner via Socket.IO with RETRY
         const partnerSocketId = partner.clerkId || partner.id;
         
         console.log('📤 Sending photo with data:', {
@@ -92,25 +114,72 @@ class MomentService {
           photoDataLength: compressedPhoto.base64?.length || 0,
         });
         
-        // Emit with error handling
-        try {
-          RealtimeService.emit('send_photo', {
-            photoId: localPhoto.id,
-            photoData: compressedPhoto.base64,
-            timestamp: localPhoto.timestamp,
-            caption: note || photo.caption,
-            partnerId: partnerSocketId,
-          });
+        // Try sending with retry mechanism (3 attempts)
+        let sendSuccess = false;
+        let lastError: any = null;
+        
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            console.log(`📤 Send attempt ${attempt}/3...`);
+            
+            RealtimeService.emit('send_photo', {
+              photoId: localPhoto.id,
+              photoData: compressedPhoto.base64,
+              timestamp: localPhoto.timestamp,
+              caption: note || photo.caption,
+              partnerId: partnerSocketId,
+            });
+            
+            // Wait for confirmation (with timeout)
+            const confirmed = await this.waitForDeliveryConfirmation(localPhoto.id, 3000);
+            
+            if (confirmed) {
+              console.log(`✅ Photo sent and confirmed (attempt ${attempt})`);
+              sendSuccess = true;
+              break;
+            } else {
+              console.log(`⚠️ No confirmation received (attempt ${attempt})`);
+              if (attempt < 3) {
+                // Wait before retry
+                await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+              }
+            }
+          } catch (emitError: any) {
+            console.error(`❌ Send attempt ${attempt} failed:`, emitError);
+            lastError = emitError;
+            
+            if (attempt < 3) {
+              // Wait before retry
+              await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+            }
+          }
+        }
+        
+        if (!sendSuccess) {
+          console.log('⚠️ All send attempts failed - queueing for retry');
+          await this.queueMomentForSending(localPhoto.id, photo.uri, note, partner.id);
           
-          console.log(`✅ Photo sent to partner ${partner.displayName}`);
-        } catch (emitError: any) {
-          console.error('❌ Emit error:', emitError);
-          // Still return success since photo is saved locally
+          // Show notification - queued for retry
+          try {
+            const EnhancedNotificationService = (await import('./EnhancedNotificationService')).default;
+            await EnhancedNotificationService.showMomentSendFailedNotification(partner.displayName);
+          } catch (error) {
+            console.error('Error showing notification:', error);
+          }
+          
           return {
             success: true,
             momentId: localPhoto.id,
-            error: 'Saved locally, will retry sending',
+            error: 'Queued for retry - will send when connection improves',
           };
+        }
+
+        // Show success notification
+        try {
+          const EnhancedNotificationService = (await import('./EnhancedNotificationService')).default;
+          await EnhancedNotificationService.showMomentSentNotification(partner.displayName);
+        } catch (error) {
+          console.error('Error showing notification:', error);
         }
 
         return {
@@ -118,7 +187,7 @@ class MomentService {
           momentId: localPhoto.id,
         };
       },
-      15000, // 15 second timeout
+      10000, // 10 second timeout (reduced from 15s)
       'Photo upload timed out'
     ).then(result => {
       if (result.success && result.data) {
@@ -128,6 +197,141 @@ class MomentService {
         success: false,
         error: result.error || 'Failed to upload photo',
       };
+    });
+  }
+
+  /**
+   * Queue moment for sending later
+   */
+  private async queueMomentForSending(
+    momentId: string, 
+    photoUri: string, 
+    note?: string,
+    partnerId?: string
+  ): Promise<void> {
+    try {
+      const queueKey = '@pairly_moment_queue';
+      const queueJson = await AsyncStorage.getItem(queueKey);
+      const queue = queueJson ? JSON.parse(queueJson) : [];
+      
+      queue.push({
+        momentId,
+        photoUri,
+        note,
+        partnerId,
+        queuedAt: Date.now(),
+      });
+      
+      await AsyncStorage.setItem(queueKey, JSON.stringify(queue));
+      console.log('📦 Moment queued for later sending:', momentId);
+    } catch (error) {
+      console.error('Error queueing moment:', error);
+    }
+  }
+
+  /**
+   * Process queued moments
+   */
+  async processQueuedMoments(): Promise<void> {
+    try {
+      const queueKey = '@pairly_moment_queue';
+      const queueJson = await AsyncStorage.getItem(queueKey);
+      
+      if (!queueJson) return;
+      
+      const queue = JSON.parse(queueJson);
+      
+      if (queue.length === 0) return;
+      
+      console.log(`📦 Processing ${queue.length} queued moments...`);
+      
+      // Check if connected
+      if (!RealtimeService.getConnectionStatus()) {
+        console.log('⚠️ Not connected - skipping queue processing');
+        return;
+      }
+      
+      // Get partner
+      const partner = await PairingService.getPartner();
+      if (!partner) {
+        console.log('⚠️ No partner - skipping queue processing');
+        return;
+      }
+      
+      const remainingQueue = [];
+      
+      for (const item of queue) {
+        try {
+          console.log(`📤 Sending queued moment: ${item.momentId}`);
+          
+          // Compress and send
+          const highQuality = await AsyncStorage.getItem('@pairly_high_quality') === 'true';
+          const quality = highQuality ? 'premium' : 'default';
+          const compressedPhoto = await PhotoService.compressPhoto(
+            { uri: item.photoUri, width: 0, height: 0, type: 'image/jpeg', fileName: '', fileSize: 0 }, 
+            quality
+          );
+          
+          RealtimeService.emit('send_photo', {
+            photoId: item.momentId,
+            photoData: compressedPhoto.base64,
+            timestamp: Date.now(),
+            caption: item.note,
+            partnerId: partner.clerkId || partner.id,
+          });
+          
+          console.log(`✅ Queued moment sent: ${item.momentId}`);
+        } catch (error) {
+          console.error(`❌ Failed to send queued moment: ${item.momentId}`, error);
+          // Keep in queue for retry
+          remainingQueue.push(item);
+        }
+      }
+      
+      // Update queue with remaining items
+      await AsyncStorage.setItem(queueKey, JSON.stringify(remainingQueue));
+      console.log(`📦 Queue processed. Remaining: ${remainingQueue.length}`);
+      
+      // Show notification if all sent successfully
+      if (queue.length > 0 && remainingQueue.length === 0) {
+        try {
+          const EnhancedNotificationService = (await import('./EnhancedNotificationService')).default;
+          await EnhancedNotificationService.showMomentSentNotification(partner.displayName);
+        } catch (error) {
+          console.error('Error showing notification:', error);
+        }
+      }
+    } catch (error) {
+      console.error('Error processing queued moments:', error);
+    }
+  }
+
+  /**
+   * Wait for delivery confirmation
+   */
+  private waitForDeliveryConfirmation(momentId: string, timeout: number): Promise<boolean> {
+    return new Promise((resolve) => {
+      let confirmed = false;
+      
+      const confirmHandler = (data: any) => {
+        if (data.photoId === momentId || data.momentId === momentId) {
+          confirmed = true;
+          RealtimeService.off('photo_delivered', confirmHandler);
+          RealtimeService.off('moment_received', confirmHandler);
+          resolve(true);
+        }
+      };
+      
+      RealtimeService.on('photo_delivered', confirmHandler);
+      RealtimeService.on('moment_received', confirmHandler);
+      
+      setTimeout(() => {
+        if (!confirmed) {
+          RealtimeService.off('photo_delivered', confirmHandler);
+          RealtimeService.off('moment_received', confirmHandler);
+          resolve(false);
+        }
+      }, timeout);
     });
   }
 

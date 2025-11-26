@@ -32,9 +32,9 @@ export const getSocketUrl = (): string => {
 export const API_CONFIG = {
   baseUrl: getApiUrl(),
   socketUrl: getSocketUrl(),
-  timeout: 60000, // 60 seconds (for Render cold start on free tier)
-  retryAttempts: 1, // Single retry only
-  retryDelay: 1000, // 1 second delay
+  timeout: 15000, // 15 seconds - aggressive timeout for faster failures
+  retryAttempts: 3, // 3 retries for better reliability
+  retryDelay: 500, // 500ms delay - faster retries
 };
 
 /**

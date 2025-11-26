@@ -1,4 +1,6 @@
 import { io, Socket } from 'socket.io-client';
+import { AppState, AppStateStatus } from 'react-native';
+import NetInfo from '@react-native-community/netinfo';
 import { API_CONFIG } from '../config/api.config';
 import { APP_CONFIG, log } from '../config/app.config';
 import AuthService from './AuthService';
@@ -11,6 +13,37 @@ class RealtimeService {
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private eventListeners: Map<string, EventCallback[]> = new Map();
+  
+  // ⚡ WORLD CLASS: Advanced features
+  private processedMessageIds: Set<string> = new Set(); // De-duplication
+  private maxProcessedIds = 1000; // Keep last 1000 IDs
+  private appStateSubscription: any = null;
+  private netInfoUnsubscribe: any = null;
+  private lastAppState: AppStateStatus = 'active';
+  private isNetworkAvailable = true;
+  private heartbeatInterval: NodeJS.Timeout | null = null;
+  private currentUserId: string | null = null;
+
+  /**
+   * ⚡ IMPROVED: Wake up Render backend (free tier cold starts)
+   */
+  private async wakeUpBackend(): Promise<void> {
+    try {
+      console.log('⏰ Waking up backend...');
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
+      
+      await fetch(API_CONFIG.baseUrl + '/health', {
+        method: 'GET',
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeoutId);
+      console.log('✅ Backend is awake');
+    } catch (error) {
+      console.log('⚠️ Backend wake-up failed (will retry with socket)');
+    }
+  }
 
   /**
    * Connect to Socket.IO server
@@ -21,7 +54,12 @@ class RealtimeService {
       return;
     }
 
+    this.currentUserId = userId;
+
     try {
+      // ⚡ IMPROVED: Wake up backend first (Render cold start)
+      await this.wakeUpBackend();
+      
       const token = await AuthService.getToken();
 
       // Start performance timer
@@ -39,22 +77,106 @@ class RealtimeService {
         auth: {
           token,
         },
-        transports: ['websocket'], // WebSocket only (faster, no polling fallback)
+        // ⚡ IMPROVED: Faster connection with polling fallback for Render cold starts
+        transports: ['polling', 'websocket'], // Polling first for cold starts
         reconnection: true,
         reconnectionAttempts: 3, // Reduced from 5
-        reconnectionDelay: 1000, // 1 second
-        reconnectionDelayMax: 3000, // 3 seconds max
-        timeout: 10000, // 10 seconds (backend cold start on Render)
+        reconnectionDelay: 1000, // Increased from 500ms
+        reconnectionDelayMax: 5000, // Increased from 3s
+        timeout: 20000, // Increased to 20s for Render cold starts
         forceNew: false,
         autoConnect: true,
         multiplex: false,
+        upgrade: true, // Allow upgrade to WebSocket after connection
+        rememberUpgrade: true,
       });
 
       this.setupEventHandlers(userId);
+      
+      // ⚡ WORLD CLASS: Setup network awareness
+      this.setupNetworkListener();
+      
+      // ⚡ WORLD CLASS: Setup app state handler
+      this.setupAppStateHandler();
     } catch (error) {
       // Silent fail - app works without realtime features
       log.debug('Realtime features unavailable');
     }
+  }
+
+  /**
+   * ⚡ WORLD CLASS: Network awareness - only reconnect when internet is available
+   */
+  private setupNetworkListener(): void {
+    // Remove existing listener
+    if (this.netInfoUnsubscribe) {
+      this.netInfoUnsubscribe();
+    }
+
+    this.netInfoUnsubscribe = NetInfo.addEventListener(state => {
+      const wasAvailable = this.isNetworkAvailable;
+      this.isNetworkAvailable = state.isConnected === true && state.isInternetReachable === true;
+
+      log.debug(`📡 Network status: ${this.isNetworkAvailable ? 'Online' : 'Offline'}`);
+
+      // Network came back online
+      if (!wasAvailable && this.isNetworkAvailable) {
+        console.log('🌐 Internet restored - reconnecting socket...');
+        
+        if (this.socket && !this.socket.connected) {
+          this.socket.connect();
+        }
+      }
+
+      // Network went offline
+      if (wasAvailable && !this.isNetworkAvailable) {
+        console.log('📡 Internet lost - socket will auto-reconnect when available');
+      }
+    });
+
+    console.log('✅ Network listener setup complete');
+  }
+
+  /**
+   * ⚡ WORLD CLASS: App state handler - battery optimization
+   */
+  private setupAppStateHandler(): void {
+    // Remove existing listener
+    if (this.appStateSubscription) {
+      this.appStateSubscription.remove();
+    }
+
+    this.appStateSubscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+      console.log(`📱 App state: ${this.lastAppState} → ${nextAppState}`);
+
+      // App came to foreground
+      if (this.lastAppState.match(/inactive|background/) && nextAppState === 'active') {
+        console.log('🔄 App foreground - checking socket...');
+        
+        // Reconnect if disconnected
+        if (this.socket && !this.socket.connected && this.isNetworkAvailable) {
+          console.log('⚡ Reconnecting socket...');
+          this.socket.connect();
+        }
+        
+        // ⚡ WORLD CLASS: Restart heartbeat in foreground
+        if (this.currentUserId) {
+          this.startHeartbeat(this.currentUserId);
+        }
+      }
+
+      // App going to background
+      if (nextAppState.match(/inactive|background/)) {
+        console.log('📱 App background - stopping heartbeat to save battery');
+        
+        // ⚡ WORLD CLASS: Stop heartbeat in background to save battery
+        this.stopHeartbeat();
+      }
+
+      this.lastAppState = nextAppState;
+    });
+
+    console.log('✅ App state handler setup complete');
   }
 
   /**
@@ -91,12 +213,33 @@ class RealtimeService {
     // New moment received
     this.socket.on('new_moment', (data: any) => {
       log.debug('New moment received');
+      
+      // ⚡ WORLD CLASS: De-duplication for moments
+      const messageId = data.momentId || data.id || `moment_${data.timestamp}`;
+      
+      if (this.processedMessageIds.has(messageId)) {
+        console.log('🛡️ Duplicate moment detected - ignoring:', messageId);
+        return;
+      }
+      
+      this.addProcessedMessageId(messageId);
       this.triggerEvent('new_moment', data);
     });
 
     // Photo received from partner - VERIFY it's from our paired partner
     this.socket.on('receive_photo', async (data: any) => {
       log.debug('Photo received from partner:', data.senderName);
+      
+      // ⚡ WORLD CLASS: De-duplication - prevent duplicate photos
+      const messageId = data.messageId || data.photoId || `${data.senderId}_${data.timestamp}`;
+      
+      if (this.processedMessageIds.has(messageId)) {
+        console.log('🛡️ Duplicate photo detected - ignoring:', messageId);
+        return;
+      }
+      
+      // Add to processed IDs
+      this.addProcessedMessageId(messageId);
       
       // Verify sender is our paired partner
       try {
@@ -239,13 +382,24 @@ class RealtimeService {
     });
 
     // Reconnection successful
-    this.socket.on('reconnect', (attemptNumber: number) => {
-      console.log('Reconnected after', attemptNumber, 'attempts');
+    this.socket.on('reconnect', async (attemptNumber: number) => {
+      console.log('✅ Reconnected after', attemptNumber, 'attempts');
       this.isConnected = true;
       this.reconnectAttempts = 0;
       
       // Rejoin room
       this.socket?.emit('join_room', { userId });
+      
+      // Process any queued moments after reconnection
+      try {
+        const MomentService = (await import('./MomentService')).default;
+        setTimeout(async () => {
+          await MomentService.processQueuedMoments();
+          console.log('✅ Queued moments processed after reconnect');
+        }, 1000);
+      } catch (error) {
+        console.error('Error processing queued moments:', error);
+      }
       
       this.triggerEvent('reconnect', { attemptNumber });
     });
@@ -264,15 +418,48 @@ class RealtimeService {
   }
 
   /**
+   * ⚡ WORLD CLASS: Add message ID to processed set (with size limit)
+   */
+  private addProcessedMessageId(messageId: string): void {
+    this.processedMessageIds.add(messageId);
+    
+    // Keep only last 1000 IDs to prevent memory leak
+    if (this.processedMessageIds.size > this.maxProcessedIds) {
+      const idsArray = Array.from(this.processedMessageIds);
+      const toRemove = idsArray.slice(0, idsArray.length - this.maxProcessedIds);
+      toRemove.forEach(id => this.processedMessageIds.delete(id));
+      
+      console.log(`🧹 Cleaned old message IDs, kept last ${this.maxProcessedIds}`);
+    }
+  }
+
+  /**
    * Disconnect from Socket.IO server
    */
   disconnect(): void {
+    // ⚡ WORLD CLASS: Cleanup all listeners
+    this.stopHeartbeat();
+    
+    if (this.netInfoUnsubscribe) {
+      this.netInfoUnsubscribe();
+      this.netInfoUnsubscribe = null;
+    }
+    
+    if (this.appStateSubscription) {
+      this.appStateSubscription.remove();
+      this.appStateSubscription = null;
+    }
+    
     if (this.socket) {
       this.socket.disconnect();
       this.socket = null;
       this.isConnected = false;
       console.log('Socket.IO disconnected manually');
     }
+    
+    // Clear processed IDs
+    this.processedMessageIds.clear();
+    this.currentUserId = null;
   }
 
   /**
@@ -316,7 +503,7 @@ class RealtimeService {
   }
 
   /**
-   * Emit event to server - SAFE with error handling
+   * Emit event to server - SAFE with error handling and RETRY
    */
   emit(event: string, data: any): void {
     try {
@@ -325,10 +512,56 @@ class RealtimeService {
         log.debug(`📤 Emitted ${event}`);
       } else {
         console.warn(`⚠️ Cannot emit ${event}, socket not connected`);
+        
+        // Try to reconnect if not connected
+        if (this.socket && !this.isConnected) {
+          console.log('🔄 Attempting to reconnect socket...');
+          this.socket.connect();
+          
+          // Retry emit after short delay
+          setTimeout(() => {
+            if (this.socket && this.isConnected) {
+              this.socket.emit(event, data);
+              log.debug(`📤 Emitted ${event} after reconnect`);
+            }
+          }, 1000);
+        }
       }
     } catch (error: any) {
       console.error(`❌ Error emitting ${event}:`, error.message);
       // Don't throw - fail gracefully
+    }
+  }
+
+  /**
+   * ⚡ WORLD CLASS: Emit with acknowledgment callback and retry logic
+   */
+  emitWithAck(event: string, data: any, callback: (response: any) => void, timeout: number = 5000): void {
+    try {
+      if (this.socket && this.isConnected) {
+        // ⚡ WORLD CLASS: Add unique message ID for de-duplication on backend
+        const messageId = data.messageId || `${event}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const dataWithId = { ...data, messageId };
+        
+        // Set timeout for acknowledgment
+        const timeoutId = setTimeout(() => {
+          console.warn(`⏱️ Acknowledgment timeout for ${event}`);
+          callback({ success: false, error: 'Timeout' });
+        }, timeout);
+        
+        this.socket.emit(event, dataWithId, (response: any) => {
+          clearTimeout(timeoutId);
+          callback(response);
+        });
+        
+        log.debug(`📤 Emitted ${event} with ack and messageId: ${messageId}`);
+      } else {
+        console.warn(`⚠️ Cannot emit ${event}, socket not connected`);
+        callback({ success: false, error: 'Not connected' });
+      }
+    } catch (error: any) {
+      console.error(`❌ Error emitting ${event}:`, error.message);
+      callback({ success: false, error: error.message });
     }
   }
 
@@ -347,24 +580,29 @@ class RealtimeService {
   }
 
   /**
-   * Start heartbeat interval (every 30 seconds)
+   * ⚡ WORLD CLASS: Smart heartbeat - only when app is active
    */
-  private heartbeatInterval: NodeJS.Timeout | null = null;
-
   startHeartbeat(userId: string): void {
     // Clear existing interval
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
     }
 
+    // Only start heartbeat if app is in foreground
+    if (this.lastAppState !== 'active') {
+      console.log('💤 App in background - heartbeat not started (battery saver)');
+      return;
+    }
+
     // Send heartbeat every 30 seconds
     this.heartbeatInterval = setInterval(() => {
-      if (this.isConnected) {
+      // Only send if connected AND app is active
+      if (this.isConnected && this.lastAppState === 'active') {
         this.sendHeartbeat(userId);
       }
     }, 30000);
 
-    console.log('💓 Heartbeat started');
+    console.log('💓 Heartbeat started (foreground only)');
   }
 
   stopHeartbeat(): void {

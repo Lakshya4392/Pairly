@@ -80,7 +80,25 @@ app.use((req, res, next) => {
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', message: 'Pairly API is running' });
+  res.json({ 
+    status: 'ok', 
+    message: 'Pairly API is running',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
+// Keep-alive endpoint for cron jobs (prevents Render cold starts)
+app.get('/keep-alive', (req, res) => {
+  const timestamp = new Date().toISOString();
+  console.log(`🏓 Keep-alive ping received at ${timestamp}`);
+  
+  res.json({ 
+    status: 'alive',
+    timestamp,
+    uptime: process.uptime(),
+    message: 'Backend is awake and ready!'
+  });
 });
 
 // API routes

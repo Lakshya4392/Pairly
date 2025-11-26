@@ -61,21 +61,31 @@ export const PairingScreen: React.FC<PairingScreenProps> = ({ onPairingComplete,
     setLoading(true);
     
     try {
-      // Get user info and code in parallel
+      // Get user info and code in parallel for INSTANT generation
       const AuthService = (await import('../services/AuthService')).default;
       const PairingService = (await import('../services/PairingService')).default;
+      const SocketConnectionService = (await import('../services/SocketConnectionService')).default;
       
-      const user = await AuthService.getUser();
+      const [user, code] = await Promise.all([
+        AuthService.getUser(),
+        PairingService.generateCode(),
+      ]);
+      
       const displayName = user?.displayName?.split(' ')[0] || 'You';
       
-      // Generate code - this ALWAYS returns a code, never fails
-      const code = await PairingService.generateCode();
+      // Ensure socket is connected for INSTANT pairing detection
+      if (!SocketConnectionService.isConnected() && user) {
+        console.log('🔌 Initializing socket for instant pairing...');
+        await SocketConnectionService.initialize(user.id);
+      }
       
       setUserName(displayName);
       setGeneratedCode(code);
       setLoading(false);
       
-      // Show connection screen if callback provided
+      console.log('✅ Code generated instantly:', code);
+      
+      // Show connection screen immediately
       if (onShowConnectionScreen) {
         onShowConnectionScreen(code, displayName);
       } else {
@@ -83,6 +93,7 @@ export const PairingScreen: React.FC<PairingScreenProps> = ({ onPairingComplete,
       }
     } catch (error: any) {
       setLoading(false);
+      console.error('❌ Code generation error:', error);
       // This should never happen now, but just in case
       Alert.alert('Error', 'Something went wrong. Please try again.');
     }
@@ -102,13 +113,22 @@ export const PairingScreen: React.FC<PairingScreenProps> = ({ onPairingComplete,
     setLoading(true);
     
     try {
-      console.log('🔄 Joining with code... (This may take up to 60 seconds if backend is sleeping)');
+      console.log('🔄 Joining with code...');
       
-      // Get user name first
+      // Get user info and initialize socket in parallel for INSTANT connection
       const AuthService = (await import('../services/AuthService')).default;
+      const PairingService = (await import('../services/PairingService')).default;
+      const SocketConnectionService = (await import('../services/SocketConnectionService')).default;
+      
       const user = await AuthService.getUser();
       const displayName = user?.displayName?.split(' ')[0] || 'You';
       setUserName(displayName);
+
+      // Ensure socket is connected for INSTANT pairing detection
+      if (!SocketConnectionService.isConnected() && user) {
+        console.log('🔌 Initializing socket for instant pairing...');
+        await SocketConnectionService.initialize(user.id);
+      }
 
       // Show connection screen immediately with waiting state
       if (onShowConnectionScreen) {
@@ -116,12 +136,13 @@ export const PairingScreen: React.FC<PairingScreenProps> = ({ onPairingComplete,
       }
 
       // Try to join with code
-      const PairingService = (await import('../services/PairingService')).default;
       const pair = await PairingService.joinWithCode(inviteCode);
       
       // Connection successful - store pair data
       await PairingService.storePair(pair);
       console.log('✅ Successfully joined with code, pair stored');
+      
+      setLoading(false);
     } catch (error: any) {
       setLoading(false);
       
@@ -129,7 +150,7 @@ export const PairingScreen: React.FC<PairingScreenProps> = ({ onPairingComplete,
       if (!onShowConnectionScreen) {
         Alert.alert('Error', error.message || 'Invalid or expired code');
       } else {
-        // If already on connection screen, just log the error
+        // If already on connection screen, show error and go back
         console.error('Join error:', error.message);
         Alert.alert(
           'Connection Error', 
@@ -261,7 +282,7 @@ export const PairingScreen: React.FC<PairingScreenProps> = ({ onPairingComplete,
 
       <View style={styles.infoContainer}>
         <Ionicons name="time" size={16} color={colors.textTertiary} />
-        <Text style={styles.expiryText}>Code expires in 24 hours</Text>
+        <Text style={styles.expiryText}>Code expires in 15 minutes</Text>
       </View>
 
       <TouchableOpacity

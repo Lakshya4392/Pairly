@@ -310,12 +310,12 @@ class PairingService {
           const isSelfPaired = 
             data.data.partner.clerkId === currentUser.id ||
             data.data.partner.id === currentUser.id ||
-            data.data.partner.displayName === currentUser.firstName ||
-            data.data.partner.email === currentUser.primaryEmailAddress?.emailAddress;
+            data.data.partner.displayName === currentUser.displayName ||
+            data.data.partner.email === currentUser.email;
           
           if (isSelfPaired) {
             console.error('❌ Invalid pairing detected: User paired with self!');
-            console.error('Current user:', currentUser.firstName, currentUser.id);
+            console.error('Current user:', currentUser.displayName, currentUser.id);
             console.error('Partner:', data.data.partner.displayName, data.data.partner.clerkId);
             
             // Clear local AND backend pairing

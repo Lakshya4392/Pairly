@@ -36,31 +36,31 @@ export const darkColors = {
   sky: '#38BDF8',
   skyLight: '#7DD3FC',
   
-  // Backgrounds - Deep but not pure black
-  background: '#0F172A', // Slate 900
-  backgroundSecondary: '#1E293B', // Slate 800
-  backgroundTertiary: '#334155', // Slate 700
-  surface: '#1E293B',
-  surfaceElevated: '#334155',
+  // Backgrounds - Pure Black/Charcoal Theme
+  background: '#0A0A0A', // Pure black
+  backgroundSecondary: '#1A1A1A', // Dark charcoal
+  backgroundTertiary: '#2A2A2A', // Charcoal
+  surface: '#1A1A1A',
+  surfaceElevated: '#2A2A2A',
   
   // Dark Mode specific (for compatibility)
-  darkBg: '#0F172A',
-  darkCard: '#1E293B',
-  darkCardElevated: '#334155',
-  darkBorder: '#475569',
-  darkText: '#F1F5F9',
-  darkTextSecondary: '#CBD5E1',
+  darkBg: '#0A0A0A',
+  darkCard: '#1A1A1A',
+  darkCardElevated: '#2A2A2A',
+  darkBorder: '#3A3A3A',
+  darkText: '#FFFFFF',
+  darkTextSecondary: '#B0B0B0',
   
   // Text - High contrast for readability
-  text: '#F1F5F9', // Slate 100
-  textSecondary: '#CBD5E1', // Slate 300
-  textTertiary: '#94A3B8', // Slate 400
-  textLight: '#64748B', // Slate 500
-  textMuted: '#475569', // Slate 600
+  text: '#FFFFFF', // Pure white
+  textSecondary: '#B0B0B0', // Light gray
+  textTertiary: '#808080', // Medium gray
+  textLight: '#606060', // Dark gray
+  textMuted: '#404040', // Very dark gray
   
   // Border Colors
-  border: '#334155', // Slate 700
-  borderLight: '#475569', // Slate 600
+  border: '#2A2A2A', // Dark charcoal
+  borderLight: '#3A3A3A', // Charcoal
   borderFocus: '#8B5CF6', // Primary
   
   // Status Colors - Vibrant
@@ -81,15 +81,15 @@ export const darkColors = {
   infoText: '#60A5FA', // Blue 400
   
   // Shadow - Darker for depth
-  shadow: 'rgba(0, 0, 0, 0.4)',
-  shadowMedium: 'rgba(0, 0, 0, 0.5)',
-  shadowStrong: 'rgba(0, 0, 0, 0.6)',
-  shadowPrimary: 'rgba(139, 92, 246, 0.4)',
-  shadowSecondary: 'rgba(236, 72, 153, 0.4)',
+  shadow: 'rgba(0, 0, 0, 0.6)',
+  shadowMedium: 'rgba(0, 0, 0, 0.7)',
+  shadowStrong: 'rgba(0, 0, 0, 0.8)',
+  shadowPrimary: 'rgba(139, 92, 246, 0.5)',
+  shadowSecondary: 'rgba(236, 72, 153, 0.5)',
   
   // Overlay
-  overlay: 'rgba(15, 23, 42, 0.8)',
-  overlayLight: 'rgba(15, 23, 42, 0.6)',
+  overlay: 'rgba(10, 10, 10, 0.9)',
+  overlayLight: 'rgba(10, 10, 10, 0.7)',
   
   // Transparent
   transparent: 'transparent',
@@ -97,7 +97,7 @@ export const darkColors = {
   // Interactive States
   hover: 'rgba(139, 92, 246, 0.15)',
   pressed: 'rgba(139, 92, 246, 0.25)',
-  disabled: '#334155',
+  disabled: '#2A2A2A',
   disabledText: '#64748B',
 };
 

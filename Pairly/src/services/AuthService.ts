@@ -1,6 +1,6 @@
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { User, AuthResponse } from '@types';
+import { User, AuthResponse, ApiResponse } from '@types';
 import apiClient from '../utils/apiClient';
 
 const TOKEN_KEY = 'pairly_auth_token';
@@ -106,7 +106,7 @@ class AuthService {
     try {
       console.log('🔐 Sending Clerk token to backend...');
       
-      const data = await apiClient.post<AuthResponse>(
+      const data = await apiClient.post<ApiResponse<AuthResponse>>(
         '/auth/google', 
         { idToken: clerkToken },
         { skipAuth: true } // Skip automatic auth header for this endpoint
