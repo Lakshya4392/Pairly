@@ -118,41 +118,45 @@ class MomentService {
         let sendSuccess = false;
         let lastError: any = null;
         
-        for (let attempt = 1; attempt <= 3; attempt++) {
-          try {
-            console.log(`📤 Send attempt ${attempt}/3...`);
-            
-            RealtimeService.emit('send_photo', {
-              photoId: localPhoto.id,
-              photoData: compressedPhoto.base64,
-              timestamp: localPhoto.timestamp,
-              caption: note || photo.caption,
-              partnerId: partnerSocketId,
-            });
-            
-            // Wait for confirmation (with timeout)
-            const confirmed = await this.waitForDeliveryConfirmation(localPhoto.id, 3000);
-            
-            if (confirmed) {
-              console.log(`✅ Photo sent and confirmed (attempt ${attempt})`);
-              sendSuccess = true;
-              break;
-            } else {
-              console.log(`⚠️ No confirmation received (attempt ${attempt})`);
-              if (attempt < 3) {
-                // Wait before retry
-                await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+        // ⚡ FIXED: Use emitWithAck for reliable delivery
+        try {
+          console.log('📤 Sending photo via socket...');
+          
+          // Generate unique message ID for de-duplication
+          const messageId = `${localPhoto.id}_${Date.now()}`;
+          
+          // Send with acknowledgment
+          await new Promise<void>((resolve, reject) => {
+            const timeout = setTimeout(() => {
+              reject(new Error('Send timeout'));
+            }, 5000);
+
+            RealtimeService.emitWithAck(
+              'send_photo',
+              {
+                photoId: localPhoto.id,
+                photoData: compressedPhoto.base64,
+                timestamp: localPhoto.timestamp,
+                caption: note || photo.caption,
+                partnerId: partnerSocketId,
+                messageId, // For de-duplication
+              },
+              (response: any) => {
+                clearTimeout(timeout);
+                if (response && response.success !== false) {
+                  console.log('✅ Photo sent successfully with acknowledgment');
+                  resolve();
+                } else {
+                  reject(new Error(response?.error || 'Send failed'));
+                }
               }
-            }
-          } catch (emitError: any) {
-            console.error(`❌ Send attempt ${attempt} failed:`, emitError);
-            lastError = emitError;
-            
-            if (attempt < 3) {
-              // Wait before retry
-              await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
-            }
-          }
+            );
+          });
+
+          sendSuccess = true;
+        } catch (emitError: any) {
+          console.error('❌ Send failed:', emitError.message);
+          lastError = emitError;
         }
         
         if (!sendSuccess) {

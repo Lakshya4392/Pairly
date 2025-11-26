@@ -203,7 +203,7 @@ io.on('connection', (socket) => {
     caption?: string; 
     partnerId: string;
     messageId?: string; // For de-duplication
-  }) => {
+  }, callback?: (response: any) => void) => {
     try {
       console.log('📸 Received send_photo event:', {
         from: currentUserClerkId,
@@ -214,6 +214,7 @@ io.on('connection', (socket) => {
       
       if (!currentUserDbId || !currentUserClerkId) {
         console.error('❌ No user ID - cannot send photo');
+        if (callback) callback({ success: false, error: 'No user ID' });
         return;
       }
 
@@ -224,9 +225,7 @@ io.on('connection', (socket) => {
       
       if (!partnerUser) {
         console.error(`❌ Partner not found for clerkId: ${data.partnerId}`);
-        socket.emit('send_photo_error', {
-          error: 'Partner not found',
-        });
+        if (callback) callback({ success: false, error: 'Partner not found' });
         return;
       }
       
@@ -249,9 +248,7 @@ io.on('connection', (socket) => {
 
       if (!pair) {
         console.error(`❌ User ${currentUserClerkId} is NOT paired with ${data.partnerId} - blocking photo send`);
-        socket.emit('send_photo_error', {
-          error: 'Not paired with this user',
-        });
+        if (callback) callback({ success: false, error: 'Not paired with this user' });
         return;
       }
       
@@ -309,7 +306,17 @@ io.on('connection', (socket) => {
         }
       }
 
-      // Send confirmation to sender
+      // ⚡ IMPROVED: Send acknowledgment callback
+      if (callback) {
+        callback({
+          success: true,
+          photoId: data.photoId,
+          sentAt: new Date().toISOString(),
+          deliveryMethod: isPartnerOnline ? 'socket' : 'fcm',
+        });
+      }
+
+      // Also send confirmation event (for backward compatibility)
       socket.emit('photo_sent', {
         photoId: data.photoId,
         sentAt: new Date().toISOString(),
@@ -318,6 +325,12 @@ io.on('connection', (socket) => {
 
     } catch (error) {
       console.error('Error handling send_photo:', error);
+      
+      // Send error callback
+      if (callback) {
+        callback({ success: false, error: 'Failed to send photo' });
+      }
+      
       socket.emit('send_photo_error', {
         error: 'Failed to send photo',
       });
