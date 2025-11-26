@@ -241,6 +241,18 @@ class RealtimeService {
       // Add to processed IDs
       this.addProcessedMessageId(messageId);
       
+      // ⚡ IMPROVED: Show push notification immediately
+      try {
+        const EnhancedNotificationService = (await import('./EnhancedNotificationService')).default;
+        await EnhancedNotificationService.showMomentNotification(
+          data.senderName || 'Partner',
+          data.photoId || messageId
+        );
+        console.log('✅ Push notification sent for new photo');
+      } catch (error) {
+        console.error('Error showing notification:', error);
+      }
+      
       // Verify sender is our paired partner
       try {
         const PairingService = (await import('./PairingService')).default;

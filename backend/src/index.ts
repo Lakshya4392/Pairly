@@ -202,6 +202,7 @@ io.on('connection', (socket) => {
     timestamp: number; 
     caption?: string; 
     partnerId: string;
+    messageId?: string; // For de-duplication
   }) => {
     try {
       console.log('📸 Received send_photo event:', {
@@ -277,7 +278,19 @@ io.on('connection', (socket) => {
           caption: data.caption,
           senderName: sender.displayName,
           senderId: currentUserClerkId,
+          messageId: data.messageId || `${currentUserClerkId}_${data.timestamp}`, // For de-duplication
         });
+        
+        // ⚡ IMPROVED: Also send FCM notification even if online (for phone notification)
+        if (partner.fcmToken) {
+          await FCMService.sendNewPhotoNotification(
+            partner.fcmToken,
+            data.photoData,
+            sender.displayName,
+            data.photoId
+          );
+          console.log('✅ FCM notification sent (partner online)');
+        }
       } else {
         // Partner is offline - send via FCM
         console.log('⚫ Partner offline - sending via FCM');
@@ -288,9 +301,9 @@ io.on('connection', (socket) => {
             partner.fcmToken,
             data.photoData,
             sender.displayName,
-            data.photoId // 4th argument: momentId
+            data.photoId
           );
-          console.log('✅ FCM notification sent');
+          console.log('✅ FCM notification sent (partner offline)');
         } else {
           console.log('⚠️ Partner has no FCM token - photo will be delivered when they come online');
         }
@@ -314,6 +327,102 @@ io.on('connection', (socket) => {
   // Acknowledge moment received
   socket.on('moment_received', (data: { momentId: string }) => {
     console.log(`Moment ${data.momentId} received by client`);
+  });
+
+  // ⚡ NEW: Handle note send
+  socket.on('send_note', async (data: {
+    noteId: string;
+    noteContent: string;
+    partnerId: string;
+    timestamp: number;
+  }) => {
+    try {
+      console.log('💌 Received send_note event:', {
+        from: currentUserClerkId,
+        to: data.partnerId,
+        noteId: data.noteId,
+      });
+
+      if (!currentUserDbId || !currentUserClerkId) {
+        console.error('❌ No user ID - cannot send note');
+        return;
+      }
+
+      // Get partner's database ID from clerkId
+      const partnerUser = await prisma.user.findUnique({
+        where: { clerkId: data.partnerId },
+      });
+
+      if (!partnerUser) {
+        console.error(`❌ Partner not found for clerkId: ${data.partnerId}`);
+        socket.emit('send_note_error', { error: 'Partner not found' });
+        return;
+      }
+
+      // Verify pair
+      const pair = await prisma.pair.findFirst({
+        where: {
+          OR: [
+            { user1Id: currentUserDbId, user2Id: partnerUser.id },
+            { user1Id: partnerUser.id, user2Id: currentUserDbId },
+          ],
+          inviteCode: null,
+        },
+        include: {
+          user1: true,
+          user2: true,
+        },
+      });
+
+      if (!pair) {
+        console.error(`❌ User ${currentUserClerkId} is NOT paired with ${data.partnerId}`);
+        socket.emit('send_note_error', { error: 'Not paired with this user' });
+        return;
+      }
+
+      const sender = pair.user1Id === currentUserDbId ? pair.user1 : pair.user2;
+      const partner = pair.user1Id === currentUserDbId ? pair.user2 : pair.user1;
+
+      console.log(`✅ Verified: ${sender.displayName} sending note to ${partner.displayName}`);
+
+      // Check if partner is online
+      const partnerSockets = await io.in(data.partnerId).fetchSockets();
+      const isPartnerOnline = partnerSockets.length > 0;
+
+      if (isPartnerOnline) {
+        // Partner is online - send via Socket.IO
+        console.log('🟢 Partner online - sending note via Socket.IO');
+        io.to(data.partnerId).emit('receive_note', {
+          noteId: data.noteId,
+          noteContent: data.noteContent,
+          timestamp: data.timestamp,
+          senderName: sender.displayName,
+          senderId: currentUserClerkId,
+        });
+      }
+
+      // ⚡ IMPROVED: Always send FCM notification for notes
+      if (partner.fcmToken) {
+        await FCMService.sendNoteNotification(
+          partner.fcmToken,
+          data.noteContent,
+          sender.displayName,
+          data.noteId
+        );
+        console.log('✅ FCM note notification sent');
+      }
+
+      // Send confirmation to sender
+      socket.emit('note_sent', {
+        noteId: data.noteId,
+        sentAt: new Date().toISOString(),
+        deliveryMethod: isPartnerOnline ? 'socket' : 'fcm',
+      });
+
+    } catch (error) {
+      console.error('Error handling send_note:', error);
+      socket.emit('send_note_error', { error: 'Failed to send note' });
+    }
   });
 
   // Handle moment received acknowledgment (send back to sender)

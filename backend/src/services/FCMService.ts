@@ -94,7 +94,7 @@ class FCMService {
   }
 
   /**
-   * Send new photo notification with base64 data for instant widget update
+   * ⚡ IMPROVED: Send new photo notification with base64 data for instant widget update
    */
   async sendNewPhotoNotification(
     fcmToken: string,
@@ -114,6 +114,36 @@ class FCMService {
       {
         title: `💕 New Moment from ${partnerName}`,
         body: 'Tap to view your special moment together',
+      }
+    );
+  }
+
+  /**
+   * ⚡ NEW: Send note notification
+   */
+  async sendNoteNotification(
+    fcmToken: string,
+    noteContent: string,
+    senderName: string,
+    noteId: string
+  ): Promise<boolean> {
+    // Truncate note content for notification
+    const preview = noteContent.length > 50 
+      ? noteContent.substring(0, 50) + '...' 
+      : noteContent;
+
+    return this.sendNotification(
+      fcmToken,
+      {
+        type: 'new_note',
+        noteContent,
+        senderName,
+        noteId,
+        timestamp: Date.now().toString(),
+      },
+      {
+        title: `💌 New Note from ${senderName}`,
+        body: preview,
       }
     );
   }
