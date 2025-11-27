@@ -80,15 +80,19 @@ class RealtimeService {
         // ⚡ IMPROVED: Faster connection with polling fallback for Render cold starts
         transports: ['polling', 'websocket'], // Polling first for cold starts
         reconnection: true,
-        reconnectionAttempts: 3, // Reduced from 5
-        reconnectionDelay: 1000, // Increased from 500ms
-        reconnectionDelayMax: 5000, // Increased from 3s
-        timeout: 20000, // Increased to 20s for Render cold starts
+        reconnectionAttempts: 5, // More attempts for APK
+        reconnectionDelay: 2000, // 2s delay for APK
+        reconnectionDelayMax: 10000, // 10s max for APK
+        timeout: 30000, // 30s timeout for Render cold starts (APK needs more time)
         forceNew: false,
         autoConnect: true,
         multiplex: false,
         upgrade: true, // Allow upgrade to WebSocket after connection
         rememberUpgrade: true,
+        // APK specific settings
+        path: '/socket.io/',
+        secure: true, // Use HTTPS
+        rejectUnauthorized: false, // Allow self-signed certs in dev
       });
 
       this.setupEventHandlers(userId);
@@ -230,6 +234,12 @@ class RealtimeService {
     this.socket.on('receive_photo', async (data: any) => {
       log.debug('Photo received from partner:', data.senderName);
       
+      // ⚡ CRITICAL FIX: Don't receive your own photos!
+      if (data.senderId === this.currentUserId) {
+        console.log('🚫 [RECEIVER] Ignoring own photo (sender = receiver)');
+        return;
+      }
+      
       // ⚡ WORLD CLASS: De-duplication - prevent duplicate photos
       const messageId = data.messageId || data.photoId || `${data.senderId}_${data.timestamp}`;
       
@@ -253,7 +263,7 @@ class RealtimeService {
         console.error('Error showing notification:', error);
       }
       
-      // Verify sender is our paired partner
+      // ⚡ IMPROVED: Use MomentService to handle photo reception properly
       try {
         const PairingService = (await import('./PairingService')).default;
         const partner = await PairingService.getPartner();
@@ -267,40 +277,31 @@ class RealtimeService {
         if (isFromPartner) {
           log.debug('Verified photo is from paired partner');
           
-          // Import optimized services
-          const LocalPhotoStorage = (await import('./LocalPhotoStorage')).default;
-          const OptimizedWidgetService = (await import('./OptimizedWidgetService')).default;
+          // ⚡ FIXED: Use MomentService.receivePhoto for proper dual storage
+          const MomentService = (await import('./MomentService')).default;
+          const success = await MomentService.receivePhoto({
+            photoId: data.photoId,
+            photoData: data.photoData,
+            timestamp: data.timestamp,
+            caption: data.caption,
+            senderName: data.senderName,
+          });
           
-          // Start performance timer
-          let PerformanceMonitor: any = null;
-          if (APP_CONFIG.enablePerformanceMonitoring) {
-            PerformanceMonitor = (await import('./PerformanceMonitor')).default;
-            PerformanceMonitor.startTimer('photo_receive');
-          }
-          
-          // Save photo and update widget immediately
-          if (data.photoBase64) {
-            const photoUri = await LocalPhotoStorage.savePhoto(
-              `data:image/jpeg;base64,${data.photoBase64}`,
-              'partner',
-              false
-            );
+          if (success) {
+            console.log('✅ Photo received and saved via MomentService (dual storage)');
             
-            if (photoUri) {
-              const actualUri = await LocalPhotoStorage.getPhotoUri(photoUri);
-              if (actualUri) {
-                if (PerformanceMonitor) PerformanceMonitor.startTimer('widget_update');
-                await OptimizedWidgetService.onPhotoReceived(actualUri, data.senderName || 'Partner');
-                if (PerformanceMonitor) PerformanceMonitor.endTimer('widget_update');
-                log.debug('Widget updated from Socket.IO');
-              }
-            }
+            // ⚡ IMPROVED: Trigger event for UI update
+            this.triggerEvent('receive_photo', data);
+            
+            // ⚡ NEW: Trigger photo_saved event for Recent Moments update
+            this.triggerEvent('photo_saved', {
+              photoId: data.photoId,
+              senderName: data.senderName,
+              timestamp: Date.now(),
+            });
+          } else {
+            console.error('❌ Failed to save received photo');
           }
-          
-          // End performance timer
-          if (PerformanceMonitor) PerformanceMonitor.endTimer('photo_receive');
-          
-          this.triggerEvent('receive_photo', data);
         } else {
           console.warn('⚠️ Received photo from non-paired user - ignoring');
           console.warn('Sender:', data.senderId, 'Partner:', partner?.clerkId, partner?.id);
@@ -359,10 +360,24 @@ class RealtimeService {
       this.triggerEvent('partner_heartbeat', data);
     });
 
-    // Shared note received
-    this.socket.on('shared_note', (data: any) => {
-      console.log('📝 Shared note received:', data.content);
-      this.triggerEvent('shared_note', data);
+    // ⚡ FIXED: Note received from partner
+    this.socket.on('receive_note', async (data: any) => {
+      console.log('📝 [NOTE] Received from:', data.senderName);
+      
+      // Show push notification
+      try {
+        const EnhancedNotificationService = (await import('./EnhancedNotificationService')).default;
+        await EnhancedNotificationService.showNoteNotification(
+          data.senderName || 'Partner',
+          data.noteContent
+        );
+        console.log('✅ [NOTE] Notification shown');
+      } catch (error) {
+        console.error('Error showing note notification:', error);
+      }
+      
+      this.triggerEvent('receive_note', data);
+      this.triggerEvent('shared_note', data); // Backward compatibility
     });
 
     // Time-lock message unlocked

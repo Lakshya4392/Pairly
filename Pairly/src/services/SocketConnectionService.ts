@@ -56,16 +56,20 @@ class SocketConnectionService {
         },
         // ⚡ IMPROVED: Polling first for Render cold starts, then upgrade to WebSocket
         transports: ['polling', 'websocket'], // Polling first for reliability
-        timeout: 20000, // 20 second timeout for Render cold starts
+        timeout: 30000, // 30 second timeout for Render cold starts (APK needs more time)
         reconnection: true,
-        reconnectionAttempts: 3, // Reduced from 10
-        reconnectionDelay: 1000, // Increased from 500ms
-        reconnectionDelayMax: 10000, // Reduced from 30s
+        reconnectionAttempts: 5, // More attempts for APK
+        reconnectionDelay: 2000, // 2s delay for APK
+        reconnectionDelayMax: 15000, // 15s max for APK
         forceNew: true,
         // Additional optimizations
         upgrade: true, // Allow upgrade to WebSocket
         rememberUpgrade: true, // Remember successful upgrade
         autoConnect: true, // Auto-connect immediately
+        // APK specific settings
+        path: '/socket.io/',
+        secure: true, // Use HTTPS
+        rejectUnauthorized: false, // Allow self-signed certs in dev
       });
 
       this.setupEventHandlers();

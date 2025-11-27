@@ -6,16 +6,18 @@ import { PhotoAsset, CompressedPhoto } from '@types';
 
 const qualitySettings = {
   default: {
-    maxFileSize: 500 * 1024, // 500KB
+    maxFileSize: 1 * 1024 * 1024, // ⚡ IMPROVED: 1MB (increased from 500KB)
     maxWidth: 1080,
     maxHeight: 1920,
     jpegQuality: 0.85,
+    minQuality: 0.3, // ⚡ NEW: Minimum quality threshold
   },
   premium: {
     maxFileSize: 2 * 1024 * 1024, // 2MB
     maxWidth: 1920,
     maxHeight: 1920,
     jpegQuality: 0.95,
+    minQuality: 0.5, // ⚡ NEW: Minimum quality threshold
   },
 };
 
@@ -165,9 +167,10 @@ class PhotoService {
         manipulatedImage = result.uri;
       }
 
-      // Compress until file size is acceptable
+      // ⚡ IMPROVED: Compress until file size is acceptable with better fallback
       let attempts = 0;
-      const maxAttempts = 5;
+      const maxAttempts = 8; // Increased from 5
+      let lastResult: any = null;
 
       while (attempts < maxAttempts) {
         const result = await ImageManipulator.manipulateAsync(
@@ -179,8 +182,11 @@ class PhotoService {
           }
         );
 
+        lastResult = result;
         const compressedFileInfo = await FileSystem.getInfoAsync(result.uri);
         const fileSize = (compressedFileInfo as any).size || 0;
+
+        console.log(`Compression attempt ${attempts + 1}: ${Math.round(fileSize / 1024)}KB at quality ${currentQuality.toFixed(2)}`);
 
         if (fileSize <= settings.maxFileSize) {
           // Convert to base64
@@ -188,6 +194,7 @@ class PhotoService {
             encoding: 'base64' as any,
           });
 
+          console.log(`✅ Photo compressed successfully: ${Math.round(fileSize / 1024)}KB`);
           return {
             base64,
             mimeType: 'image/jpeg',
@@ -196,12 +203,31 @@ class PhotoService {
         }
 
         // Reduce quality for next attempt
-        currentQuality *= 0.8;
+        currentQuality *= 0.75; // Slower reduction (was 0.8)
         attempts++;
 
-        if (currentQuality < 0.1) {
+        // Stop if quality is too low
+        if (currentQuality < settings.minQuality) {
+          console.log(`⚠️ Reached minimum quality threshold: ${settings.minQuality}`);
           break;
         }
+      }
+
+      // ⚡ IMPROVED: If all attempts failed, use last result anyway (best effort)
+      if (lastResult) {
+        console.log('⚠️ Using best effort compression (may exceed size limit)');
+        const base64 = await FileSystem.readAsStringAsync(lastResult.uri, {
+          encoding: 'base64' as any,
+        });
+        const fileInfo = await FileSystem.getInfoAsync(lastResult.uri);
+        const fileSize = (fileInfo as any).size || 0;
+        
+        console.log(`📤 Sending photo at ${Math.round(fileSize / 1024)}KB (best effort)`);
+        return {
+          base64,
+          mimeType: 'image/jpeg',
+          size: fileSize,
+        };
       }
 
       throw new Error('Unable to compress photo to required size');

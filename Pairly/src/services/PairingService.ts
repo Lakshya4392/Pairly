@@ -363,6 +363,52 @@ class PairingService {
     
     return null;
   }
+
+  /**
+   * ⚡ Unpair/Disconnect from partner
+   */
+  async unpair(): Promise<{ success: boolean; error?: string }> {
+    try {
+      console.log('💔 Unpairing from partner...');
+      
+      // 1. Call backend to disconnect
+      try {
+        await apiClient.delete('/pairs/disconnect');
+        console.log('✅ Disconnected from backend');
+      } catch (backendError: any) {
+        console.warn('⚠️ Backend disconnect failed:', backendError.message);
+        // Continue with local cleanup even if backend fails
+      }
+      
+      // 2. Clear local storage
+      await this.removePair();
+      console.log('✅ Local pairing data cleared');
+      
+      // 3. Clear cache
+      this.lastValidationTime = 0;
+      
+      // 4. Notify via socket (if connected)
+      try {
+        const RealtimeService = (await import('./RealtimeService')).default;
+        if (RealtimeService.getConnectionStatus()) {
+          RealtimeService.emit('partner_disconnected', { timestamp: Date.now() });
+          console.log('✅ Partner notified via socket');
+        }
+      } catch (socketError) {
+        console.warn('⚠️ Socket notification failed:', socketError);
+      }
+      
+      console.log('✅ Unpair complete!');
+      return { success: true };
+      
+    } catch (error: any) {
+      console.error('❌ Unpair error:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to unpair',
+      };
+    }
+  }
 }
 
 export default new PairingService();

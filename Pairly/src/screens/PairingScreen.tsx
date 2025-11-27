@@ -370,15 +370,9 @@ export const PairingScreen: React.FC<PairingScreenProps> = ({ onPairingComplete,
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="white" />
       
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {mode === 'choose' && renderChooseMode()}
-        {mode === 'generate' && renderGenerateMode()}
-        {mode === 'join' && renderJoinMode()}
-      </ScrollView>
+      {mode === 'choose' && renderChooseMode()}
+      {mode === 'generate' && renderGenerateMode()}
+      {mode === 'join' && renderJoinMode()}
     </View>
   );
 };
@@ -388,18 +382,12 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: layout.screenPaddingHorizontal,
-  },
 
   // Content
   content: {
     flex: 1,
     justifyContent: 'center',
+    paddingHorizontal: layout.screenPaddingHorizontal,
     maxWidth: layout.maxContentWidth,
     alignSelf: 'center',
     width: '100%',
@@ -438,7 +426,8 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     alignItems: 'center',
   },
   title: {
-    fontFamily: 'Inter-SemiBold', fontSize: 24,
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 24,
     color: colors.text,
     marginBottom: spacing.md,
     textAlign: 'center',
@@ -477,7 +466,8 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     flex: 1,
   },
   optionTitle: {
-    fontFamily: 'Inter-SemiBold', fontSize: 18,
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 18,
     color: colors.text,
     marginBottom: spacing.xs,
   },

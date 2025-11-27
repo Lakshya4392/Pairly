@@ -131,6 +131,39 @@ class EnhancedNotificationService {
   }
 
   /**
+   * ⚡ NEW: Show notification when note is received
+   */
+  static async showNoteNotification(partnerName: string, noteContent: string): Promise<void> {
+    try {
+      // Truncate long notes
+      const preview = noteContent.length > 100 
+        ? noteContent.substring(0, 100) + '...' 
+        : noteContent;
+
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: `💌 Note from ${partnerName}`,
+          body: preview,
+          data: { 
+            type: 'note_received',
+            partnerName,
+            noteContent,
+          },
+          sound: 'default',
+          badge: 1,
+          priority: Notifications.AndroidNotificationPriority.HIGH,
+          vibrate: [0, 250, 250, 250],
+        },
+        trigger: null,
+      });
+
+      console.log('✅ Note notification shown');
+    } catch (error) {
+      console.error('Error showing note notification:', error);
+    }
+  }
+
+  /**
    * Show notification when moment send failed
    */
   static async showMomentSendFailedNotification(partnerName: string): Promise<void> {

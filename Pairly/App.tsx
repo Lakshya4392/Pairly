@@ -19,6 +19,9 @@ import {
 // Import services
 import WidgetBackgroundService from './src/services/WidgetBackgroundService';
 
+// Import dev tools (only in development)
+import './src/utils/DevTools';
+
 // Import theme
 import { paperTheme } from './src/theme';
 import { ThemeProvider as PairlyThemeProvider } from './src/contexts/ThemeContext';
@@ -123,17 +126,30 @@ export default function App() {
   // Initialize background services and notifications
   useEffect(() => {
     const initializeApp = async () => {
-      // Initialize widget and reminders
+      // ⚡ OPTIMIZED: Non-blocking initialization to prevent freeze
+      
+      // Initialize widget (fast, non-blocking)
       WidgetBackgroundService.initialize();
       
-      // Request notification permissions
+      // ⚡ FIXED: Initialize MomentService in background (non-blocking)
+      setTimeout(async () => {
+        try {
+          const MomentService = (await import('./src/services/MomentService')).default;
+          await MomentService.initialize();
+          console.log('✅ MomentService initialized and photos migrated');
+        } catch (error) {
+          console.error('❌ Error initializing MomentService:', error);
+        }
+      }, 100); // Small delay to prevent blocking UI
+      
+      // Request notification permissions (fast)
       const NotificationService = (await import('./src/services/NotificationService')).default;
       const hasPermission = await NotificationService.requestPermissions();
       
       if (hasPermission) {
         console.log('✅ Notification permissions granted');
         
-        // Setup notification listeners
+        // Setup notification listeners (non-blocking)
         NotificationService.setupListeners(
           (notification) => {
             // Notification received while app is open

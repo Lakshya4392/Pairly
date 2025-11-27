@@ -2,53 +2,42 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Crypto from 'expo-crypto';
 
 /**
- * Local Photo Storage Service
- * Stores photos locally in encrypted folder
- * Photos are NOT stored in database, only locally on device
+ * ⚡ SIMPLE & CLEAN: Local Photo Storage
+ * Stores photos locally on device (NOT in database)
+ * Single directory, no encryption complexity
  */
 
 const PHOTOS_DIR = `${FileSystem.documentDirectory}pairly_photos/`;
-const ENCRYPTED_DIR = `${FileSystem.documentDirectory}.pairly_secure/`;
 
 interface PhotoMetadata {
   id: string;
   fileName: string;
   timestamp: Date;
   sender: 'me' | 'partner';
-  encrypted: boolean;
 }
 
 class LocalPhotoStorage {
   /**
-   * Initialize storage directories
+   * Initialize storage directory
    */
   async initialize(): Promise<void> {
     try {
-      // Create photos directory
       const photosInfo = await FileSystem.getInfoAsync(PHOTOS_DIR);
       if (!photosInfo.exists) {
         await FileSystem.makeDirectoryAsync(PHOTOS_DIR, { intermediates: true });
-        console.log('✅ Photos directory created');
-      }
-
-      // Create encrypted directory (hidden)
-      const encryptedInfo = await FileSystem.getInfoAsync(ENCRYPTED_DIR);
-      if (!encryptedInfo.exists) {
-        await FileSystem.makeDirectoryAsync(ENCRYPTED_DIR, { intermediates: true });
-        console.log('✅ Encrypted directory created');
+        console.log('✅ [STORAGE] Photos directory created');
       }
     } catch (error) {
-      console.error('❌ Error initializing storage:', error);
+      console.error('❌ [STORAGE] Error initializing:', error);
     }
   }
 
   /**
-   * Save photo locally
+   * ⚡ SIMPLE: Save photo locally
    */
   async savePhoto(
     photoUri: string,
-    sender: 'me' | 'partner',
-    encrypt: boolean = false
+    sender: 'me' | 'partner'
   ): Promise<string | null> {
     try {
       await this.initialize();
@@ -60,10 +49,9 @@ class LocalPhotoStorage {
       );
 
       const fileName = `photo_${photoId}.jpg`;
-      const targetDir = encrypt ? ENCRYPTED_DIR : PHOTOS_DIR;
-      const targetPath = `${targetDir}${fileName}`;
+      const targetPath = `${PHOTOS_DIR}${fileName}`;
 
-      // Copy photo to local storage
+      // Copy photo to storage
       await FileSystem.copyAsync({
         from: photoUri,
         to: targetPath,
@@ -75,15 +63,14 @@ class LocalPhotoStorage {
         fileName,
         timestamp: new Date(),
         sender,
-        encrypted: encrypt,
       };
 
       await this.saveMetadata(photoId, metadata);
 
-      console.log('✅ Photo saved locally:', fileName);
+      console.log(`✅ [STORAGE] Saved ${sender === 'me' ? '👤 My' : '❤️ Partner'} photo:`, photoId.substring(0, 8));
       return photoId;
     } catch (error) {
-      console.error('❌ Error saving photo:', error);
+      console.error('❌ [STORAGE] Error saving photo:', error);
       return null;
     }
   }
@@ -96,35 +83,50 @@ class LocalPhotoStorage {
       const metadata = await this.getMetadata(photoId);
       if (!metadata) return null;
 
-      const dir = metadata.encrypted ? ENCRYPTED_DIR : PHOTOS_DIR;
-      const photoPath = `${dir}${metadata.fileName}`;
+      const photoPath = `${PHOTOS_DIR}${metadata.fileName}`;
 
       const info = await FileSystem.getInfoAsync(photoPath);
       if (!info.exists) return null;
 
       return photoPath;
     } catch (error) {
-      console.error('❌ Error getting photo:', error);
+      console.error('❌ [STORAGE] Error getting photo:', error);
       return null;
     }
   }
 
   /**
-   * Get all photos
+   * Get all photos (with automatic cleanup of old encrypted field)
    */
   async getAllPhotos(): Promise<PhotoMetadata[]> {
     try {
       const metadataPath = `${PHOTOS_DIR}metadata.json`;
       const info = await FileSystem.getInfoAsync(metadataPath);
 
-      if (!info.exists) return [];
+      if (!info.exists) {
+        console.log('📊 [STORAGE] No photos yet');
+        return [];
+      }
 
       const content = await FileSystem.readAsStringAsync(metadataPath);
       const allMetadata = JSON.parse(content);
+      
+      // ⚡ IMMEDIATE FIX: Clean metadata on-the-fly
+      const cleanedPhotos: PhotoMetadata[] = [];
+      for (const rawData of Object.values(allMetadata)) {
+        const data = rawData as any;
+        cleanedPhotos.push({
+          id: data.id,
+          fileName: data.fileName,
+          timestamp: data.timestamp,
+          sender: data.sender,
+        });
+      }
 
-      return Object.values(allMetadata);
+      console.log(`📊 [STORAGE] Total photos: ${cleanedPhotos.length}`);
+      return cleanedPhotos;
     } catch (error) {
-      console.error('❌ Error getting all photos:', error);
+      console.error('❌ [STORAGE] Error getting all photos:', error);
       return [];
     }
   }
@@ -137,8 +139,7 @@ class LocalPhotoStorage {
       const metadata = await this.getMetadata(photoId);
       if (!metadata) return false;
 
-      const dir = metadata.encrypted ? ENCRYPTED_DIR : PHOTOS_DIR;
-      const photoPath = `${dir}${metadata.fileName}`;
+      const photoPath = `${PHOTOS_DIR}${metadata.fileName}`;
 
       // Delete photo file
       await FileSystem.deleteAsync(photoPath, { idempotent: true });
@@ -146,10 +147,10 @@ class LocalPhotoStorage {
       // Remove metadata
       await this.removeMetadata(photoId);
 
-      console.log('✅ Photo deleted:', photoId);
+      console.log('✅ [STORAGE] Photo deleted:', photoId.substring(0, 8));
       return true;
     } catch (error) {
-      console.error('❌ Error deleting photo:', error);
+      console.error('❌ [STORAGE] Error deleting photo:', error);
       return false;
     }
   }
@@ -161,17 +162,14 @@ class LocalPhotoStorage {
     try {
       // Delete photos directory
       await FileSystem.deleteAsync(PHOTOS_DIR, { idempotent: true });
-      
-      // Delete encrypted directory
-      await FileSystem.deleteAsync(ENCRYPTED_DIR, { idempotent: true });
 
-      // Recreate directories
+      // Recreate directory
       await this.initialize();
 
-      console.log('✅ All photos deleted');
+      console.log('✅ [STORAGE] All photos deleted');
       return true;
     } catch (error) {
-      console.error('❌ Error deleting all photos:', error);
+      console.error('❌ [STORAGE] Error deleting all photos:', error);
       return false;
     }
   }
@@ -183,7 +181,6 @@ class LocalPhotoStorage {
     try {
       let totalSize = 0;
 
-      // Get photos directory size
       const photos = await FileSystem.readDirectoryAsync(PHOTOS_DIR);
       for (const photo of photos) {
         const info = await FileSystem.getInfoAsync(`${PHOTOS_DIR}${photo}`);
@@ -192,18 +189,10 @@ class LocalPhotoStorage {
         }
       }
 
-      // Get encrypted directory size
-      const encrypted = await FileSystem.readDirectoryAsync(ENCRYPTED_DIR);
-      for (const photo of encrypted) {
-        const info = await FileSystem.getInfoAsync(`${ENCRYPTED_DIR}${photo}`);
-        if (info.exists && !info.isDirectory) {
-          totalSize += info.size || 0;
-        }
-      }
-
+      console.log(`📊 [STORAGE] Total size: ${(totalSize / 1024 / 1024).toFixed(2)} MB`);
       return totalSize;
     } catch (error) {
-      console.error('❌ Error getting storage size:', error);
+      console.error('❌ [STORAGE] Error getting storage size:', error);
       return 0;
     }
   }
@@ -235,7 +224,7 @@ class LocalPhotoStorage {
   }
 
   /**
-   * Get metadata
+   * Get metadata (with backward compatibility for old encrypted field)
    */
   private async getMetadata(photoId: string): Promise<PhotoMetadata | null> {
     try {
@@ -246,10 +235,21 @@ class LocalPhotoStorage {
 
       const content = await FileSystem.readAsStringAsync(metadataPath);
       const allMetadata = JSON.parse(content);
+      const rawMetadata = allMetadata[photoId];
 
-      return allMetadata[photoId] || null;
+      if (!rawMetadata) return null;
+
+      // ⚡ FIX: Remove old 'encrypted' field if it exists
+      const cleanMetadata: PhotoMetadata = {
+        id: rawMetadata.id,
+        fileName: rawMetadata.fileName,
+        timestamp: rawMetadata.timestamp,
+        sender: rawMetadata.sender,
+      };
+
+      return cleanMetadata;
     } catch (error) {
-      console.error('❌ Error getting metadata:', error);
+      console.error('❌ [STORAGE] Error getting metadata:', error);
       return null;
     }
   }
@@ -274,7 +274,58 @@ class LocalPhotoStorage {
         JSON.stringify(allMetadata)
       );
     } catch (error) {
-      console.error('❌ Error removing metadata:', error);
+      console.error('❌ [STORAGE] Error removing metadata:', error);
+    }
+  }
+
+  /**
+   * ⚡ CLEANUP: Remove old encrypted field from metadata (FORCE)
+   */
+  async cleanupOldMetadata(): Promise<void> {
+    try {
+      console.log('🧹 [STORAGE] Starting metadata cleanup...');
+      
+      const metadataPath = `${PHOTOS_DIR}metadata.json`;
+      const info = await FileSystem.getInfoAsync(metadataPath);
+
+      if (!info.exists) {
+        console.log('📊 [STORAGE] No metadata file found');
+        return;
+      }
+
+      const content = await FileSystem.readAsStringAsync(metadataPath);
+      const allMetadata = JSON.parse(content);
+
+      let cleanedCount = 0;
+      const cleanedMetadata: Record<string, PhotoMetadata> = {};
+
+      // Clean each metadata entry
+      for (const [photoId, rawData] of Object.entries(allMetadata)) {
+        const data = rawData as any;
+        
+        // Remove 'encrypted' field if it exists
+        if ('encrypted' in data) {
+          cleanedCount++;
+          console.log(`🧹 [STORAGE] Cleaning photo: ${photoId.substring(0, 8)} (encrypted: ${data.encrypted})`);
+        }
+
+        cleanedMetadata[photoId] = {
+          id: data.id,
+          fileName: data.fileName,
+          timestamp: data.timestamp,
+          sender: data.sender,
+        };
+      }
+
+      // ALWAYS save cleaned metadata (force overwrite)
+      await FileSystem.writeAsStringAsync(
+        metadataPath,
+        JSON.stringify(cleanedMetadata, null, 2)
+      );
+      
+      console.log(`✅ [STORAGE] Metadata cleanup complete! Cleaned ${cleanedCount} entries, saved ${Object.keys(cleanedMetadata).length} total`);
+    } catch (error) {
+      console.error('❌ [STORAGE] Error cleaning metadata:', error);
     }
   }
 }

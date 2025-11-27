@@ -39,18 +39,24 @@ export const TimeLockModal: React.FC<TimeLockModalProps> = ({
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [sending, setSending] = useState(false);
 
+  const handleClose = () => {
+    // Reset state when closing
+    setShowDatePicker(false);
+    setContent('');
+    setUnlockDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
+    setSending(false);
+    onClose();
+  };
+
   const handleSend = async () => {
     if (!content.trim()) return;
     
     setSending(true);
     try {
       await onSend(content.trim(), unlockDate);
-      setContent('');
-      setUnlockDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
-      onClose();
+      handleClose();
     } catch (error) {
       console.error('Error sending time-lock:', error);
-    } finally {
       setSending(false);
     }
   };
@@ -88,7 +94,7 @@ export const TimeLockModal: React.FC<TimeLockModalProps> = ({
       visible={visible}
       transparent
       animationType="slide"
-      onRequestClose={onClose}
+      onRequestClose={handleClose}
     >
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -106,7 +112,7 @@ export const TimeLockModal: React.FC<TimeLockModalProps> = ({
                 <Text style={styles.subtitle}>to {partnerName}</Text>
               </View>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
               <Ionicons name="close" size={24} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
@@ -205,19 +211,42 @@ export const TimeLockModal: React.FC<TimeLockModalProps> = ({
           </TouchableOpacity>
 
           {/* Date Picker */}
-          {showDatePicker && (
+          {showDatePicker && Platform.OS === 'android' && (
             <DateTimePicker
               value={unlockDate}
               mode="datetime"
-              display="spinner"
+              display="default"
               onChange={(event, selectedDate) => {
                 setShowDatePicker(false);
-                if (selectedDate) {
+                if (event.type === 'set' && selectedDate) {
                   setUnlockDate(selectedDate);
                 }
               }}
               minimumDate={new Date()}
             />
+          )}
+          {showDatePicker && Platform.OS === 'ios' && (
+            <View style={styles.iosPickerContainer}>
+              <View style={styles.iosPickerHeader}>
+                <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                  <Text style={styles.iosPickerButton}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                  <Text style={[styles.iosPickerButton, styles.iosPickerDone]}>Done</Text>
+                </TouchableOpacity>
+              </View>
+              <DateTimePicker
+                value={unlockDate}
+                mode="datetime"
+                display="spinner"
+                onChange={(event, selectedDate) => {
+                  if (selectedDate) {
+                    setUnlockDate(selectedDate);
+                  }
+                }}
+                minimumDate={new Date()}
+              />
+            </View>
           )}
         </View>
       </KeyboardAvoidingView>
@@ -373,5 +402,25 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     fontFamily: 'Inter-Bold',
     fontSize: 17,
     color: 'white',
+  },
+  iosPickerContainer: {
+    backgroundColor: colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  iosPickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  iosPickerButton: {
+    fontSize: 16,
+    color: colors.primary,
+  },
+  iosPickerDone: {
+    fontFamily: 'Inter-SemiBold',
   },
 });

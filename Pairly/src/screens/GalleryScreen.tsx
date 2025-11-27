@@ -13,6 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ScreenLock } from '../components/ScreenLock';
+import { MemoriesLockModal } from '../components/MemoriesLockModal';
 import { useTheme } from '../contexts/ThemeContext';
 import { colors as defaultColors, gradients } from '../theme/colorsIOS';
 import { spacing, borderRadius, layout } from '../theme/spacingIOS';
@@ -51,9 +52,10 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
   const [viewMode, setViewMode] = useState<'grid' | 'timeline'>('grid');
   const [isLocked, setIsLocked] = useState(false);
   const [needsUnlock, setNeedsUnlock] = useState(false);
+  const [showMemoriesLock, setShowMemoriesLock] = useState(false);
 
   useEffect(() => {
-    checkLockStatus();
+    checkMemoriesLock();
   }, []);
 
   useEffect(() => {
@@ -62,27 +64,83 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
     }
   }, [needsUnlock]);
 
-  const checkLockStatus = async () => {
+  // ⚡ PERFECT SYSTEM: Auto-refresh gallery on events
+  useEffect(() => {
+    // Set up interval to refresh photos every 5 seconds when screen is active
+    const refreshInterval = setInterval(() => {
+      if (!needsUnlock) {
+        loadPhotos();
+      }
+    }, 5000);
+
+    // Listen for photo events from RealtimeService
+    const setupEventListeners = async () => {
+      const RealtimeService = (await import('../services/RealtimeService')).default;
+      
+      const handlePhotoSaved = () => {
+        console.log('🔔 [GALLERY] Photo saved event - refreshing...');
+        loadPhotos();
+      };
+      
+      const handlePhotoReceived = () => {
+        console.log('🔔 [GALLERY] Photo received event - refreshing...');
+        loadPhotos();
+      };
+      
+      RealtimeService.on('photo_saved', handlePhotoSaved);
+      RealtimeService.on('receive_photo', handlePhotoReceived);
+      
+      return () => {
+        RealtimeService.off('photo_saved', handlePhotoSaved);
+        RealtimeService.off('receive_photo', handlePhotoReceived);
+      };
+    };
+    
+    const cleanupPromise = setupEventListeners();
+
+    return () => {
+      clearInterval(refreshInterval);
+      cleanupPromise.then(cleanup => cleanup && cleanup());
+    };
+  }, [needsUnlock]);
+
+  const checkMemoriesLock = async () => {
     try {
-      const AppLockService = (await import('../services/AppLockService')).default;
-      const locked = await AppLockService.isLocked();
-      setNeedsUnlock(locked);
+      const MemoriesLockService = (await import('../services/MemoriesLockService')).default;
+      const locked = await MemoriesLockService.isLocked();
+      
+      if (locked) {
+        console.log('🔒 Memories are locked - showing unlock screen');
+        setShowMemoriesLock(true);
+        setNeedsUnlock(true);
+      } else {
+        console.log('🔓 Memories are unlocked');
+        setShowMemoriesLock(false);
+        setNeedsUnlock(false);
+        loadPhotos();
+      }
     } catch (error) {
-      console.error('Error checking lock status:', error);
+      console.error('Error checking memories lock:', error);
       loadPhotos();
     }
   };
 
-  const handleUnlock = () => {
+  const handleMemoriesUnlock = () => {
+    console.log('✅ Memories unlocked successfully');
+    setShowMemoriesLock(false);
     setNeedsUnlock(false);
     loadPhotos();
   };
 
   const loadPhotos = async () => {
     try {
-      // Load real photos from LocalPhotoStorage
+      console.log('🔄 [GALLERY] Loading photos...');
+      
+      // Load real photos from LocalPhotoStorage (PRIMARY STORAGE)
       const LocalPhotoStorage = (await import('../services/LocalPhotoStorage')).default;
       const allPhotos = await LocalPhotoStorage.getAllPhotos();
+      
+      console.log(`📊 [GALLERY] Found ${allPhotos.length} photos in storage`);
       
       // Convert to Photo format
       const loadedPhotos: Photo[] = await Promise.all(
@@ -105,14 +163,20 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
         return b.timestamp.getTime() - a.timestamp.getTime();
       });
 
+      // Count by sender
+      const myPhotos = sortedPhotos.filter(p => p.sender === 'me').length;
+      const partnerPhotos = sortedPhotos.filter(p => p.sender === 'partner').length;
+      
+      console.log(`✅ [GALLERY] Loaded: ${myPhotos} from me, ${partnerPhotos} from partner`);
+
       // Limit for free users (show only last 10 photos)
       const availablePhotos = isPremium ? sortedPhotos : sortedPhotos.slice(0, 10);
       
       setPhotos(availablePhotos);
-      console.log(`✅ Loaded ${availablePhotos.length} photos from storage (${validPhotos.length} total, user + partner)`);
+      console.log(`✅ [GALLERY] Displaying ${availablePhotos.length} photos`);
 
     } catch (error) {
-      console.error('❌ Error loading photos:', error);
+      console.error('❌ [GALLERY] Error loading photos:', error);
       // Fallback to empty array
       setPhotos([]);
     }
@@ -178,19 +242,16 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
   );
 
   // Show lock screen if needed
-  if (needsUnlock) {
-    return (
-      <ScreenLock
-        onUnlock={handleUnlock}
-        onCancel={onBack}
-        title="Unlock Memories"
-      />
-    );
-  }
-
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="white" />
+      
+      {/* Memories Lock Modal */}
+      <MemoriesLockModal
+        visible={showMemoriesLock}
+        onUnlock={handleMemoriesUnlock}
+        onCancel={onBack}
+      />
       
       {/* Header */}
       <View style={styles.header}>

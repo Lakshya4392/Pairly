@@ -109,12 +109,24 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
       await checkDailyLimit();
       setupPresence();
       
+      // Setup photo refresh listener
+      const RealtimeService = (await import('../services/RealtimeService')).default;
+      const handlePhotoUpdate = () => {
+        console.log('🔔 [UPLOAD] Photo update - refreshing recent photos');
+        loadRecentPhotos();
+      };
+      
+      RealtimeService.on('photo_saved', handlePhotoUpdate);
+      RealtimeService.on('receive_photo', handlePhotoUpdate);
+      
+      cleanupFunctions.push(() => {
+        RealtimeService.off('photo_saved', handlePhotoUpdate);
+        RealtimeService.off('receive_photo', handlePhotoUpdate);
+      });
+      
       // Setup listeners
       const cleanupPairing = await setupPairingListener();
-      const cleanupPhoto = await setupPhotoReceiveListener();
-      
       if (cleanupPairing) cleanupFunctions.push(cleanupPairing);
-      if (cleanupPhoto) cleanupFunctions.push(cleanupPhoto);
       
       setIsInitialized(true);
     };
@@ -471,8 +483,17 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
       // Listen for partner disconnected events
       const handlePartnerDisconnected = async (data: any) => {
         console.log('💔 Partner disconnected, updating UI...');
-        setPartnerName('Solo Mode');
+        setPartnerName('Your Person');
         setIsPartnerConnected(false);
+        
+        // Clear local storage
+        const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+        await AsyncStorage.removeItem('partner_info');
+        await AsyncStorage.removeItem('partner_id');
+        
+        // Show alert
+        setAlertMessage('Your partner has disconnected');
+        setShowErrorAlert(true);
       };
 
       RealtimeService.on('partner_connected', handlePartnerConnected);
@@ -493,47 +514,49 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
   const setupPhotoReceiveListener = async () => {
     try {
       const RealtimeService = (await import('../services/RealtimeService')).default;
-      const MomentService = (await import('../services/MomentService')).default;
       
-      // Listen for received photos
-      const handleReceivePhoto = async (data: any) => {
-        console.log('📥 Photo received from partner on home screen!');
+      // ⚡ IMPROVED: Listen for multiple events to ensure Recent Moments updates
+      const handlePhotoUpdate = async (eventName: string) => {
+        console.log(`📥 ${eventName} - updating Recent Moments!`);
         
         try {
-          // Save photo locally
-          await MomentService.receivePhoto(data);
+          // Small delay to ensure photo is saved
+          await new Promise(resolve => setTimeout(resolve, 300));
           
           // Reload recent photos to show the new one
           await loadRecentPhotos();
-          
-          // Update widget with latest photo
-          try {
-            const WidgetService = (await import('../services/WidgetService')).default;
-            const LocalPhotoStorage = (await import('../services/LocalPhotoStorage')).default;
-            const photos = await LocalPhotoStorage.getAllPhotos();
-            if (photos.length > 0) {
-              const latestPhoto = photos[0];
-              const photoUri = await LocalPhotoStorage.getPhotoUri(latestPhoto.id);
-              if (photoUri) {
-                await WidgetService.updateWidget(photoUri, partnerName);
-                console.log('✅ Widget updated with received photo');
-              }
-            }
-          } catch (error) {
-            console.log('⚠️ Widget update skipped:', error);
-          }
-          
-          console.log('✅ Received photo saved and displayed');
+          console.log('✅ Recent Moments updated with new photo');
         } catch (error) {
-          console.error('Error handling received photo:', error);
+          console.error('Error reloading recent photos:', error);
         }
       };
 
+      // Listen to multiple events for maximum reliability
+      const handlePhotoSaved = () => handlePhotoUpdate('photo_saved');
+      const handleReceivePhoto = () => handlePhotoUpdate('receive_photo');
+      const handleNewMoment = () => handlePhotoUpdate('new_moment');
+
+      RealtimeService.on('photo_saved', handlePhotoSaved);
       RealtimeService.on('receive_photo', handleReceivePhoto);
+      RealtimeService.on('new_moment', handleNewMoment);
+      
+      console.log('✅ Photo receive listeners registered (3 events)');
+
+      // ⚡ NEW: Also poll for updates every 5 seconds when app is active
+      const pollInterval = setInterval(async () => {
+        try {
+          await loadRecentPhotos();
+        } catch (error) {
+          // Silent
+        }
+      }, 5000);
 
       // Cleanup
       return () => {
+        RealtimeService.off('photo_saved', handlePhotoSaved);
         RealtimeService.off('receive_photo', handleReceivePhoto);
+        RealtimeService.off('new_moment', handleNewMoment);
+        clearInterval(pollInterval);
       };
     } catch (error) {
       console.error('Error setting up photo receive listener:', error);
@@ -542,6 +565,9 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
 
 
 
+  /**
+   * ⚡ Load latest 4 photos for recent moments
+   */
   const loadRecentPhotos = async () => {
     try {
       const LocalPhotoStorage = (await import('../services/LocalPhotoStorage')).default;
@@ -551,12 +577,12 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
       const sortedPhotos = photos.sort((a, b) => {
         const timeA = new Date(a.timestamp).getTime();
         const timeB = new Date(b.timestamp).getTime();
-        return timeB - timeA; // Newest first
+        return timeB - timeA;
       });
       
-      // Get last 8 photos - get URIs from metadata (2 rows of 4)
+      // Get latest 4 photos only
       const recentUris = await Promise.all(
-        sortedPhotos.slice(0, 8).map(async (p) => {
+        sortedPhotos.slice(0, 4).map(async (p) => {
           const uri = await LocalPhotoStorage.getPhotoUri(p.id);
           return uri || '';
         })
@@ -970,7 +996,7 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
             </View>
             <View style={styles.recentPhotosGrid}>
               {recentPhotos.length > 0 ? (
-                recentPhotos.slice(0, 8).map((photoUri, index) => (
+                recentPhotos.slice(0, 4).map((photoUri, index) => (
                   <View key={index} style={styles.recentPhotoThumb}>
                     {photoUri ? (
                       <Image 
@@ -1425,12 +1451,11 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
   },
   recentPhotosGrid: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
+    gap: spacing.md,
     marginBottom: spacing.lg,
   },
   recentPhotoThumb: {
-    width: '23%', // 4 columns with gaps
+    flex: 1,
     aspectRatio: 1,
     backgroundColor: colors.backgroundSecondary,
     borderRadius: borderRadius.md,

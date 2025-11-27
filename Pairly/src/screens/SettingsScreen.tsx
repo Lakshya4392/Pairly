@@ -67,28 +67,34 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [showReminderSettings, setShowReminderSettings] = useState(false);
   const [highQuality, setHighQuality] = useState(false);
+  const [memoriesLockEnabled, setMemoriesLockEnabled] = useState(false);
+  const [showMemoriesPINSetup, setShowMemoriesPINSetup] = useState(false);
 
   useEffect(() => {
     let mounted = true;
+    let unsubscribeDisconnect: (() => void) | null = null;
     
     const loadAll = async () => {
       if (!mounted) return;
       
-      // Load critical data in parallel (FAST!)
-      await Promise.all([
-        loadUserInfo(),
-        loadPartnerInfo(),
-      ]);
+      // Load critical data FIRST (synchronous)
+      loadUserInfo();
       
-      // Load non-critical data in background
+      // Load partner info (async but non-blocking)
+      loadPartnerInfo().catch(err => console.error('Partner load error:', err));
+      
+      // Load non-critical data in background (fire and forget)
+      setTimeout(() => {
+        if (mounted) {
+          loadSettings().catch(err => console.error('Settings load error:', err));
+          loadAppLockSettings().catch(err => console.error('App lock load error:', err));
+          loadAllPremiumSettings().catch(err => console.error('Premium settings load error:', err));
+        }
+      }, 100);
+      
+      // Setup disconnect listener
       if (mounted) {
-        Promise.all([
-          loadSettings(),
-          loadAppLockSettings(),
-          loadAllPremiumSettings(),
-        ]).catch(err => console.error('Background load error:', err));
-        
-        setupDisconnectListener();
+        unsubscribeDisconnect = await setupDisconnectListener();
       }
     };
     
@@ -96,6 +102,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     
     return () => {
       mounted = false;
+      if (unsubscribeDisconnect) {
+        unsubscribeDisconnect();
+      }
     };
   }, []); // Empty dependency - load once on mount
 
@@ -147,7 +156,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     }
   };
 
-  const setupDisconnectListener = async () => {
+  const setupDisconnectListener = async (): Promise<(() => void) | null> => {
     try {
       const RealtimeService = (await import('../services/RealtimeService')).default;
       
@@ -156,18 +165,24 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         console.log('💔 Partner disconnected you, updating UI...');
         setPartnerName(null);
         setIsPartnerConnected(false);
+        
+        // Clear local storage
+        await AsyncStorage.removeItem('partner_info');
+        await AsyncStorage.removeItem('partner_id');
+        
         setSuccessMessage('Your partner has disconnected');
         setShowSuccessAlert(true);
       };
 
       RealtimeService.on('partner_disconnected', handlePartnerDisconnected);
 
-      // Cleanup
+      // Return cleanup function
       return () => {
         RealtimeService.off('partner_disconnected', handlePartnerDisconnected);
       };
     } catch (error) {
       console.error('Error setting up disconnect listener:', error);
+      return null;
     }
   };
 
@@ -177,6 +192,11 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       const settings = await AppLockService.getSettings();
       setAppLockEnabled(settings.enabled);
       setBiometricEnabled(settings.useBiometric);
+      
+      // Load memories lock settings
+      const MemoriesLockService = (await import('../services/MemoriesLockService')).default;
+      const memoriesSettings = await MemoriesLockService.getSettings();
+      setMemoriesLockEnabled(memoriesSettings.enabled);
     } catch (error) {
       console.error('Error loading app lock settings:', error);
     }
@@ -277,6 +297,41 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       } catch (error) {
         console.error('Error disabling app lock:', error);
       }
+    }
+  };
+
+  const handleToggleMemoriesLock = async (enabled: boolean) => {
+    if (!isPremium) {
+      handlePremiumFeature('Memories Lock');
+      return;
+    }
+    
+    if (enabled) {
+      setShowMemoriesPINSetup(true);
+    } else {
+      try {
+        const MemoriesLockService = (await import('../services/MemoriesLockService')).default;
+        await MemoriesLockService.disableMemoriesLock();
+        setMemoriesLockEnabled(false);
+        setSuccessMessage('Memories lock disabled');
+        setShowSuccessAlert(true);
+      } catch (error) {
+        console.error('Error disabling memories lock:', error);
+      }
+    }
+  };
+
+  const handleSetMemoriesPIN = async (pin: string) => {
+    try {
+      const MemoriesLockService = (await import('../services/MemoriesLockService')).default;
+      const success = await MemoriesLockService.enableMemoriesLock(pin);
+      if (success) {
+        setMemoriesLockEnabled(true);
+        setSuccessMessage('Memories lock enabled successfully');
+        setShowSuccessAlert(true);
+      }
+    } catch (error) {
+      console.error('Error setting memories PIN:', error);
     }
   };
 
@@ -402,26 +457,37 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     try {
       console.log('🔄 Unpairing from partner...');
       
-      // Call backend API to disconnect
+      // Close alert first
+      setShowUnpairAlert(false);
+      
+      // Call PairingService unpair (handles everything)
       const PairingService = (await import('../services/PairingService')).default;
-      await PairingService.disconnect();
+      const result = await PairingService.unpair();
       
-      // Clear local storage
-      await AsyncStorage.removeItem('partner_info');
-      await AsyncStorage.removeItem('partner_id');
-      
-      // Update UI state
-      setPartnerName(null);
-      setIsPartnerConnected(false);
-      
-      console.log('✅ Unpaired successfully');
-      setSuccessMessage('Successfully disconnected from your partner');
-      setShowSuccessAlert(true);
-      
-      // Reload partner info to confirm
-      setTimeout(() => {
-        loadPartnerInfo();
-      }, 1000);
+      if (result.success) {
+        // Update UI state immediately
+        setPartnerName(null);
+        setIsPartnerConnected(false);
+        
+        console.log('✅ Unpaired successfully');
+        setSuccessMessage('Successfully disconnected from your partner');
+        setShowSuccessAlert(true);
+        
+        // Notify socket to disconnect partner's side
+        try {
+          const SocketConnectionService = (await import('../services/SocketConnectionService')).default;
+          if (SocketConnectionService.isConnected()) {
+            SocketConnectionService.emitFireAndForget('partner_disconnected', { 
+              timestamp: Date.now() 
+            });
+            console.log('✅ Partner notified via socket');
+          }
+        } catch (socketError) {
+          console.warn('⚠️ Socket notification failed:', socketError);
+        }
+      } else {
+        throw new Error(result.error || 'Failed to unpair');
+      }
       
     } catch (error: any) {
       console.error('❌ Unpair error:', error);
@@ -789,9 +855,25 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       <SectionHeader title="PRIVACY & SECURITY" />
       <View style={styles.section}>
         <SettingItem
+          icon="images"
+          title="Memories Lock"
+          subtitle="Lock your gallery with PIN or biometric"
+          isPremiumFeature={!isPremium}
+          onPress={() => !isPremium && handlePremiumFeature('Memories Lock')}
+          rightElement={
+            <Switch
+              value={memoriesLockEnabled}
+              onValueChange={handleToggleMemoriesLock}
+              trackColor={{ false: colors.border, true: colors.primaryLight }}
+              thumbColor={memoriesLockEnabled ? colors.primary : colors.textTertiary}
+              disabled={!isPremium}
+            />
+          }
+        />
+        <SettingItem
           icon="lock-closed"
           title="App Lock"
-          subtitle="Protect app with PIN or fingerprint"
+          subtitle="Protect entire app with PIN or fingerprint"
           isPremiumFeature={!isPremium}
           onPress={() => !isPremium && handlePremiumFeature('App Lock')}
           rightElement={
@@ -909,6 +991,15 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         visible={showPINSetup}
         onClose={() => setShowPINSetup(false)}
         onSetPIN={handleSetPIN}
+      />
+
+      {/* Memories PIN Setup Modal */}
+      <PINSetupModal
+        visible={showMemoriesPINSetup}
+        onClose={() => setShowMemoriesPINSetup(false)}
+        onSetPIN={handleSetMemoriesPIN}
+        title="Set Memories PIN"
+        subtitle="Create a PIN to protect your private moments"
       />
 
       {/* Sign Out Alert */}

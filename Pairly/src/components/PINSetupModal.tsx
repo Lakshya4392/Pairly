@@ -8,7 +8,8 @@ import {
   TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../theme/colorsIOS';
+import { useTheme } from '../contexts/ThemeContext';
+import { colors as defaultColors } from '../theme/colorsIOS';
 import { spacing, borderRadius } from '../theme/spacingIOS';
 import { shadows } from '../theme/shadowsIOS';
 
@@ -16,13 +17,19 @@ interface PINSetupModalProps {
   visible: boolean;
   onClose: () => void;
   onSetPIN: (pin: string) => void;
+  title?: string;
+  subtitle?: string;
 }
 
 export const PINSetupModal: React.FC<PINSetupModalProps> = ({
   visible,
   onClose,
   onSetPIN,
+  title = 'Set App PIN',
+  subtitle = 'Create a 4-6 digit PIN to secure your app',
 }) => {
+  const { colors } = useTheme();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [step, setStep] = useState<'enter' | 'confirm'>('enter');
@@ -63,11 +70,11 @@ export const PINSetupModal: React.FC<PINSetupModalProps> = ({
           </View>
 
           <Text style={styles.title}>
-            {step === 'enter' ? 'Set Your PIN' : 'Confirm Your PIN'}
+            {step === 'enter' ? title : 'Confirm Your PIN'}
           </Text>
           <Text style={styles.subtitle}>
             {step === 'enter' 
-              ? 'Enter a 4-digit PIN to protect your app' 
+              ? subtitle
               : 'Re-enter your PIN to confirm'
             }
           </Text>
@@ -108,7 +115,7 @@ export const PINSetupModal: React.FC<PINSetupModalProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -124,6 +131,8 @@ const styles = StyleSheet.create({
     maxWidth: 340,
     alignItems: 'center',
     ...shadows.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   iconContainer: {
     width: 80,
@@ -157,6 +166,8 @@ const styles = StyleSheet.create({
     letterSpacing: 8,
     color: colors.text,
     marginBottom: spacing.md,
+    borderWidth: 2,
+    borderColor: colors.border,
   },
   error: {
     fontSize: 14,
@@ -178,6 +189,8 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     backgroundColor: colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   continueButton: {
     backgroundColor: colors.primary,
