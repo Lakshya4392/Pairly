@@ -38,7 +38,7 @@ export const PairingScreen: React.FC<PairingScreenProps> = ({ onPairingComplete,
   const [generatedCode, setGeneratedCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [userName, setUserName] = useState('You');
-  
+
   // Animation values for cards
   const generateCardScale = useSharedValue(1);
   const joinCardScale = useSharedValue(1);
@@ -59,32 +59,32 @@ export const PairingScreen: React.FC<PairingScreenProps> = ({ onPairingComplete,
     });
 
     setLoading(true);
-    
+
     try {
       // Get user info and code in parallel for INSTANT generation
       const AuthService = (await import('../services/AuthService')).default;
       const PairingService = (await import('../services/PairingService')).default;
       const SocketConnectionService = (await import('../services/SocketConnectionService')).default;
-      
+
       const [user, code] = await Promise.all([
         AuthService.getUser(),
         PairingService.generateCode(),
       ]);
-      
+
       const displayName = user?.displayName?.split(' ')[0] || 'You';
-      
+
       // Ensure socket is connected for INSTANT pairing detection
       if (!SocketConnectionService.isConnected() && user) {
         console.log('🔌 Initializing socket for instant pairing...');
         await SocketConnectionService.initialize(user.id);
       }
-      
+
       setUserName(displayName);
       setGeneratedCode(code);
       setLoading(false);
-      
+
       console.log('✅ Code generated instantly:', code);
-      
+
       // Show connection screen immediately
       if (onShowConnectionScreen) {
         onShowConnectionScreen(code, displayName);
@@ -111,15 +111,15 @@ export const PairingScreen: React.FC<PairingScreenProps> = ({ onPairingComplete,
     }
 
     setLoading(true);
-    
+
     try {
       console.log('🔄 Joining with code...');
-      
+
       // Get user info and initialize socket in parallel for INSTANT connection
       const AuthService = (await import('../services/AuthService')).default;
       const PairingService = (await import('../services/PairingService')).default;
       const SocketConnectionService = (await import('../services/SocketConnectionService')).default;
-      
+
       const user = await AuthService.getUser();
       const displayName = user?.displayName?.split(' ')[0] || 'You';
       setUserName(displayName);
@@ -137,15 +137,15 @@ export const PairingScreen: React.FC<PairingScreenProps> = ({ onPairingComplete,
 
       // Try to join with code
       const pair = await PairingService.joinWithCode(inviteCode);
-      
+
       // Connection successful - store pair data
       await PairingService.storePair(pair);
       console.log('✅ Successfully joined with code, pair stored');
-      
+
       setLoading(false);
     } catch (error: any) {
       setLoading(false);
-      
+
       // Only show error if we haven't navigated to connection screen yet
       if (!onShowConnectionScreen) {
         Alert.alert('Error', error.message || 'Invalid or expired code');
@@ -153,7 +153,7 @@ export const PairingScreen: React.FC<PairingScreenProps> = ({ onPairingComplete,
         // If already on connection screen, show error and go back
         console.error('Join error:', error.message);
         Alert.alert(
-          'Connection Error', 
+          'Connection Error',
           error.message || 'Invalid or expired code. Please try again.',
           [
             {
@@ -264,9 +264,9 @@ export const PairingScreen: React.FC<PairingScreenProps> = ({ onPairingComplete,
         <View style={styles.codeDisplay}>
           <Text style={styles.codeText}>{generatedCode}</Text>
         </View>
-        
-        <TouchableOpacity 
-          style={styles.copyButton} 
+
+        <TouchableOpacity
+          style={styles.copyButton}
           onPress={handleCopyCode}
           activeOpacity={0.8}
         >
@@ -322,7 +322,7 @@ export const PairingScreen: React.FC<PairingScreenProps> = ({ onPairingComplete,
             autoFocus
           />
         </View>
-        
+
         <Text style={styles.inputHelper}>
           Ask your partner to share their invite code
         </Text>
@@ -369,7 +369,7 @@ export const PairingScreen: React.FC<PairingScreenProps> = ({ onPairingComplete,
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="white" />
-      
+
       {mode === 'choose' && renderChooseMode()}
       {mode === 'generate' && renderGenerateMode()}
       {mode === 'join' && renderJoinMode()}
@@ -493,7 +493,7 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     borderStyle: 'dashed',
   },
   codeText: {
-    fontSize: 28, 
+    fontSize: 28,
     lineHeight: 36,
     color: colors.primary,
     letterSpacing: 8,

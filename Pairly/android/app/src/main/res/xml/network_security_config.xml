@@ -13,6 +13,7 @@
         <domain includeSubdomains="true">localhost</domain>
         <domain includeSubdomains="true">10.0.2.2</domain>
         <domain includeSubdomains="true">192.168.1.1</domain>
-        <domain includeSubdomains="true">pairly-backend.onrender.com</domain>
+        <domain includeSubdomains="true">pairly-60qj.onrender.com</domain>
+        <domain includeSubdomains="true">onrender.com</domain>
     </domain-config>
 </network-security-config>

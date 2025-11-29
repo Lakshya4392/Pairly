@@ -27,14 +27,16 @@ export const getSocketUrl = (): string => {
 };
 
 /**
- * API Configuration
+ * API Configuration with APK optimization
  */
+const isAPK = !__DEV__ && Platform.OS === 'android';
+
 export const API_CONFIG = {
   baseUrl: getApiUrl(),
   socketUrl: getSocketUrl(),
-  timeout: 15000, // 15 seconds - aggressive timeout for faster failures
-  retryAttempts: 3, // 3 retries for better reliability
-  retryDelay: 500, // 500ms delay - faster retries
+  timeout: isAPK ? 30000 : 15000, // 30s for APK, 15s for dev
+  retryAttempts: isAPK ? 5 : 3, // More retries for APK
+  retryDelay: isAPK ? 2000 : 500, // Longer delay for APK
 };
 
 /**

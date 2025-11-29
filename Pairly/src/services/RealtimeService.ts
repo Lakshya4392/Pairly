@@ -1,9 +1,12 @@
 import { io, Socket } from 'socket.io-client';
-import { AppState, AppStateStatus } from 'react-native';
+import { AppState, AppStateStatus, Platform } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
 import { API_CONFIG } from '../config/api.config';
 import { APP_CONFIG, log } from '../config/app.config';
 import AuthService from './AuthService';
+
+// APK detection
+const isAPK = !__DEV__ && Platform.OS === 'android';
 
 type EventCallback = (data: any) => void;
 
@@ -73,26 +76,47 @@ class RealtimeService {
       }
 
       log.network('Connecting to Socket.IO:', API_CONFIG.socketUrl);
+      console.log('🔌 Creating realtime socket with URL:', API_CONFIG.socketUrl);
+      console.log('🔑 Auth token present:', !!token);
+      
       this.socket = io(API_CONFIG.socketUrl, {
         auth: {
           token,
+          userId,
         },
-        // ⚡ IMPROVED: Faster connection with polling fallback for Render cold starts
-        transports: ['polling', 'websocket'], // Polling first for cold starts
+        // ⚡ BULLETPROOF: Transport settings optimized for APK
+        // APK: Start with polling (more reliable), then upgrade to websocket
+        // Dev: Start with polling for Render cold starts
+        transports: ['polling', 'websocket'],
         reconnection: true,
-        reconnectionAttempts: 5, // More attempts for APK
-        reconnectionDelay: 2000, // 2s delay for APK
-        reconnectionDelayMax: 10000, // 10s max for APK
-        timeout: 30000, // 30s timeout for Render cold starts (APK needs more time)
+        reconnectionAttempts: isAPK ? 10 : 5,
+        reconnectionDelay: isAPK ? 2000 : 1000,
+        reconnectionDelayMax: isAPK ? 20000 : 10000,
+        timeout: isAPK ? 45000 : 20000,
         forceNew: false,
         autoConnect: true,
         multiplex: false,
-        upgrade: true, // Allow upgrade to WebSocket after connection
+        upgrade: true,
         rememberUpgrade: true,
         // APK specific settings
         path: '/socket.io/',
-        secure: true, // Use HTTPS
-        rejectUnauthorized: false, // Allow self-signed certs in dev
+        secure: true,
+        rejectUnauthorized: false,
+        withCredentials: true,
+        // Query params
+        query: {
+          userId: userId,
+          platform: Platform.OS,
+          isAPK: isAPK.toString(),
+          version: '1.0.0',
+        },
+        // Heartbeat settings - more aggressive for APK
+        pingTimeout: isAPK ? 45000 : 30000,
+        pingInterval: isAPK ? 20000 : 15000,
+        // Extra options for APK reliability
+        extraHeaders: {
+          'User-Agent': `Pairly-${Platform.OS}-${isAPK ? 'APK' : 'Dev'}`,
+        },
       });
 
       this.setupEventHandlers(userId);

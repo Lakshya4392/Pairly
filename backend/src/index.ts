@@ -18,21 +18,28 @@ FCMService.initialize();
 const app = express();
 const httpServer = createServer(app);
 
-// Initialize Socket.IO with optimized settings
+// Initialize Socket.IO with optimized settings for APK
 const io = new Server(httpServer, {
   cors: {
     origin: '*', // Configure properly in production
     methods: ['GET', 'POST'],
+    credentials: true,
   },
-  // Performance optimizations - tuned for fast, reliable connections
-  pingTimeout: 5000, // 5s - Faster timeout detection
-  pingInterval: 8000, // 8s - Check connection frequently (synced with frontend heartbeat)
-  upgradeTimeout: 2000, // 2s - Even faster upgrade to WebSocket
-  maxHttpBufferSize: 1e6, // 1MB max message size
-  transports: ['websocket', 'polling'], // WebSocket preferred
+  // ⚡ APK OPTIMIZED: Polling first for reliability, then upgrade to WebSocket
+  transports: ['polling', 'websocket'], // Polling first for APK reliability
+  allowUpgrades: true, // Allow upgrade to WebSocket after connection
+  upgradeTimeout: 10000, // 10s - Give more time for APK to upgrade
+  pingTimeout: 45000, // 45s - Match APK frontend timeout
+  pingInterval: 20000, // 20s - Match APK frontend interval
+  maxHttpBufferSize: 5e6, // 5MB max message size (for photos)
   allowEIO3: true, // Support older clients
-  perMessageDeflate: false, // Disable compression for speed (matches frontend)
-  connectTimeout: 5000, // 5s - Fast connection timeout
+  perMessageDeflate: false, // Disable compression for speed
+  connectTimeout: 45000, // 45s - Match APK frontend timeout
+  // CORS headers for APK
+  allowRequest: (req, callback) => {
+    // Allow all origins for now (configure properly in production)
+    callback(null, true);
+  },
 });
 
 // Initialize Prisma Client with connection pooling

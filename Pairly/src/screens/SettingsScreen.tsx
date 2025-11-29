@@ -34,11 +34,11 @@ interface SettingsScreenProps {
 
 type TabType = 'account' | 'notifications' | 'appearance' | 'about';
 
-export const SettingsScreen: React.FC<SettingsScreenProps> = ({ 
-  onBack, 
+export const SettingsScreen: React.FC<SettingsScreenProps> = ({
+  onBack,
   isPremium = false,
   onUpgradeToPremium,
-  onNavigateToPairing 
+  onNavigateToPairing
 }) => {
   const { colors, isDarkMode, toggleDarkMode: toggleTheme } = useTheme();
   const styles = React.useMemo(() => createStyles(colors), [colors]);
@@ -73,16 +73,16 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   useEffect(() => {
     let mounted = true;
     let unsubscribeDisconnect: (() => void) | null = null;
-    
+
     const loadAll = async () => {
       if (!mounted) return;
-      
+
       // Load critical data FIRST (synchronous)
       loadUserInfo();
-      
+
       // Load partner info (async but non-blocking)
       loadPartnerInfo().catch(err => console.error('Partner load error:', err));
-      
+
       // Load non-critical data in background (fire and forget)
       setTimeout(() => {
         if (mounted) {
@@ -91,15 +91,15 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           loadAllPremiumSettings().catch(err => console.error('Premium settings load error:', err));
         }
       }, 100);
-      
+
       // Setup disconnect listener
       if (mounted) {
         unsubscribeDisconnect = await setupDisconnectListener();
       }
     };
-    
+
     loadAll();
-    
+
     return () => {
       mounted = false;
       if (unsubscribeDisconnect) {
@@ -112,10 +112,10 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     try {
       const SettingsService = (await import('../services/SettingsService')).default;
       const settings = await SettingsService.getSettings();
-      
+
       setNotifications(settings.notificationsEnabled);
       setPartnerOnlineNotif(settings.partnerOnlineNotifications);
-      
+
       console.log('✅ Settings loaded:', settings);
     } catch (error) {
       console.error('❌ Error loading settings:', error);
@@ -134,14 +134,14 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     try {
       const PairingService = (await import('../services/PairingService')).default;
       const apiCache = (await import('../utils/apiCache')).default;
-      
+
       // Use cache to prevent duplicate calls
       const partner = await apiCache.get(
         'partner_info',
         () => PairingService.getPartner(),
         30000 // 30 seconds cache
       );
-      
+
       if (partner) {
         setPartnerName(partner.displayName);
         setIsPartnerConnected(true);
@@ -159,17 +159,17 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const setupDisconnectListener = async (): Promise<(() => void) | null> => {
     try {
       const RealtimeService = (await import('../services/RealtimeService')).default;
-      
+
       // Listen for partner disconnected event
       const handlePartnerDisconnected = async (data: any) => {
         console.log('💔 Partner disconnected you, updating UI...');
         setPartnerName(null);
         setIsPartnerConnected(false);
-        
+
         // Clear local storage
         await AsyncStorage.removeItem('partner_info');
         await AsyncStorage.removeItem('partner_id');
-        
+
         setSuccessMessage('Your partner has disconnected');
         setShowSuccessAlert(true);
       };
@@ -192,7 +192,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       const settings = await AppLockService.getSettings();
       setAppLockEnabled(settings.enabled);
       setBiometricEnabled(settings.useBiometric);
-      
+
       // Load memories lock settings
       const MemoriesLockService = (await import('../services/MemoriesLockService')).default;
       const memoriesSettings = await MemoriesLockService.getSettings();
@@ -206,30 +206,30 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     try {
       // Theme is already loaded from ThemeContext (isDarkMode)
       // No need to load separately
-      
+
       // Load high quality setting
       const highQualitySetting = await AsyncStorage.getItem('@pairly_high_quality');
       if (highQualitySetting) {
         setHighQuality(highQualitySetting === 'true');
       }
-      
+
       // Load private mode
       const privateModeSetting = await AsyncStorage.getItem('@pairly_private_mode');
       if (privateModeSetting) {
         setPrivateMode(privateModeSetting === 'true');
       }
-      
+
       // Load reminders
       const morningReminder = await AsyncStorage.getItem('@pairly_morning_reminder');
       if (morningReminder) {
         setGoodMorningReminder(morningReminder === 'true');
       }
-      
+
       const nightReminder = await AsyncStorage.getItem('@pairly_night_reminder');
       if (nightReminder) {
         setGoodNightReminder(nightReminder === 'true');
       }
-      
+
       console.log('✅ All premium settings loaded');
     } catch (error) {
       console.error('Error loading premium settings:', error);
@@ -242,7 +242,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       handlePremiumFeature('Dark Mode');
       return;
     }
-    
+
     try {
       // Use ThemeContext's toggleDarkMode for instant updates
       await toggleTheme();
@@ -266,7 +266,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       handlePremiumFeature('High Quality Upload');
       return;
     }
-    
+
     setHighQuality(enabled);
     try {
       await AsyncStorage.setItem('@pairly_high_quality', enabled.toString());
@@ -284,7 +284,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       handlePremiumFeature('App Lock');
       return;
     }
-    
+
     if (enabled) {
       setShowPINSetup(true);
     } else {
@@ -305,7 +305,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       handlePremiumFeature('Memories Lock');
       return;
     }
-    
+
     if (enabled) {
       setShowMemoriesPINSetup(true);
     } else {
@@ -340,7 +340,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       handlePremiumFeature('Private Mode');
       return;
     }
-    
+
     setPrivateMode(enabled);
     try {
       await AsyncStorage.setItem('@pairly_private_mode', enabled.toString());
@@ -356,11 +356,11 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       handlePremiumFeature('Smart Reminders');
       return;
     }
-    
+
     setGoodMorningReminder(enabled);
     try {
       await AsyncStorage.setItem('@pairly_morning_reminder', enabled.toString());
-      
+
       // Schedule/cancel notification
       const NotificationService = (await import('../services/NotificationService')).default;
       if (enabled && partnerName) {
@@ -368,7 +368,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       } else {
         await NotificationService.cancelReminder('goodMorning');
       }
-      
+
       setSuccessMessage(enabled ? 'Good morning reminder enabled' : 'Good morning reminder disabled');
       setShowSuccessAlert(true);
     } catch (error) {
@@ -381,11 +381,11 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       handlePremiumFeature('Smart Reminders');
       return;
     }
-    
+
     setGoodNightReminder(enabled);
     try {
       await AsyncStorage.setItem('@pairly_night_reminder', enabled.toString());
-      
+
       // Schedule/cancel notification
       const NotificationService = (await import('../services/NotificationService')).default;
       if (enabled && partnerName) {
@@ -393,7 +393,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       } else {
         await NotificationService.cancelReminder('goodNight');
       }
-      
+
       setSuccessMessage(enabled ? 'Good night reminder enabled' : 'Good night reminder disabled');
       setShowSuccessAlert(true);
     } catch (error) {
@@ -435,7 +435,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       // Clear premium status
       const PremiumService = (await import('../services/PremiumService')).default;
       await PremiumService.clearPremiumStatus();
-      
+
       // Sign out
       await signOut();
       console.log('✅ Signed out successfully');
@@ -456,29 +456,29 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const confirmUnpair = async () => {
     try {
       console.log('🔄 Unpairing from partner...');
-      
+
       // Close alert first
       setShowUnpairAlert(false);
-      
+
       // Call PairingService unpair (handles everything)
       const PairingService = (await import('../services/PairingService')).default;
       const result = await PairingService.unpair();
-      
+
       if (result.success) {
         // Update UI state immediately
         setPartnerName(null);
         setIsPartnerConnected(false);
-        
+
         console.log('✅ Unpaired successfully');
         setSuccessMessage('Successfully disconnected from your partner');
         setShowSuccessAlert(true);
-        
+
         // Notify socket to disconnect partner's side
         try {
           const SocketConnectionService = (await import('../services/SocketConnectionService')).default;
           if (SocketConnectionService.isConnected()) {
-            SocketConnectionService.emitFireAndForget('partner_disconnected', { 
-              timestamp: Date.now() 
+            SocketConnectionService.emitFireAndForget('partner_disconnected', {
+              timestamp: Date.now()
             });
             console.log('✅ Partner notified via socket');
           }
@@ -488,7 +488,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       } else {
         throw new Error(result.error || 'Failed to unpair');
       }
-      
+
     } catch (error: any) {
       console.error('❌ Unpair error:', error);
       setSuccessMessage(error.message || 'Failed to unpair. Please try again.');
@@ -524,13 +524,13 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     try {
       // Delete from Clerk
       await user?.delete();
-      
+
       // Clear all local data
       await AsyncStorage.clear();
-      
+
       // TODO: Call backend to delete user data
       // await fetch(`${API_BASE_URL}/api/user/${user.id}`, { method: 'DELETE' });
-      
+
       console.log('✅ Account deleted');
       // Navigator will automatically redirect to auth screen
     } catch (error) {
@@ -561,12 +561,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     <Text style={styles.sectionHeader}>{title}</Text>
   );
 
-  const SettingItem = ({ 
-    icon, 
-    title, 
-    subtitle, 
-    onPress, 
-    rightElement, 
+  const SettingItem = ({
+    icon,
+    title,
+    subtitle,
+    onPress,
+    rightElement,
     isPremiumFeature = false,
     isLast = false,
   }: {
@@ -578,9 +578,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     isPremiumFeature?: boolean;
     isLast?: boolean;
   }) => (
-    <TouchableOpacity 
+    <TouchableOpacity
       style={[
-        styles.settingItem, 
+        styles.settingItem,
         isPremiumFeature && !isPremium && styles.premiumItem,
         isLast && styles.lastItem
       ]}
@@ -590,10 +590,10 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     >
       <View style={styles.settingLeft}>
         <View style={[styles.settingIcon, isPremiumFeature && !isPremium && styles.premiumIcon]}>
-          <Ionicons 
-            name={icon as any} 
-            size={20} 
-            color={isPremiumFeature && !isPremium ? colors.secondary : colors.primary} 
+          <Ionicons
+            name={icon as any}
+            size={20}
+            color={isPremiumFeature && !isPremium ? colors.secondary : colors.primary}
           />
         </View>
         <View style={styles.settingText}>
@@ -654,7 +654,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   {userEmail}
                 </Text>
               </View>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.premiumEditButton}
                 onPress={() => setShowProfileEditor(true)}
               >
@@ -679,7 +679,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               {userEmail}
             </Text>
           </View>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.regularEditButton}
             onPress={() => setShowProfileEditor(true)}
           >
@@ -693,7 +693,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const PartnerCard = () => {
     if (!isPartnerConnected || !partnerName) {
       return (
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.partnerCardSettings}
           onPress={onNavigateToPairing}
           activeOpacity={0.7}
@@ -711,7 +711,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     }
 
     return (
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.partnerCardSettings}
         onPress={handleUnpairPartner}
         activeOpacity={0.7}
@@ -739,34 +739,34 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         </View>
 
         {isPremium && (
-        <>
-          <SectionHeader title="PREMIUM" />
-          <View style={styles.section}>
-            <SettingItem
-              icon="diamond"
-              title="Premium Plan"
-              subtitle="Manage your subscription"
-              onPress={() => {
-                console.log('💎 Premium Plan tapped');
-                console.log('💎 onUpgradeToPremium exists:', !!onUpgradeToPremium);
-                // Navigate to manage premium screen
-                if (onUpgradeToPremium) {
-                  onUpgradeToPremium();
-                } else {
-                  console.log('❌ onUpgradeToPremium callback missing!');
-                }
-              }}
-              isLast
-            />
-          </View>
-        </>
-      )}
+          <>
+            <SectionHeader title="PREMIUM" />
+            <View style={styles.section}>
+              <SettingItem
+                icon="diamond"
+                title="Premium Plan"
+                subtitle="Manage your subscription"
+                onPress={() => {
+                  console.log('💎 Premium Plan tapped');
+                  console.log('💎 onUpgradeToPremium exists:', !!onUpgradeToPremium);
+                  // Navigate to manage premium screen
+                  if (onUpgradeToPremium) {
+                    onUpgradeToPremium();
+                  } else {
+                    console.log('❌ onUpgradeToPremium callback missing!');
+                  }
+                }}
+                isLast
+              />
+            </View>
+          </>
+        )}
 
-      <SectionHeader title="PARTNER" />
-      <View style={styles.section}>
-        <PartnerCard />
-      </View>
-    </ScrollView>
+        <SectionHeader title="PARTNER" />
+        <View style={styles.section}>
+          <PartnerCard />
+        </View>
+      </ScrollView>
     );
   };
 
@@ -899,7 +899,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         const BackgroundSyncService = (await import('../services/BackgroundSyncService')).default;
         // You can create a new endpoint for ratings or add to user profile
         console.log('✅ Rating submitted:', { rating, feedback, userId: user.id });
-        
+
         // Show success message
         setSuccessMessage(`Thank you for your ${rating}-star rating!`);
         setShowSuccessAlert(true);
@@ -929,7 +929,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           title="Sign Out"
           onPress={handleSignOut}
         />
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.dangerItem}
           onPress={() => setShowDeleteModal(true)}
         >
@@ -958,7 +958,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="white" />
-      
+
       {/* Profile Editor Modal */}
       <ProfileEditor
         visible={showProfileEditor}
@@ -1099,7 +1099,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           onUpgradeToPremium?.();
         }}
       />
-      
+
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={onBack} style={styles.backButton}>
@@ -1111,7 +1111,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
       {/* Premium Banner */}
       {!isPremium && onUpgradeToPremium && (
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.premiumBanner}
           onPress={onUpgradeToPremium}
           activeOpacity={0.8}
@@ -1141,10 +1141,10 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             onPress={() => setActiveTab(tab.id)}
             activeOpacity={0.7}
           >
-            <Ionicons 
-              name={tab.icon as any} 
-              size={20} 
-              color={activeTab === tab.id ? colors.primary : colors.textTertiary} 
+            <Ionicons
+              name={tab.icon as any}
+              size={20}
+              color={activeTab === tab.id ? colors.primary : colors.textTertiary}
             />
             <Text style={[
               styles.tabLabel,
@@ -1174,7 +1174,7 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  
+
   // Header
   header: {
     flexDirection: 'row',

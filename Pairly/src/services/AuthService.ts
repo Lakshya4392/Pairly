@@ -11,20 +11,37 @@ class AuthService {
   private user: User | null = null;
 
   /**
-   * Store authentication token securely
+   * Store authentication token securely with AsyncStorage backup
    */
   async storeToken(token: string): Promise<void> {
     try {
+      // Store in SecureStore
       await SecureStore.setItemAsync(TOKEN_KEY, token);
+      console.log('✅ Token stored in SecureStore');
+      
+      // Also store in AsyncStorage as backup for APK
+      await AsyncStorage.setItem(`${TOKEN_KEY}_backup`, token);
+      await AsyncStorage.setItem('auth_token', token); // For socket auth
+      console.log('✅ Token backup stored in AsyncStorage');
+      
       this.token = token;
     } catch (error) {
       console.error('Error storing token:', error);
-      throw error;
+      // Try AsyncStorage as fallback
+      try {
+        await AsyncStorage.setItem(`${TOKEN_KEY}_backup`, token);
+        await AsyncStorage.setItem('auth_token', token);
+        this.token = token;
+        console.log('✅ Token stored in AsyncStorage fallback');
+      } catch (fallbackError) {
+        console.error('AsyncStorage fallback failed:', fallbackError);
+        throw error;
+      }
     }
   }
 
   /**
-   * Get stored authentication token
+   * Get stored authentication token with AsyncStorage fallback
    */
   async getToken(): Promise<string | null> {
     if (this.token) {
@@ -32,22 +49,57 @@ class AuthService {
     }
 
     try {
+      // Try SecureStore first
       const token = await SecureStore.getItemAsync(TOKEN_KEY);
-      this.token = token;
-      return token;
+      if (token) {
+        this.token = token;
+        console.log('✅ Token retrieved from SecureStore');
+        return token;
+      }
+      
+      // Fallback to AsyncStorage
+      const backupToken = await AsyncStorage.getItem(`${TOKEN_KEY}_backup`);
+      if (backupToken) {
+        this.token = backupToken;
+        console.log('✅ Token retrieved from AsyncStorage backup');
+        return backupToken;
+      }
+      
+      // Try auth_token key
+      const authToken = await AsyncStorage.getItem('auth_token');
+      if (authToken) {
+        this.token = authToken;
+        console.log('✅ Token retrieved from auth_token');
+        return authToken;
+      }
+      
+      return null;
     } catch (error) {
       console.error('Error getting token:', error);
+      // Try AsyncStorage as last resort
+      try {
+        const backupToken = await AsyncStorage.getItem(`${TOKEN_KEY}_backup`);
+        if (backupToken) {
+          this.token = backupToken;
+          return backupToken;
+        }
+      } catch (fallbackError) {
+        console.error('AsyncStorage fallback failed:', fallbackError);
+      }
       return null;
     }
   }
 
   /**
-   * Remove authentication token
+   * Remove authentication token from all storages
    */
   async removeToken(): Promise<void> {
     try {
       await SecureStore.deleteItemAsync(TOKEN_KEY);
+      await AsyncStorage.removeItem(`${TOKEN_KEY}_backup`);
+      await AsyncStorage.removeItem('auth_token');
       this.token = null;
+      console.log('✅ Token removed from all storages');
     } catch (error) {
       console.error('Error removing token:', error);
     }

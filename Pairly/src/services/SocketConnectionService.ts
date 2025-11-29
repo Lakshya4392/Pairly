@@ -1,7 +1,10 @@
 import { io, Socket } from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { AppState, AppStateStatus } from 'react-native';
+import { AppState, AppStateStatus, Platform } from 'react-native';
 import { API_CONFIG } from '../config/api.config';
+
+// APK detection
+const isAPK = !__DEV__ && Platform.OS === 'android';
 
 /**
  * Bulletproof Socket Connection Service
@@ -36,10 +39,50 @@ class SocketConnectionService {
     try {
       console.log(`🔌 Initializing socket connection for user: ${userId}`);
       
+      // ⚡ BULLETPROOF: Wait for internet connection
+      try {
+        const ConnectionManager = (await import('../utils/ConnectionManager')).default;
+        const isOnline = ConnectionManager.isConnected();
+        
+        if (!isOnline) {
+          console.log('⏳ Waiting for internet connection...');
+          const connected = await ConnectionManager.waitForConnection(10000);
+          if (!connected) {
+            console.warn('⚠️ No internet connection, will retry later');
+            this.isConnecting = false;
+            return;
+          }
+        }
+      } catch (error) {
+        console.warn('⚠️ ConnectionManager not available, proceeding anyway');
+      }
+      
       // ⚡ IMPROVED: Get auth token for secure connection
       const token = await AsyncStorage.getItem('auth_token');
       if (!token) {
         console.warn('⚠️ No auth token found, socket may not authenticate properly');
+      } else {
+        console.log('✅ Auth token found for socket connection');
+      }
+      
+      // ⚡ BULLETPROOF: Check backend health first
+      try {
+        console.log('🏥 Checking backend health...');
+        const healthResponse = await fetch(`${API_CONFIG.baseUrl}/health`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          signal: AbortSignal.timeout(10000), // 10s timeout
+        });
+        
+        if (healthResponse.ok) {
+          console.log('✅ Backend is healthy and ready');
+        } else {
+          console.warn('⚠️ Backend health check failed, but proceeding anyway');
+        }
+      } catch (healthError) {
+        console.warn('⚠️ Backend health check failed (cold start?), proceeding anyway');
+        // Wait a bit for backend to wake up
+        await new Promise(resolve => setTimeout(resolve, 2000));
       }
       
       // Disconnect existing socket if any
@@ -48,28 +91,42 @@ class SocketConnectionService {
         this.socket = null;
       }
 
-      // Create new socket connection with optimized settings for INSTANT connection
+      // Create new socket connection with BULLETPROOF settings for APK
+      console.log('🔌 Creating socket with URL:', API_CONFIG.baseUrl);
+      console.log('🔑 Auth token present:', !!token);
+      
       this.socket = io(API_CONFIG.baseUrl, {
-        // ⚡ IMPROVED: Security - Pass auth token
+        // ⚡ BULLETPROOF: Auth with token
         auth: {
           token: token || undefined,
+          userId: userId,
         },
-        // ⚡ IMPROVED: Polling first for Render cold starts, then upgrade to WebSocket
-        transports: ['polling', 'websocket'], // Polling first for reliability
-        timeout: 30000, // 30 second timeout for Render cold starts (APK needs more time)
+        // ⚡ BULLETPROOF: Transport settings optimized for APK
+        transports: isAPK ? ['websocket', 'polling'] : ['polling', 'websocket'],
+        timeout: isAPK ? 60000 : 20000,
         reconnection: true,
-        reconnectionAttempts: 5, // More attempts for APK
-        reconnectionDelay: 2000, // 2s delay for APK
-        reconnectionDelayMax: 15000, // 15s max for APK
-        forceNew: true,
+        reconnectionAttempts: isAPK ? 10 : 5,
+        reconnectionDelay: isAPK ? 3000 : 1000,
+        reconnectionDelayMax: isAPK ? 30000 : 10000,
+        forceNew: false,
         // Additional optimizations
-        upgrade: true, // Allow upgrade to WebSocket
-        rememberUpgrade: true, // Remember successful upgrade
-        autoConnect: true, // Auto-connect immediately
+        upgrade: true,
+        rememberUpgrade: true,
+        autoConnect: true,
         // APK specific settings
         path: '/socket.io/',
-        secure: true, // Use HTTPS
-        rejectUnauthorized: false, // Allow self-signed certs in dev
+        secure: true,
+        rejectUnauthorized: false,
+        // Query params
+        query: {
+          userId: userId,
+          platform: Platform.OS,
+          isAPK: isAPK.toString(),
+          version: '1.0.0',
+        },
+        // Heartbeat settings
+        pingTimeout: isAPK ? 60000 : 30000,
+        pingInterval: isAPK ? 25000 : 15000,
       });
 
       this.setupEventHandlers();

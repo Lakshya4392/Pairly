@@ -29,26 +29,59 @@ import { ThemeProvider as PairlyThemeProvider } from './src/contexts/ThemeContex
 // Import navigation
 import { AppNavigator } from './src/navigation/AppNavigator';
 
-// ⚡ IMPROVED: Robust token cache with error handling and logging
+// ⚡ BULLETPROOF: Token cache with AsyncStorage fallback for APK
 const tokenCache = {
   async getToken(key: string) {
     try {
+      // Try SecureStore first
       const token = await SecureStore.getItemAsync(key);
       if (token) {
         console.log('✅ Token retrieved from SecureStore:', key);
+        return token;
       }
-      return token;
-    } catch (err) {
-      console.error('❌ Error getting token from SecureStore:', err);
+      
+      // Fallback to AsyncStorage for APK
+      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+      const fallbackToken = await AsyncStorage.getItem(`clerk_${key}`);
+      if (fallbackToken) {
+        console.log('✅ Token retrieved from AsyncStorage fallback:', key);
+        return fallbackToken;
+      }
+      
       return null;
+    } catch (err) {
+      console.error('❌ Error getting token:', err);
+      // Try AsyncStorage as last resort
+      try {
+        const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+        const fallbackToken = await AsyncStorage.getItem(`clerk_${key}`);
+        return fallbackToken;
+      } catch (fallbackErr) {
+        console.error('❌ AsyncStorage fallback failed:', fallbackErr);
+        return null;
+      }
     }
   },
   async saveToken(key: string, value: string) {
     try {
+      // Save to both SecureStore AND AsyncStorage for reliability
       await SecureStore.setItemAsync(key, value);
       console.log('✅ Token saved to SecureStore:', key);
+      
+      // Also save to AsyncStorage as backup
+      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+      await AsyncStorage.setItem(`clerk_${key}`, value);
+      console.log('✅ Token also saved to AsyncStorage backup:', key);
     } catch (err) {
       console.error('❌ Error saving token to SecureStore:', err);
+      // Try AsyncStorage as fallback
+      try {
+        const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+        await AsyncStorage.setItem(`clerk_${key}`, value);
+        console.log('✅ Token saved to AsyncStorage fallback:', key);
+      } catch (fallbackErr) {
+        console.error('❌ AsyncStorage fallback save failed:', fallbackErr);
+      }
     }
   },
 };
@@ -126,7 +159,14 @@ export default function App() {
   // Initialize background services and notifications
   useEffect(() => {
     const initializeApp = async () => {
-      // ⚡ OPTIMIZED: Non-blocking initialization to prevent freeze
+      // ⚡ BULLETPROOF: Initialize connection manager first
+      try {
+        const ConnectionManager = (await import('./src/utils/ConnectionManager')).default;
+        ConnectionManager.initialize();
+        console.log('✅ ConnectionManager initialized');
+      } catch (error) {
+        console.error('❌ ConnectionManager init failed:', error);
+      }
       
       // Initialize widget (fast, non-blocking)
       WidgetBackgroundService.initialize();
