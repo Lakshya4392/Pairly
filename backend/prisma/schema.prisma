@@ -22,6 +22,7 @@ model User {
   lastName      String?
   photoUrl      String?
   phoneNumber   String?
+  referralCode  String?   @unique @default(cuid())
   
   // Premium subscription
   isPremium          Boolean   @default(false)
@@ -174,4 +175,36 @@ model DualMoment {
   @@index([userId, status])
   @@index([partnerId, status])
   @@index([createdAt])
+}
+
+// Whitelist System - "Invite-Only Access Control"
+model InvitedUser {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  phoneNumber   String?   @unique
+  invitedBy     String?   // User ID who sent the invite
+  status        String    @default("pending") // 'pending' | 'joined' | 'expired'
+  inviteCode    String    @unique @default(cuid())
+  invitedAt     DateTime  @default(now())
+  joinedAt      DateTime?
+  expiresAt     DateTime? // Optional expiry for invite
+  
+  // Metadata
+  source        String?   // 'website', 'app', 'referral', etc.
+  name          String?   // Optional name
+  
+  // Reward tracking
+  rewardGranted Boolean   @default(false)
+  rewardType    String?   // 'premium_month' | 'premium_3months' | etc.
+  
+  // New fields for Complete Setup
+  clerkId       String?   @unique
+  referralCount Int       @default(0)
+  isPremium     Boolean   @default(false)
+  
+  @@index([email])
+  @@index([phoneNumber])
+  @@index([invitedBy])
+  @@index([status])
+  @@index([clerkId])
 }

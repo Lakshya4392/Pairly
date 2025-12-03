@@ -10,7 +10,8 @@
     "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
-    "prisma:studio": "prisma studio"
+    "prisma:studio": "prisma studio",
+    "add-whitelist": "ts-node src/scripts/addToWhitelist.ts"
   },
   "keywords": [],
   "author": "",
@@ -27,6 +28,7 @@
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.2",
     "node-cron": "^4.2.1",
+    "resend": "^6.5.2",
     "sharp": "^0.34.5",
     "socket.io": "^4.8.1"
   },

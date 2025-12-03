@@ -45,8 +45,8 @@ interface UploadScreenProps {
   isPremium?: boolean;
 }
 
-export const UploadScreen: React.FC<UploadScreenProps> = ({ 
-  onNavigateToSettings, 
+export const UploadScreen: React.FC<UploadScreenProps> = ({
+  onNavigateToSettings,
   onNavigateToPairing,
   onNavigateToGallery,
   onNavigateToPremium,
@@ -55,16 +55,16 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
   const { colors } = useTheme();
   const { user } = useUser();
   const { getToken } = useAuth();
-  
+
   // Create styles with current theme colors
   const styles = React.useMemo(() => createStyles(colors), [colors]);
-  
+
   // Dynamic gradients based on theme
   const dynamicGradients = React.useMemo(() => ({
     primary: [colors.primary, colors.primaryLight],
     secondary: [colors.secondary, colors.secondaryLight],
   }), [colors]);
-  
+
   const [partnerName, setPartnerName] = useState('Your Person');
   const [uploading, setUploading] = useState(false);
   const [recentPhotos, setRecentPhotos] = useState<string[]>([]);
@@ -94,43 +94,43 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
 
   // Track if already initialized to prevent multiple loads
   const [isInitialized, setIsInitialized] = useState(false);
-  
+
   useEffect(() => {
     if (isInitialized) return; // Already initialized
-    
+
     let mounted = true;
     let cleanupFunctions: (() => void)[] = [];
-    
+
     const initialize = async () => {
       if (!mounted) return;
-      
+
       await loadPartnerInfo();
       await loadRecentPhotos();
       await checkDailyLimit();
       setupPresence();
-      
+
       // Setup photo refresh listener
       const RealtimeService = (await import('../services/RealtimeService')).default;
       const handlePhotoUpdate = () => {
         console.log('🔔 [UPLOAD] Photo update - refreshing recent photos');
         loadRecentPhotos();
       };
-      
+
       RealtimeService.on('photo_saved', handlePhotoUpdate);
       RealtimeService.on('receive_photo', handlePhotoUpdate);
-      
+
       cleanupFunctions.push(() => {
         RealtimeService.off('photo_saved', handlePhotoUpdate);
         RealtimeService.off('receive_photo', handlePhotoUpdate);
       });
-      
+
       // Setup listeners
       const cleanupPairing = await setupPairingListener();
       if (cleanupPairing) cleanupFunctions.push(cleanupPairing);
-      
+
       setIsInitialized(true);
     };
-    
+
     initialize();
 
     // Heart pulse animation - smooth and romantic
@@ -140,10 +140,10 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
         withSpring(1, { damping: 8, stiffness: 120 })
       );
     };
-    
+
     // Initial pulse after delay
     setTimeout(pulseHeart, 500);
-    
+
     // Repeat pulse every 1.5 seconds (faster)
     const interval = setInterval(pulseHeart, 1500);
 
@@ -194,7 +194,7 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
 
       // Send note
       const result = await SharedNotesService.sendNote(content, expiresIn24h);
-      
+
       if (result.success) {
         setAlertMessage(`Your note has been sent to ${partnerName} 💕`);
         setShowSuccessAlert(true);
@@ -277,11 +277,11 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
 
   const getLastSeenText = () => {
     if (!partnerLastSeen) return '';
-    
+
     const now = new Date();
     const diffMs = now.getTime() - partnerLastSeen.getTime();
     const diffMins = Math.floor(diffMs / 60000);
-    
+
     if (diffMins < 1) return 'Just now';
     if (diffMins < 60) return `${diffMins}m ago`;
     if (diffMins < 1440) return `${Math.floor(diffMins / 60)}h ago`;
@@ -311,7 +311,7 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
       console.log('🎬 Dual Camera button clicked!');
       console.log('Partner connected:', isPartnerConnected);
       console.log('Premium status:', isPremium);
-      
+
       // Check if partner is connected
       if (!isPartnerConnected) {
         console.log('⚠️ No partner connected - showing alert');
@@ -323,7 +323,7 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
       // Check premium
       const hasPremium = await PremiumService.isPremium();
       console.log('Premium check result:', hasPremium);
-      
+
       if (!hasPremium) {
         console.log('⚠️ No premium - showing upgrade prompt');
         setShowUpgradePrompt(true);
@@ -331,7 +331,7 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
       }
 
       console.log('✅ Opening dual camera modal...');
-      
+
       // Use setTimeout to ensure state update happens after current render cycle
       setTimeout(() => {
         console.log('🔄 Setting showDualCameraModal to true');
@@ -345,18 +345,18 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
   const handleCaptureDualMoment = async (title: string) => {
     try {
       console.log('📸 Starting dual camera capture with title:', title);
-      
+
       // Close modal first
       setShowDualCameraModal(false);
-      
+
       // Small delay to let modal close smoothly
       await new Promise(resolve => setTimeout(resolve, 300));
-      
+
       // Capture photo
       const PhotoService = (await import('../services/PhotoService')).default;
       console.log('📷 Opening camera...');
       const photo = await PhotoService.capturePhoto();
-      
+
       if (!photo) {
         console.log('⚠️ User cancelled photo capture');
         return; // User cancelled
@@ -379,14 +379,14 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
       const DualCameraService = (await import('../services/DualCameraService')).default;
       console.log('📤 Creating dual moment...');
       const result = await DualCameraService.createDualMoment(title, photo.uri, token);
-      
+
       setUploading(false);
-      
+
       if (result.success) {
         console.log('✅ Dual moment created successfully');
         setAlertMessage(`✨ Your photo is saved!\n\nWaiting for ${partnerName} to add theirs 💞`);
         setShowSuccessAlert(true);
-        
+
         // Reload recent photos
         await loadRecentPhotos();
       } else {
@@ -429,12 +429,12 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
 
       // Send time-lock message
       const result = await TimeLockService.createTimeLock(content, unlockDate, token);
-      
+
       if (result.success) {
-        const dateStr = unlockDate.toLocaleDateString('en-US', { 
-          month: 'short', 
-          day: 'numeric', 
-          year: 'numeric' 
+        const dateStr = unlockDate.toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric'
         });
         setAlertMessage(`Your message will unlock on ${dateStr} 🔒💕`);
         setShowSuccessAlert(true);
@@ -473,7 +473,7 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
   const setupPairingListener = async () => {
     try {
       const RealtimeService = (await import('../services/RealtimeService')).default;
-      
+
       // Listen for partner connected events
       const handlePartnerConnected = async (data: any) => {
         console.log('🎉 Partner connected on home screen, reloading partner info...');
@@ -485,12 +485,12 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
         console.log('💔 Partner disconnected, updating UI...');
         setPartnerName('Your Person');
         setIsPartnerConnected(false);
-        
+
         // Clear local storage
         const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
         await AsyncStorage.removeItem('partner_info');
         await AsyncStorage.removeItem('partner_id');
-        
+
         // Show alert
         setAlertMessage('Your partner has disconnected');
         setShowErrorAlert(true);
@@ -514,15 +514,15 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
   const setupPhotoReceiveListener = async () => {
     try {
       const RealtimeService = (await import('../services/RealtimeService')).default;
-      
+
       // ⚡ IMPROVED: Listen for multiple events to ensure Recent Moments updates
       const handlePhotoUpdate = async (eventName: string) => {
         console.log(`📥 ${eventName} - updating Recent Moments!`);
-        
+
         try {
           // Small delay to ensure photo is saved
           await new Promise(resolve => setTimeout(resolve, 300));
-          
+
           // Reload recent photos to show the new one
           await loadRecentPhotos();
           console.log('✅ Recent Moments updated with new photo');
@@ -539,7 +539,7 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
       RealtimeService.on('photo_saved', handlePhotoSaved);
       RealtimeService.on('receive_photo', handleReceivePhoto);
       RealtimeService.on('new_moment', handleNewMoment);
-      
+
       console.log('✅ Photo receive listeners registered (3 events)');
 
       // ⚡ NEW: Also poll for updates every 5 seconds when app is active
@@ -572,14 +572,14 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
     try {
       const LocalPhotoStorage = (await import('../services/LocalPhotoStorage')).default;
       const photos = await LocalPhotoStorage.getAllPhotos();
-      
+
       // Sort by timestamp (newest first)
       const sortedPhotos = photos.sort((a, b) => {
         const timeA = new Date(a.timestamp).getTime();
         const timeB = new Date(b.timestamp).getTime();
         return timeB - timeA;
       });
-      
+
       // Get latest 4 photos only
       const recentUris = await Promise.all(
         sortedPhotos.slice(0, 4).map(async (p) => {
@@ -587,7 +587,7 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
           return uri || '';
         })
       );
-      
+
       const filteredUris = recentUris.filter(uri => uri !== '');
       setRecentPhotos(filteredUris);
       console.log(`✅ Loaded ${filteredUris.length} recent photos (${photos.length} total)`);
@@ -598,14 +598,14 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
 
   const onRefresh = async () => {
     setRefreshing(true);
-    
+
     // Reload all data
     await Promise.all([
       loadPartnerInfo(),
       loadRecentPhotos(),
       checkDailyLimit(),
     ]);
-    
+
     setRefreshing(false);
   };
 
@@ -619,7 +619,7 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
 
     // Check daily limit
     const { canSend, remaining, limit } = await PremiumService.canSendMoment();
-    
+
     if (!canSend) {
       // Show upgrade prompt
       setShowUpgradePrompt(true);
@@ -640,15 +640,15 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
     try {
       setShowPhotoOptions(false);
       setUploading(true);
-      
+
       const PhotoService = (await import('../services/PhotoService')).default;
       const photo = await PhotoService.capturePhoto();
-      
+
       if (!photo) {
         setUploading(false);
         return; // User cancelled
       }
-      
+
       // Show preview screen
       setSelectedPhotoUri(photo.uri);
       setShowPreview(true);
@@ -664,15 +664,15 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
     try {
       setShowPhotoOptions(false);
       setUploading(true);
-      
+
       const PhotoService = (await import('../services/PhotoService')).default;
       const photo = await PhotoService.selectFromGallery();
-      
+
       if (!photo) {
         setUploading(false);
         return; // User cancelled
       }
-      
+
       // Show preview screen
       setSelectedPhotoUri(photo.uri);
       setShowPreview(true);
@@ -690,8 +690,8 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
 
       // Save photo locally first
       const LocalPhotoStorage = (await import('../services/LocalPhotoStorage')).default;
-      await LocalPhotoStorage.savePhoto(selectedPhotoUri, 'me', true);
-      
+      await LocalPhotoStorage.savePhoto(selectedPhotoUri, 'me');
+
       if (!isPartnerConnected) {
         // Solo mode - just save locally
         setAlertMessage(scheduledTime ? 'Your moment has been scheduled' : 'Your moment has been saved');
@@ -699,13 +699,13 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
       } else {
         // Paired mode - upload to server with note and optional schedule
         const MomentService = (await import('../services/MomentService')).default;
-        
+
         if (scheduledTime && duration) {
           // Schedule the moment
           const result = await MomentService.schedulePhoto({
             uri: selectedPhotoUri,
           }, note, scheduledTime, duration);
-          
+
           if (result.success) {
             setAlertMessage(`Your moment will be sent to ${partnerName} at ${scheduledTime.toLocaleString()}`);
             setShowSuccessAlert(true);
@@ -720,18 +720,18 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
             uri: selectedPhotoUri,
           }, note);
           setUploading(false);
-          
+
           if (result.success) {
             // Increment daily counter
             await PremiumService.incrementMomentCount();
-            
+
             // Update remaining count
             await checkDailyLimit();
-            
+
             // Show success with partner name
             setAlertMessage(`✅ Moment sent to ${partnerName}!\n\nThey'll receive it instantly 💕`);
             setShowSuccessAlert(true);
-            
+
             // Send notification to partner via Socket.IO
             try {
               const RealtimeService = (await import('../services/RealtimeService')).default;
@@ -753,14 +753,14 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
           }
         }
       }
-      
+
       // Close preview
       setShowPreview(false);
       setSelectedPhotoUri(null);
-      
+
       // Reload recent photos with animation
       await loadRecentPhotos();
-      
+
       // Update widget with latest photo
       try {
         if (selectedPhotoUri) {
@@ -809,7 +809,7 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="white" />
-      
+
       {/* Header - Compact & Modern */}
       <View style={styles.header}>
         {isPartnerConnected ? (
@@ -865,7 +865,7 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
             </LinearGradient>
           </View>
         )}
-        
+
         <Animated.View style={animatedSettingsStyle}>
           <TouchableOpacity
             style={styles.settingsButtonCompact}
@@ -915,11 +915,11 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
           </Text>
           <Text style={styles.heroSubtitle}>
             {!isPartnerConnected
-              ? 'Save your memories and moments' 
+              ? 'Save your memories and moments'
               : 'Create and share beautiful moments together 💕'
             }
           </Text>
-          
+
           <Animated.View style={[animatedButtonStyle, styles.captureContainer]}>
             <TouchableOpacity
               style={[styles.captureButton, uploading && styles.captureButtonDisabled]}
@@ -983,64 +983,64 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
 
         {/* Recent Moments Card - Always show for testing */}
         <View style={styles.recentCard}>
-            <View style={styles.recentHeader}>
-              <View style={styles.recentTitleContainer}>
-                <Ionicons name="time-outline" size={20} color={colors.primary} />
-                <Text style={styles.recentTitle}>Recent Moments</Text>
+          <View style={styles.recentHeader}>
+            <View style={styles.recentTitleContainer}>
+              <Ionicons name="time-outline" size={20} color={colors.primary} />
+              <Text style={styles.recentTitle}>Recent Moments</Text>
+            </View>
+            {recentPhotos.length > 0 && (
+              <View style={styles.recentBadge}>
+                <Text style={styles.recentBadgeText}>{recentPhotos.length}</Text>
               </View>
-              {recentPhotos.length > 0 && (
-                <View style={styles.recentBadge}>
-                  <Text style={styles.recentBadgeText}>{recentPhotos.length}</Text>
-                </View>
-              )}
-            </View>
-            <View style={styles.recentPhotosGrid}>
-              {recentPhotos.length > 0 ? (
-                recentPhotos.slice(0, 4).map((photoUri, index) => (
-                  <View key={index} style={styles.recentPhotoThumb}>
-                    {photoUri ? (
-                      <Image 
-                        source={{ uri: photoUri }} 
-                        style={styles.recentPhotoImage}
-                        resizeMode="cover"
-                      />
-                    ) : (
-                      <Ionicons name="image" size={24} color={colors.textTertiary} />
-                    )}
-                  </View>
-                ))
-              ) : (
-                // Placeholder when no photos
-                [0, 1, 2, 3].map((index) => (
-                  <View key={index} style={styles.recentPhotoThumb}>
-                    <Ionicons name="image-outline" size={24} color={colors.textTertiary} />
-                  </View>
-                ))
-              )}
-            </View>
-            <Animated.View style={animatedViewAllStyle}>
-              <TouchableOpacity 
-                style={styles.viewAllContainer}
-                onPress={() => {
-                  viewAllScale.value = withSequence(
-                    withTiming(0.95, { duration: 100 }),
-                    withSpring(1, { damping: 10, stiffness: 200 })
-                  );
-                  setTimeout(() => onNavigateToGallery?.(), 100);
-                }}
-                activeOpacity={1}
-              >
-                <Text style={styles.viewAllText}>View All Memories</Text>
-                <Ionicons name="chevron-forward" size={16} color={colors.primary} />
-              </TouchableOpacity>
-            </Animated.View>
+            )}
           </View>
+          <View style={styles.recentPhotosGrid}>
+            {recentPhotos.length > 0 ? (
+              recentPhotos.slice(0, 4).map((photoUri, index) => (
+                <View key={index} style={styles.recentPhotoThumb}>
+                  {photoUri ? (
+                    <Image
+                      source={{ uri: photoUri }}
+                      style={styles.recentPhotoImage}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <Ionicons name="image" size={24} color={colors.textTertiary} />
+                  )}
+                </View>
+              ))
+            ) : (
+              // Placeholder when no photos
+              [0, 1, 2, 3].map((index) => (
+                <View key={index} style={styles.recentPhotoThumb}>
+                  <Ionicons name="image-outline" size={24} color={colors.textTertiary} />
+                </View>
+              ))
+            )}
+          </View>
+          <Animated.View style={animatedViewAllStyle}>
+            <TouchableOpacity
+              style={styles.viewAllContainer}
+              onPress={() => {
+                viewAllScale.value = withSequence(
+                  withTiming(0.95, { duration: 100 }),
+                  withSpring(1, { damping: 10, stiffness: 200 })
+                );
+                setTimeout(() => onNavigateToGallery?.(), 100);
+              }}
+              activeOpacity={1}
+            >
+              <Text style={styles.viewAllText}>View All Memories</Text>
+              <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
       </ScrollView>
 
       {/* Bottom Action Bar - Only show if not connected */}
       {!isPartnerConnected && onNavigateToPairing && (
         <View style={styles.bottomBar}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.bottomButton}
             onPress={onNavigateToPairing}
             activeOpacity={0.8}
@@ -1197,7 +1197,7 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     paddingTop: spacing.huge,
     paddingBottom: spacing.md,
   },
-  
+
   // Couple Mode - Compact
   coupleContainer: {
     flex: 1,
@@ -1254,7 +1254,7 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     borderWidth: 2,
     borderColor: 'white',
   },
-  
+
   // Solo Mode - Compact
   soloContainer: {
     flex: 1,
@@ -1344,7 +1344,7 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     paddingTop: spacing.lg,
     paddingBottom: spacing.md,
   },
-  
+
   // Hero Card
   heroCard: {
     width: '100%',
@@ -1370,7 +1370,7 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     lineHeight: 22,
     paddingHorizontal: spacing.sm,
   },
-  
+
   // Capture Button - Large & Prominent
   captureContainer: {
     alignItems: 'center',

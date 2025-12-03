@@ -6,11 +6,6 @@
   <string name="widget_image_description">The latest moment from your partner.</string>
   <string name="widget_placeholder_text">No moments yet.</string>
   
-  <!-- Widget Descriptions -->
-  <string name="widget_classic_description">Classic photo frame with partner name and timestamp</string>
-  <string name="widget_minimalist_description">Minimalist circular photo widget</string>
-  <string name="widget_polaroid_description">Vintage polaroid style photo widget</string>
-  <string name="widget_heart_description">Heart-shaped romantic photo widget</string>
-  <string name="widget_dual_description">Side-by-side moments from you and your partner</string>
-  <string name="widget_flip_description">Interactive flip card with photo and note</string>
+  <!-- Premium Widget Description -->
+  <string name="premium_widget_description">Premium carousel widget showing your latest moments together with smooth animations</string>
 </resources>

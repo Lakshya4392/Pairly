@@ -19,7 +19,7 @@ public class PairlyPackage implements ReactPackage {
     @Override
     public List<NativeModule> createNativeModules(ReactApplicationContext reactContext) {
         List<NativeModule> modules = new ArrayList<>();
-        modules.add(new PairlyWidgetModule(reactContext));
+        // PairlyWidgetModule removed - using Kotlin version in app package
         modules.add(new BackgroundServiceModule(reactContext));
         return modules;
     }

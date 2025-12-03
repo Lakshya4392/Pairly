@@ -160,8 +160,7 @@ class FCMService {
       // Save photo locally
       const photoUri = await LocalPhotoStorage.savePhoto(
         `data:image/jpeg;base64,${photoBase64}`,
-        'partner',
-        false
+        'partner'
       );
 
       if (!photoUri) {
@@ -171,7 +170,7 @@ class FCMService {
 
       // Get actual file URI for widget
       const actualUri = await LocalPhotoStorage.getPhotoUri(photoUri);
-      
+
       // Update widget immediately with optimized service
       if (actualUri) {
         PerformanceMonitor.startTimer('widget_update');
@@ -216,11 +215,10 @@ class FCMService {
       const response = await fetch(photoUrl);
       const blob = await response.blob();
       const base64 = await this.blobToBase64(blob);
-      
+
       const photoUri = await LocalPhotoStorage.savePhoto(
         `data:image/jpeg;base64,${base64}`,
-        'partner',
-        false
+        'partner'
       );
 
       // Update widget with optimized service

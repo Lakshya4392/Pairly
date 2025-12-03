@@ -1,0 +1,256 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 🎨 Premium Carousel Widget - iOS Style -->
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="0dp"
+    android:background="@drawable/widget_premium_background">
+
+    <!-- Glass Container with Elevation -->
+    <FrameLayout
+        android:id="@+id/glass_container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_margin="8dp"
+        android:background="@drawable/glass_effect"
+        android:elevation="8dp"
+        android:clipToOutline="true">
+
+        <!-- Photo Carousel (ViewFlipper for smooth transitions) -->
+        <ViewFlipper
+            android:id="@+id/photo_carousel"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_marginBottom="100dp"
+            android:inAnimation="@anim/fade_in"
+            android:outAnimation="@anim/fade_in">
+
+            <!-- Photo Slot 1 -->
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent">
+                
+                <ImageView
+                    android:id="@+id/widget_image_1"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:scaleType="centerCrop"
+                    android:contentDescription="Moment 1"/>
+                
+                <!-- Gradient Overlay for text readability -->
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="140dp"
+                    android:layout_gravity="bottom"
+                    android:background="@drawable/gradient_overlay_bottom"/>
+            </FrameLayout>
+
+            <!-- Photo Slot 2 -->
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent">
+                
+                <ImageView
+                    android:id="@+id/widget_image_2"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:scaleType="centerCrop"
+                    android:contentDescription="Moment 2"/>
+                
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="140dp"
+                    android:layout_gravity="bottom"
+                    android:background="@drawable/gradient_overlay_bottom"/>
+            </FrameLayout>
+
+            <!-- Photo Slot 3 -->
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent">
+                
+                <ImageView
+                    android:id="@+id/widget_image_3"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:scaleType="centerCrop"
+                    android:contentDescription="Moment 3"/>
+                
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="140dp"
+                    android:layout_gravity="bottom"
+                    android:background="@drawable/gradient_overlay_bottom"/>
+            </FrameLayout>
+        </ViewFlipper>
+
+        <!-- Bottom Info Container -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom"
+            android:orientation="vertical"
+            android:padding="24dp"
+            android:gravity="center">
+
+            <!-- Dot Indicators (iOS Style) -->
+            <LinearLayout
+                android:id="@+id/dot_indicators"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center"
+                android:layout_marginBottom="16dp">
+                
+                <View
+                    android:id="@+id/dot_1"
+                    android:layout_width="8dp"
+                    android:layout_height="8dp"
+                    android:layout_margin="4dp"
+                    android:background="@drawable/dot_active"/>
+                
+                <View
+                    android:id="@+id/dot_2"
+                    android:layout_width="8dp"
+                    android:layout_height="8dp"
+                    android:layout_margin="4dp"
+                    android:background="@drawable/dot_inactive"/>
+                
+                <View
+                    android:id="@+id/dot_3"
+                    android:layout_width="8dp"
+                    android:layout_height="8dp"
+                    android:layout_margin="4dp"
+                    android:background="@drawable/dot_inactive"/>
+            </LinearLayout>
+
+            <!-- Partner Name with Heart -->
+            <TextView
+                android:id="@+id/widget_partner_name"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Partner"
+                android:textSize="22sp"
+                android:textColor="#FFFFFF"
+                android:textStyle="bold"
+                android:fontFamily="sans-serif-medium"
+                android:shadowColor="#80000000"
+                android:shadowDx="0"
+                android:shadowDy="2"
+                android:shadowRadius="6"
+                android:drawableStart="@drawable/ic_heart_filled"
+                android:drawableTint="#FF6B9D"
+                android:drawablePadding="10dp"/>
+
+            <!-- Timestamp -->
+            <TextView
+                android:id="@+id/widget_timestamp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="2 hours ago"
+                android:textSize="15sp"
+                android:textColor="#E5FFFFFF"
+                android:fontFamily="sans-serif"
+                android:layout_marginTop="6dp"
+                android:shadowColor="#80000000"
+                android:shadowDx="0"
+                android:shadowDy="1"
+                android:shadowRadius="3"/>
+        </LinearLayout>
+
+        <!-- Empty State (Premium iOS-Style with Gradient) -->
+        <FrameLayout
+            android:id="@+id/widget_placeholder"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone">
+            
+            <!-- Animated Gradient Background -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/empty_state_gradient"/>
+            
+            <!-- Content Container -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="32dp">
+                
+                <!-- Glowing Heart Icon with Pulse Effect -->
+                <FrameLayout
+                    android:layout_width="120dp"
+                    android:layout_height="120dp"
+                    android:background="@drawable/heart_glow_background">
+                    
+                    <ImageView
+                        android:layout_width="80dp"
+                        android:layout_height="80dp"
+                        android:layout_gravity="center"
+                        android:src="@drawable/ic_heart_outline"
+                        android:tint="#FF6B9D"
+                        android:alpha="0.9"/>
+                </FrameLayout>
+                
+                <!-- Title with Gradient Text Effect -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="No moments yet"
+                    android:textSize="24sp"
+                    android:textColor="#FFFFFF"
+                    android:textStyle="bold"
+                    android:fontFamily="sans-serif-medium"
+                    android:shadowColor="#80000000"
+                    android:shadowDx="0"
+                    android:shadowDy="2"
+                    android:shadowRadius="8"
+                    android:layout_marginTop="24dp"/>
+                
+                <!-- Subtitle -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Share your first moment together"
+                    android:textSize="16sp"
+                    android:textColor="#E5FFFFFF"
+                    android:fontFamily="sans-serif"
+                    android:textAlignment="center"
+                    android:shadowColor="#60000000"
+                    android:shadowDx="0"
+                    android:shadowDy="1"
+                    android:shadowRadius="4"
+                    android:layout_marginTop="12dp"/>
+                
+                <!-- Decorative Dots (iOS-style) -->
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center"
+                    android:layout_marginTop="32dp">
+                    
+                    <View
+                        android:layout_width="8dp"
+                        android:layout_height="8dp"
+                        android:layout_margin="4dp"
+                        android:background="@drawable/dot_inactive"/>
+                    
+                    <View
+                        android:layout_width="8dp"
+                        android:layout_height="8dp"
+                        android:layout_margin="4dp"
+                        android:background="@drawable/dot_inactive"/>
+                    
+                    <View
+                        android:layout_width="8dp"
+                        android:layout_height="8dp"
+                        android:layout_margin="4dp"
+                        android:background="@drawable/dot_inactive"/>
+                </LinearLayout>
+            </LinearLayout>
+        </FrameLayout>
+    </FrameLayout>
+</RelativeLayout>

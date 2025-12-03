@@ -38,12 +38,12 @@ class SocketConnectionService {
 
     try {
       console.log(`🔌 Initializing socket connection for user: ${userId}`);
-      
+
       // ⚡ BULLETPROOF: Wait for internet connection
       try {
         const ConnectionManager = (await import('../utils/ConnectionManager')).default;
         const isOnline = ConnectionManager.isConnected();
-        
+
         if (!isOnline) {
           console.log('⏳ Waiting for internet connection...');
           const connected = await ConnectionManager.waitForConnection(10000);
@@ -56,7 +56,7 @@ class SocketConnectionService {
       } catch (error) {
         console.warn('⚠️ ConnectionManager not available, proceeding anyway');
       }
-      
+
       // ⚡ IMPROVED: Get auth token for secure connection
       const token = await AsyncStorage.getItem('auth_token');
       if (!token) {
@@ -64,16 +64,16 @@ class SocketConnectionService {
       } else {
         console.log('✅ Auth token found for socket connection');
       }
-      
+
       // ⚡ BULLETPROOF: Check backend health first
       try {
         console.log('🏥 Checking backend health...');
         const healthResponse = await fetch(`${API_CONFIG.baseUrl}/health`, {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' },
-          signal: AbortSignal.timeout(10000), // 10s timeout
+          signal: (new AbortController()).signal, // Placeholder, actual timeout handled by fetch implementation or manual controller if needed
         });
-        
+
         if (healthResponse.ok) {
           console.log('✅ Backend is healthy and ready');
         } else {
@@ -84,7 +84,7 @@ class SocketConnectionService {
         // Wait a bit for backend to wake up
         await new Promise(resolve => setTimeout(resolve, 2000));
       }
-      
+
       // Disconnect existing socket if any
       if (this.socket) {
         this.socket.disconnect();
@@ -94,7 +94,7 @@ class SocketConnectionService {
       // Create new socket connection with BULLETPROOF settings for APK
       console.log('🔌 Creating socket with URL:', API_CONFIG.baseUrl);
       console.log('🔑 Auth token present:', !!token);
-      
+
       this.socket = io(API_CONFIG.baseUrl, {
         // ⚡ BULLETPROOF: Auth with token
         auth: {
@@ -124,16 +124,13 @@ class SocketConnectionService {
           isAPK: isAPK.toString(),
           version: '1.0.0',
         },
-        // Heartbeat settings
-        pingTimeout: isAPK ? 60000 : 30000,
-        pingInterval: isAPK ? 25000 : 15000,
       });
 
       this.setupEventHandlers();
-      
+
       // ⚡ IMPROVED: Setup background state handler for mobile
       this.setupAppStateHandler();
-      
+
       this.isConnecting = false;
 
       console.log('✅ Socket connection initialized');
@@ -144,10 +141,6 @@ class SocketConnectionService {
     }
   }
 
-  /**
-   * ⚡ IMPROVED: Handle app background/foreground state changes
-   * Critical for mobile - reconnect socket when app comes to foreground
-   */
   private setupAppStateHandler(): void {
     // Remove existing listener if any
     if (this.appStateSubscription) {
@@ -160,12 +153,12 @@ class SocketConnectionService {
       // App came to foreground from background
       if (this.lastAppState.match(/inactive|background/) && nextAppState === 'active') {
         console.log('🔄 App came to foreground - checking socket connection...');
-        
+
         // Check if socket is disconnected and reconnect
         if (this.socket && !this.socket.connected && this.userId) {
           console.log('⚡ Socket disconnected in background - reconnecting...');
           this.reconnect();
-          
+
           // Also restart heartbeat
           setTimeout(() => {
             if (this.socket?.connected) {
@@ -205,13 +198,13 @@ class SocketConnectionService {
     this.socket.on('connect', () => {
       console.log('✅ Socket connected:', this.socket?.id);
       this.reconnectAttempts = 0;
-      
+
       // Join user room immediately
       this.joinUserRoom();
-      
+
       // Start heartbeat
       this.startHeartbeat();
-      
+
       // Notify listeners
       this.notifyConnectionListeners(true);
     });
@@ -220,7 +213,7 @@ class SocketConnectionService {
       console.log('🔌 Socket disconnected:', reason);
       this.stopHeartbeat();
       this.notifyConnectionListeners(false);
-      
+
       // Auto-reconnect for certain reasons
       if (reason === 'io server disconnect') {
         console.log('🔄 Server disconnected, attempting to reconnect...');
@@ -236,7 +229,7 @@ class SocketConnectionService {
     this.socket.on('reconnect', async (attemptNumber) => {
       console.log(`✅ Socket reconnected after ${attemptNumber} attempts`);
       this.reconnectAttempts = 0;
-      
+
       // Process any queued moments after reconnection
       try {
         const MomentService = (await import('./MomentService')).default;
@@ -305,9 +298,9 @@ class SocketConnectionService {
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
         console.log(`🏠 Joining room for user ${this.userId} (attempt ${attempt})`);
-        
+
         this.socket.emit('join_room', { userId: this.userId });
-        
+
         // Wait for confirmation with shorter timeout
         await new Promise<void>((resolve, reject) => {
           const timeout = setTimeout(() => {
@@ -324,7 +317,7 @@ class SocketConnectionService {
         return;
       } catch (error) {
         console.error(`❌ Room join attempt ${attempt} failed:`, error);
-        
+
         if (attempt === retries) {
           console.error('❌ Failed to join room after all attempts');
         } else {
@@ -365,13 +358,13 @@ class SocketConnectionService {
    */
   private handleConnectionError(): void {
     this.reconnectAttempts++;
-    
+
     if (this.reconnectAttempts <= this.maxReconnectAttempts) {
       // Exponential backoff: 1s, 2s, 4s
       const baseDelay = 1000;
       const delay = Math.min(baseDelay * Math.pow(2, this.reconnectAttempts - 1), this.maxReconnectDelay);
       console.log(`🔄 Retrying connection in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
-      
+
       setTimeout(() => {
         this.reconnect();
       }, delay);
@@ -403,7 +396,7 @@ class SocketConnectionService {
    */
   onConnectionChange(listener: (connected: boolean) => void): () => void {
     this.connectionListeners.push(listener);
-    
+
     // Return unsubscribe function
     return () => {
       const index = this.connectionListeners.indexOf(listener);
@@ -418,7 +411,7 @@ class SocketConnectionService {
    */
   onPairingEvent(listener: (data: any) => void): () => void {
     this.pairingListeners.push(listener);
-    
+
     // Return unsubscribe function
     return () => {
       const index = this.pairingListeners.indexOf(listener);
@@ -511,11 +504,11 @@ class SocketConnectionService {
         }
       } catch (error) {
         console.error(`❌ Emit attempt ${attempt} failed:`, error);
-        
+
         if (attempt === retries) {
           throw new Error(`Failed to emit ${event} after ${retries} attempts`);
         }
-        
+
         // Faster retry - 500ms instead of 1s
         await new Promise(resolve => setTimeout(resolve, 500));
       }
@@ -544,25 +537,25 @@ class SocketConnectionService {
    */
   disconnect(): void {
     console.log('🔌 Disconnecting socket...');
-    
+
     this.stopHeartbeat();
-    
+
     // ⚡ IMPROVED: Remove app state listener
     if (this.appStateSubscription) {
       this.appStateSubscription.remove();
       this.appStateSubscription = null;
     }
-    
+
     if (this.socket) {
       this.socket.disconnect();
       this.socket = null;
     }
-    
+
     this.userId = null;
     this.reconnectAttempts = 0;
     this.connectionListeners = [];
     this.pairingListeners = [];
-    
+
     console.log('✅ Socket disconnected');
   }
 

@@ -54,6 +54,9 @@ class MomentService {
 
         console.log('✅ [SENDER] Photo saved locally:', photoId.substring(0, 8));
         
+        // ⚡ NOTE: Sender's widget is NOT updated (only partner's widget updates)
+        // Widget will only show photos received FROM partner, not sent TO partner
+        
         // Trigger event for UI refresh
         RealtimeService.emit('photo_saved', { photoId, sender: 'me', timestamp: Date.now() });
 

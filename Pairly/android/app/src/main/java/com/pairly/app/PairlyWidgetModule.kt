@@ -19,7 +19,8 @@ class PairlyWidgetModule(reactContext: ReactApplicationContext) : ReactContextBa
     fun hasWidgets(promise: Promise) {
         try {
             val appWidgetManager = AppWidgetManager.getInstance(reactApplicationContext)
-            val widgetComponent = ComponentName(reactApplicationContext, PairlyWidgetProvider::class.java)
+            // Check for premium carousel widget
+            val widgetComponent = ComponentName(reactApplicationContext, PremiumCarouselWidgetProvider::class.java)
             val widgetIds = appWidgetManager.getAppWidgetIds(widgetComponent)
             promise.resolve(widgetIds.isNotEmpty())
         } catch (e: Exception) {
@@ -31,26 +32,35 @@ class PairlyWidgetModule(reactContext: ReactApplicationContext) : ReactContextBa
     fun updateWidget(photoPath: String, partnerName: String, timestamp: Double, promise: Promise) {
         try {
             val context = reactApplicationContext
-            val intent = Intent(context, PairlyWidgetProvider::class.java).apply {
+            
+            // Store partner name in SharedPreferences for widget access
+            val prefs = context.getSharedPreferences("PairlyPrefs", Context.MODE_PRIVATE)
+            prefs.edit().putString("partner_name", partnerName).apply()
+            
+            // Update premium carousel widget
+            val intent = Intent(context, PremiumCarouselWidgetProvider::class.java).apply {
                 action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
-                putExtra("photoPath", photoPath)
-                putExtra("partnerName", partnerName)
-                putExtra("timestamp", timestamp.toLong())
             }
             context.sendBroadcast(intent)
             
-            // Force update all widgets
+            // Force update all premium widgets
             val appWidgetManager = AppWidgetManager.getInstance(context)
-            val widgetComponent = ComponentName(context, PairlyWidgetProvider::class.java)
+            val widgetComponent = ComponentName(context, PremiumCarouselWidgetProvider::class.java)
             val widgetIds = appWidgetManager.getAppWidgetIds(widgetComponent)
             
             if (widgetIds.isNotEmpty()) {
-                PairlyWidgetProvider().onUpdate(context, appWidgetManager, widgetIds)
+                try {
+                    PremiumCarouselWidgetProvider().onUpdate(context, appWidgetManager, widgetIds)
+                } catch (widgetError: Exception) {
+                    // Log but don't fail - widget will show empty state
+                    android.util.Log.e("PairlyWidget", "Widget update error", widgetError)
+                }
             }
             
             promise.resolve(true)
         } catch (e: Exception) {
-            promise.reject("ERROR", e.message)
+            android.util.Log.e("PairlyWidget", "Update widget failed", e)
+            promise.reject("ERROR", e.message ?: "Unknown error")
         }
     }
 
@@ -58,7 +68,7 @@ class PairlyWidgetModule(reactContext: ReactApplicationContext) : ReactContextBa
     fun clearWidget(promise: Promise) {
         try {
             val context = reactApplicationContext
-            val intent = Intent(context, PairlyWidgetProvider::class.java).apply {
+            val intent = Intent(context, PremiumCarouselWidgetProvider::class.java).apply {
                 action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
                 putExtra("clear", true)
             }

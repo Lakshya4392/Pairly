@@ -1,0 +1,33 @@
+### Test Waitlist Endpoint (Local)
+POST http://localhost:3000/invites/waitlist
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "name": "Test User",
+  "source": "website"
+}
+
+### Test Waitlist Endpoint (Production)
+POST https://your-backend.onrender.com/invites/waitlist
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "name": "Test User",
+  "source": "website"
+}
+
+### Get Waitlist Stats (Local)
+GET http://localhost:3000/invites/waitlist/stats
+
+### Get Waitlist Stats (Production)
+GET https://your-backend.onrender.com/invites/waitlist/stats
+
+### Check if email has access (Local)
+POST http://localhost:3000/invites/check-access
+Content-Type: application/json
+
+{
+  "email": "test@example.com"
+}

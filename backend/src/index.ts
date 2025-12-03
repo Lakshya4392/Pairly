@@ -74,6 +74,7 @@ import noteRoutes from './routes/noteRoutes';
 import timeLockRoutes from './routes/timeLockRoutes';
 import dualCameraRoutes from './routes/dualCameraRoutes';
 import widgetRoutes from './routes/widgetRoutes';
+import inviteRoutes from './routes/inviteRoutes';
 
 // Request logging middleware
 app.use((req, res, next) => {
@@ -118,6 +119,7 @@ app.use('/notes', noteRoutes);
 app.use('/timelock', timeLockRoutes);
 app.use('/dual-moments', dualCameraRoutes);
 app.use('/widget', widgetRoutes);
+app.use('/invites', inviteRoutes);
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {

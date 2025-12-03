@@ -10,9 +10,33 @@ import { useTheme } from '../contexts/ThemeContext';
 import { colors as defaultColors, gradients } from '../theme/colorsIOS';
 import { spacing, layout, borderRadius } from '../theme/spacingIOS';
 import { shadows } from '../theme/shadowsIOS';
+import { API_CONFIG } from '../config/api.config';
 
 // Warm up browser for faster OAuth
 WebBrowser.maybeCompleteAuthSession();
+
+// Configure OAuth redirect with proper browser settings
+const useWarmUpBrowser = () => {
+  React.useEffect(() => {
+    // Warm up the browser for faster OAuth
+    const warmUp = async () => {
+      try {
+        await WebBrowser.warmUpAsync();
+        console.log('✅ Browser warmed up');
+      } catch (error) {
+        console.log('⚠️ Browser warm up failed (non-critical):', error);
+      }
+    };
+
+    warmUp();
+
+    return () => {
+      WebBrowser.coolDownAsync().catch(() => {
+        // Ignore cooldown errors
+      });
+    };
+  }, []);
+};
 
 interface AuthScreenProps {
   onAuthSuccess: () => void;
@@ -23,10 +47,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
   const styles = React.useMemo(() => createStyles(colors), [colors]);
   const { isSignedIn } = useAuth();
   const { user } = useUser();
+
+  // Warm up browser for OAuth
+  useWarmUpBrowser();
+
   const { startOAuthFlow } = useOAuth({ strategy: 'oauth_google' });
   const { signIn, setActive } = useSignIn();
   const { signUp, setActive: setActiveSignUp } = useSignUp();
-  
+
   const [loading, setLoading] = useState(false);
   const [authMode, setAuthMode] = useState<'signin' | 'signup' | 'oauth' | 'verify'>('oauth');
   const [email, setEmail] = useState('');
@@ -38,34 +66,70 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
   const [showVerifySuccessAlert, setShowVerifySuccessAlert] = useState(false);
   const [showErrorAlert, setShowErrorAlert] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  
+
   const otpInputs = React.useRef<any[]>([]);
   const hiddenInputRef = React.useRef<any>(null);
 
   React.useEffect(() => {
-    if (isSignedIn) {
-      // Navigate immediately, sync in background
-      onAuthSuccess();
-      
-      // Sync in background (non-blocking)
-      syncUserInBackground();
+    if (isSignedIn && user) {
+      checkWaitlistStatus();
     }
-  }, [isSignedIn]);
+  }, [isSignedIn, user]);
+
+  const checkWaitlistStatus = async () => {
+    try {
+      // 1. Sync user first (to ensure they exist in DB)
+      await syncUserInBackground();
+
+      // 2. Check waitlist status
+      console.log('🔍 Checking waitlist status...');
+      const token = await useAuth().getToken();
+
+      // If no token (e.g. offline), we might want to let them in if they have cached access
+      // For now, let's assume online check is required for beta
+
+      if (!token) {
+        console.log('⚠️ No token available for waitlist check');
+        return;
+      }
+
+      const response = await fetch(`${API_CONFIG.baseUrl}/invites/check-access`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          email: user?.primaryEmailAddress?.emailAddress,
+          clerkId: user?.id
+        })
+      });
+
+      const data = await response.json();
+      console.log('🎟️ Waitlist check result:', data);
+
+      if (data.allowed) {
+        onAuthSuccess();
+      } else {
+        // Not allowed
+        setErrorMessage(data.message || 'You are on the waitlist. We will notify you when you can join!');
+        setShowErrorAlert(true);
+        // Optional: Sign out if strict
+        // signOut();
+      }
+    } catch (error) {
+      console.error('❌ Error checking waitlist:', error);
+      // Fallback: If error (e.g. backend offline), maybe let them in or show error?
+      // For beta, let's show error
+      setErrorMessage('Unable to verify waitlist status. Please check your connection.');
+      setShowErrorAlert(true);
+    }
+  };
 
   const syncUserInBackground = async () => {
     try {
-      // Wait a bit for user object to be available
-      let attempts = 0;
-      while (!user && attempts < 10) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-        attempts++;
-      }
-      
-      if (!user) {
-        console.log('⚠️ User object not available after waiting');
-        return;
-      }
-      
+      if (!user) return;
+
       const userData = {
         clerkId: user.id,
         email: user.primaryEmailAddress?.emailAddress || '',
@@ -75,98 +139,183 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
         photoUrl: user.imageUrl || undefined,
         phoneNumber: user.primaryPhoneNumber?.phoneNumber || undefined,
       };
-      
+
       console.log('🔄 Syncing user with backend...');
-      
+
       // Try immediate sync first (non-blocking)
       const UserSyncService = (await import('../services/UserSyncService')).default;
-      const result = await UserSyncService.syncUserWithBackend(userData);
-      
-      if (result.success && result.user) {
-        console.log('✅ User synced - Premium:', result.user.isPremium);
-      } else {
-        // Queue for retry if backend offline
-        console.log('💡 Backend offline, queued for sync');
-        const BackgroundSyncService = (await import('../services/BackgroundSyncService')).default;
-        await BackgroundSyncService.queueUserSync(userData);
-      }
+      await UserSyncService.syncUserWithBackend(userData);
+
     } catch (error) {
-      // Silent fail - queue for retry
-      try {
-        const BackgroundSyncService = (await import('../services/BackgroundSyncService')).default;
-        await BackgroundSyncService.queueUserSync({
-          clerkId: user?.id || '',
-          email: user?.primaryEmailAddress?.emailAddress || '',
-          displayName: user?.fullName || user?.username || 'User',
-        });
-      } catch (queueError) {
-        // Ignore - app will work with local data
-      }
+      console.log('⚠️ User sync failed (non-critical):', error);
     }
   };
 
   const handleGoogleSignIn = async () => {
     try {
       setLoading(true);
-      console.log('🔵 Starting Google OAuth...');
-      console.log('💡 TIP: After clicking Continue in browser, manually close the browser and return to app');
-      
-      // Start OAuth flow
-      const { createdSessionId, signIn, signUp, setActive } = await startOAuthFlow();
-      
-      console.log('🔵 OAuth flow returned');
-      console.log('🔵 Result:', {
-        hasSession: !!createdSessionId,
-        signInStatus: signIn?.status,
-        signUpStatus: signUp?.status,
-      });
+      console.log('🔵 ========== GOOGLE OAUTH START ==========');
+      console.log('🔵 Timestamp:', new Date().toISOString());
+
+      // Detect environment
+      const isExpoGo = __DEV__ && !process.env.EXPO_PUBLIC_IS_STANDALONE;
+      console.log('🔵 Environment:', isExpoGo ? 'Expo Go' : 'Standalone APK');
+      console.log('🔵 __DEV__:', __DEV__);
+
+      // Configure browser options for better compatibility
+      const browserOptions = {
+        // Use default browser (more reliable than custom tabs)
+        preferEphemeralSession: false,
+        // Show toolbar for better UX
+        showTitle: true,
+        // Enable bar collapsing
+        enableBarCollapsing: false,
+      };
+
+      console.log('🔵 Browser options:', browserOptions);
+
+      // For APK: Use explicit redirect URL
+      // For Expo Go: Let Clerk auto-detect
+      let result;
+      if (!isExpoGo) {
+        // APK/Production: Use explicit redirect URL
+        const redirectUrl = 'pairly://oauth-native-callback';
+        console.log('🔵 Using explicit redirect URL:', redirectUrl);
+        console.log('🔵 Make sure this is in Clerk Dashboard!');
+
+        try {
+          result = await startOAuthFlow({
+            redirectUrl: redirectUrl,
+          });
+        } catch (flowError: any) {
+          console.error('❌ OAuth flow error:', flowError);
+
+          // Check if it's a browser error
+          if (flowError.message?.includes('openBrowserAsync') ||
+            flowError.message?.includes('browser')) {
+            console.log('⚠️ Browser error detected, trying alternative approach');
+
+            // Try without explicit redirect URL as fallback
+            result = await startOAuthFlow();
+          } else {
+            throw flowError;
+          }
+        }
+      } else {
+        // Expo Go: Auto-detect
+        console.log('🔵 Using auto-detect for Expo Go');
+        result = await startOAuthFlow();
+      }
+
+      console.log('🔵 ========== OAUTH FLOW RETURNED ==========');
+      console.log('🔵 Has createdSessionId:', !!result.createdSessionId);
+      console.log('🔵 SignIn status:', result.signIn?.status);
+      console.log('🔵 SignUp status:', result.signUp?.status);
+      console.log('🔵 Full result:', JSON.stringify({
+        hasSession: !!result.createdSessionId,
+        signInStatus: result.signIn?.status,
+        signUpStatus: result.signUp?.status,
+        signInSessionId: result.signIn?.createdSessionId,
+        signUpSessionId: result.signUp?.createdSessionId,
+      }, null, 2));
 
       // Try to dismiss browser
       try {
         await WebBrowser.dismissBrowser();
-        console.log('🔵 Browser dismissed');
+        console.log('🔵 Browser dismissed successfully');
       } catch (e) {
-        console.log('🔵 Browser already closed');
+        console.log('🔵 Browser already closed or auto-dismissed');
       }
 
-      // Direct session created
-      if (createdSessionId) {
-        console.log('✅ Activating session...');
-        await setActive!({ session: createdSessionId });
-        console.log('✅ Signed in successfully!');
+      // Check for direct session
+      if (result.createdSessionId) {
+        console.log('✅ Direct session created!');
+        console.log('✅ Session ID:', result.createdSessionId);
+        await result.setActive!({ session: result.createdSessionId });
+        console.log('✅ Session activated - Google sign-in successful!');
+        console.log('🔵 ========== OAUTH SUCCESS ==========');
         return;
       }
 
-      // SignUp completed
-      if (signUp?.status === 'complete' && signUp.createdSessionId) {
-        console.log('✅ Activating signup session...');
-        await setActive!({ session: signUp.createdSessionId });
-        console.log('✅ Signed up successfully!');
+      // Check SignUp flow
+      if (result.signUp?.status === 'complete' && result.signUp.createdSessionId) {
+        console.log('✅ Sign-up flow completed!');
+        console.log('✅ Session ID:', result.signUp.createdSessionId);
+        await result.setActive!({ session: result.signUp.createdSessionId });
+        console.log('✅ Session activated - Account created successfully!');
+        console.log('🔵 ========== OAUTH SUCCESS (SIGNUP) ==========');
         return;
       }
 
-      // SignIn completed
-      if (signIn?.status === 'complete' && signIn.createdSessionId) {
-        console.log('✅ Activating signin session...');
-        await setActive!({ session: signIn.createdSessionId });
-        console.log('✅ Signed in successfully!');
+      // Check SignIn flow
+      if (result.signIn?.status === 'complete' && result.signIn.createdSessionId) {
+        console.log('✅ Sign-in flow completed!');
+        console.log('✅ Session ID:', result.signIn.createdSessionId);
+        await result.setActive!({ session: result.signIn.createdSessionId });
+        console.log('✅ Session activated - Signed in successfully!');
+        console.log('🔵 ========== OAUTH SUCCESS (SIGNIN) ==========');
         return;
       }
 
-      // OAuth incomplete - show helpful message
-      console.log('⚠️ OAuth incomplete - needs_identifier status');
-      console.log('💡 SOLUTION: Use Clerk development keys OR manually close browser after clicking Continue');
-      
-      setErrorMessage('Please close the browser manually after clicking Continue, then return to the app.');
+      // Handle incomplete states
+      console.log('⚠️ ========== OAUTH INCOMPLETE ==========');
+      console.log('⚠️ SignIn status:', result.signIn?.status);
+      console.log('⚠️ SignUp status:', result.signUp?.status);
+
+      if (result.signIn?.status === 'needs_identifier') {
+        console.log('⚠️ OAuth needs identifier - user may need to complete sign-in');
+        setErrorMessage('Please complete the sign-in in your browser, then return to the app.');
+        setShowErrorAlert(true);
+        return;
+      }
+
+      if (result.signUp?.status === 'missing_requirements') {
+        console.log('⚠️ OAuth missing requirements');
+        setErrorMessage('Additional information required. Please try again.');
+        setShowErrorAlert(true);
+        return;
+      }
+
+      // No session created
+      console.log('⚠️ No session created - OAuth may have been cancelled');
+      console.log('⚠️ User may have closed browser before completing sign-in');
+      setErrorMessage('Sign-in was not completed. Please try again and complete the sign-in process.');
       setShowErrorAlert(true);
-      
+
     } catch (error: any) {
-      console.error('❌ OAuth error:', error);
-      console.error('❌ Error details:', JSON.stringify(error, null, 2));
-      setErrorMessage(error.message || 'Failed to sign in with Google.');
+      console.error('❌ ========== OAUTH ERROR ==========');
+      console.error('❌ Error message:', error.message);
+      console.error('❌ Error code:', error.code);
+      console.error('❌ Error name:', error.name);
+      console.error('❌ Full error:', JSON.stringify(error, null, 2));
+      console.error('❌ Stack trace:', error.stack);
+
+      // Detailed error handling
+      let userMessage = 'Failed to sign in with Google. ';
+
+      if (error.message?.includes('cancelled') || error.message?.includes('canceled')) {
+        console.log('ℹ️ User cancelled OAuth flow');
+        userMessage = 'Sign-in was cancelled.';
+      } else if (error.message?.includes('network') || error.message?.includes('Network')) {
+        console.log('ℹ️ Network error during OAuth');
+        userMessage = 'Network error. Please check your internet connection and try again.';
+      } else if (error.message?.includes('redirect')) {
+        console.log('ℹ️ Redirect error - check Clerk configuration');
+        userMessage = 'OAuth redirect failed. Please contact support.';
+      } else if (error.code === 'ERR_OAUTHFLOW_FAILED') {
+        console.log('ℹ️ OAuth flow failed - check Clerk and Google Cloud Console configuration');
+        userMessage = 'OAuth configuration error. Please contact support.';
+      } else {
+        console.log('ℹ️ Unknown OAuth error');
+        userMessage = error.message || 'An unexpected error occurred. Please try again.';
+      }
+
+      setErrorMessage(userMessage);
       setShowErrorAlert(true);
+      console.error('❌ ========== OAUTH FAILED ==========');
     } finally {
       setLoading(false);
+      console.log('🔵 ========== OAUTH FLOW END ==========');
     }
   };
 
@@ -232,7 +381,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
           await result.prepareEmailAddressVerification({ strategy: 'email_code' });
           setPendingVerification(result);
           setAuthMode('verify');
-          
+
           // Show custom success alert
           setShowCodeSentAlert(true);
         } catch (verifyError: any) {
@@ -279,7 +428,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
       const errMsg = error.errors?.[0]?.message || 'Invalid or expired code';
       setErrorMessage(errMsg);
       setShowErrorAlert(true);
-      
+
       // Clear the code if it's invalid
       if (errorMessage.toLowerCase().includes('invalid')) {
         setVerificationCode('');
@@ -307,13 +456,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
   const handleOtpChange = (text: string, index: number) => {
     // Only allow numbers
     const numericText = text.replace(/[^0-9]/g, '');
-    
+
     if (numericText.length <= 1) {
       const newCode = verificationCode.split('');
       newCode[index] = numericText;
       const updatedCode = newCode.join('');
       setVerificationCode(updatedCode);
-      
+
       // Auto-focus next input
       if (numericText && index < 5) {
         otpInputs.current[index + 1]?.focus();
@@ -331,8 +480,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="white" />
-      
-      <ScrollView 
+
+      <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -348,7 +497,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                 <Ionicons name="heart" size={32} color="white" />
               </LinearGradient>
             </View>
-            
+
             <Text style={styles.appName}>Pairly</Text>
           </View>
         )}
@@ -377,14 +526,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                   {loading ? 'Signing in...' : 'Continue with Google'}
                 </Text>
               </TouchableOpacity>
-              
+
               <View style={styles.divider}>
                 <View style={styles.dividerLine} />
                 <Text style={styles.dividerText}>or</Text>
                 <View style={styles.dividerLine} />
               </View>
 
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.emailButton}
                 onPress={() => setAuthMode('signin')}
                 activeOpacity={0.8}
@@ -409,7 +558,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                   placeholderTextColor={colors.textTertiary}
                 />
               </View>
-              
+
               <View style={styles.inputContainer}>
                 <Ionicons name="lock-closed-outline" size={20} color={colors.textTertiary} style={styles.inputIcon} />
                 <TextInput
@@ -464,7 +613,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                   placeholderTextColor={colors.textTertiary}
                 />
               </View>
-              
+
               <View style={styles.inputContainer}>
                 <Ionicons name="mail-outline" size={20} color={colors.textTertiary} style={styles.inputIcon} />
                 <TextInput
@@ -477,7 +626,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                   placeholderTextColor={colors.textTertiary}
                 />
               </View>
-              
+
               <View style={styles.inputContainer}>
                 <Ionicons name="lock-closed-outline" size={20} color={colors.textTertiary} style={styles.inputIcon} />
                 <TextInput
@@ -551,7 +700,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                   </View>
                 ))}
               </View>
-              
+
               <TextInput
                 style={styles.hiddenInput}
                 value={verificationCode}
@@ -673,7 +822,7 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: layout.screenPaddingHorizontal,
   },
-  
+
   // Header Section
   header: {
     alignItems: 'center',

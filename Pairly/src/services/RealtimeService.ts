@@ -16,7 +16,7 @@ class RealtimeService {
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private eventListeners: Map<string, EventCallback[]> = new Map();
-  
+
   // ⚡ WORLD CLASS: Advanced features
   private processedMessageIds: Set<string> = new Set(); // De-duplication
   private maxProcessedIds = 1000; // Keep last 1000 IDs
@@ -35,12 +35,12 @@ class RealtimeService {
       console.log('⏰ Waking up backend...');
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
-      
+
       await fetch(API_CONFIG.baseUrl + '/health', {
         method: 'GET',
         signal: controller.signal,
       });
-      
+
       clearTimeout(timeoutId);
       console.log('✅ Backend is awake');
     } catch (error) {
@@ -62,7 +62,7 @@ class RealtimeService {
     try {
       // ⚡ IMPROVED: Wake up backend first (Render cold start)
       await this.wakeUpBackend();
-      
+
       const token = await AuthService.getToken();
 
       // Start performance timer
@@ -78,7 +78,7 @@ class RealtimeService {
       log.network('Connecting to Socket.IO:', API_CONFIG.socketUrl);
       console.log('🔌 Creating realtime socket with URL:', API_CONFIG.socketUrl);
       console.log('🔑 Auth token present:', !!token);
-      
+
       this.socket = io(API_CONFIG.socketUrl, {
         auth: {
           token,
@@ -111,8 +111,7 @@ class RealtimeService {
           version: '1.0.0',
         },
         // Heartbeat settings - more aggressive for APK
-        pingTimeout: isAPK ? 45000 : 30000,
-        pingInterval: isAPK ? 20000 : 15000,
+
         // Extra options for APK reliability
         extraHeaders: {
           'User-Agent': `Pairly-${Platform.OS}-${isAPK ? 'APK' : 'Dev'}`,
@@ -120,10 +119,10 @@ class RealtimeService {
       });
 
       this.setupEventHandlers(userId);
-      
+
       // ⚡ WORLD CLASS: Setup network awareness
       this.setupNetworkListener();
-      
+
       // ⚡ WORLD CLASS: Setup app state handler
       this.setupAppStateHandler();
     } catch (error) {
@@ -150,7 +149,7 @@ class RealtimeService {
       // Network came back online
       if (!wasAvailable && this.isNetworkAvailable) {
         console.log('🌐 Internet restored - reconnecting socket...');
-        
+
         if (this.socket && !this.socket.connected) {
           this.socket.connect();
         }
@@ -180,13 +179,13 @@ class RealtimeService {
       // App came to foreground
       if (this.lastAppState.match(/inactive|background/) && nextAppState === 'active') {
         console.log('🔄 App foreground - checking socket...');
-        
+
         // Reconnect if disconnected
         if (this.socket && !this.socket.connected && this.isNetworkAvailable) {
           console.log('⚡ Reconnecting socket...');
           this.socket.connect();
         }
-        
+
         // ⚡ WORLD CLASS: Restart heartbeat in foreground
         if (this.currentUserId) {
           this.startHeartbeat(this.currentUserId);
@@ -196,7 +195,7 @@ class RealtimeService {
       // App going to background
       if (nextAppState.match(/inactive|background/)) {
         console.log('📱 App background - stopping heartbeat to save battery');
-        
+
         // ⚡ WORLD CLASS: Stop heartbeat in background to save battery
         this.stopHeartbeat();
       }
@@ -241,15 +240,15 @@ class RealtimeService {
     // New moment received
     this.socket.on('new_moment', (data: any) => {
       log.debug('New moment received');
-      
+
       // ⚡ WORLD CLASS: De-duplication for moments
       const messageId = data.momentId || data.id || `moment_${data.timestamp}`;
-      
+
       if (this.processedMessageIds.has(messageId)) {
         console.log('🛡️ Duplicate moment detected - ignoring:', messageId);
         return;
       }
-      
+
       this.addProcessedMessageId(messageId);
       this.triggerEvent('new_moment', data);
     });
@@ -257,24 +256,24 @@ class RealtimeService {
     // Photo received from partner - VERIFY it's from our paired partner
     this.socket.on('receive_photo', async (data: any) => {
       log.debug('Photo received from partner:', data.senderName);
-      
+
       // ⚡ CRITICAL FIX: Don't receive your own photos!
       if (data.senderId === this.currentUserId) {
         console.log('🚫 [RECEIVER] Ignoring own photo (sender = receiver)');
         return;
       }
-      
+
       // ⚡ WORLD CLASS: De-duplication - prevent duplicate photos
       const messageId = data.messageId || data.photoId || `${data.senderId}_${data.timestamp}`;
-      
+
       if (this.processedMessageIds.has(messageId)) {
         console.log('🛡️ Duplicate photo detected - ignoring:', messageId);
         return;
       }
-      
+
       // Add to processed IDs
       this.addProcessedMessageId(messageId);
-      
+
       // ⚡ IMPROVED: Show push notification immediately
       try {
         const EnhancedNotificationService = (await import('./EnhancedNotificationService')).default;
@@ -286,21 +285,21 @@ class RealtimeService {
       } catch (error) {
         console.error('Error showing notification:', error);
       }
-      
+
       // ⚡ IMPROVED: Use MomentService to handle photo reception properly
       try {
         const PairingService = (await import('./PairingService')).default;
         const partner = await PairingService.getPartner();
-        
+
         // Compare using clerkId (data.senderId is clerkId from backend)
         const isFromPartner = partner && (
-          data.senderId === partner.clerkId || 
+          data.senderId === partner.clerkId ||
           data.senderId === partner.id
         );
-        
+
         if (isFromPartner) {
           log.debug('Verified photo is from paired partner');
-          
+
           // ⚡ FIXED: Use MomentService.receivePhoto for proper dual storage
           const MomentService = (await import('./MomentService')).default;
           const success = await MomentService.receivePhoto({
@@ -310,13 +309,13 @@ class RealtimeService {
             caption: data.caption,
             senderName: data.senderName,
           });
-          
+
           if (success) {
             console.log('✅ Photo received and saved via MomentService (dual storage)');
-            
+
             // ⚡ IMPROVED: Trigger event for UI update
             this.triggerEvent('receive_photo', data);
-            
+
             // ⚡ NEW: Trigger photo_saved event for Recent Moments update
             this.triggerEvent('photo_saved', {
               photoId: data.photoId,
@@ -387,7 +386,7 @@ class RealtimeService {
     // ⚡ FIXED: Note received from partner
     this.socket.on('receive_note', async (data: any) => {
       console.log('📝 [NOTE] Received from:', data.senderName);
-      
+
       // Show push notification
       try {
         const EnhancedNotificationService = (await import('./EnhancedNotificationService')).default;
@@ -399,7 +398,7 @@ class RealtimeService {
       } catch (error) {
         console.error('Error showing note notification:', error);
       }
-      
+
       this.triggerEvent('receive_note', data);
       this.triggerEvent('shared_note', data); // Backward compatibility
     });
@@ -414,7 +413,7 @@ class RealtimeService {
     this.socket.on('disconnect', async (reason: string) => {
       console.log('⚠️ Socket.IO disconnected:', reason);
       this.isConnected = false;
-      
+
       // Record connection drop
       try {
         const PerformanceMonitor = (await import('./PerformanceMonitor')).default;
@@ -422,7 +421,7 @@ class RealtimeService {
       } catch (error) {
         // Ignore
       }
-      
+
       this.triggerEvent('disconnect', { reason });
     });
 
@@ -437,10 +436,10 @@ class RealtimeService {
       console.log('✅ Reconnected after', attemptNumber, 'attempts');
       this.isConnected = true;
       this.reconnectAttempts = 0;
-      
+
       // Rejoin room
       this.socket?.emit('join_room', { userId });
-      
+
       // Process any queued moments after reconnection
       try {
         const MomentService = (await import('./MomentService')).default;
@@ -451,7 +450,7 @@ class RealtimeService {
       } catch (error) {
         console.error('Error processing queued moments:', error);
       }
-      
+
       this.triggerEvent('reconnect', { attemptNumber });
     });
 
@@ -473,13 +472,13 @@ class RealtimeService {
    */
   private addProcessedMessageId(messageId: string): void {
     this.processedMessageIds.add(messageId);
-    
+
     // Keep only last 1000 IDs to prevent memory leak
     if (this.processedMessageIds.size > this.maxProcessedIds) {
       const idsArray = Array.from(this.processedMessageIds);
       const toRemove = idsArray.slice(0, idsArray.length - this.maxProcessedIds);
       toRemove.forEach(id => this.processedMessageIds.delete(id));
-      
+
       console.log(`🧹 Cleaned old message IDs, kept last ${this.maxProcessedIds}`);
     }
   }
@@ -490,24 +489,24 @@ class RealtimeService {
   disconnect(): void {
     // ⚡ WORLD CLASS: Cleanup all listeners
     this.stopHeartbeat();
-    
+
     if (this.netInfoUnsubscribe) {
       this.netInfoUnsubscribe();
       this.netInfoUnsubscribe = null;
     }
-    
+
     if (this.appStateSubscription) {
       this.appStateSubscription.remove();
       this.appStateSubscription = null;
     }
-    
+
     if (this.socket) {
       this.socket.disconnect();
       this.socket = null;
       this.isConnected = false;
       console.log('Socket.IO disconnected manually');
     }
-    
+
     // Clear processed IDs
     this.processedMessageIds.clear();
     this.currentUserId = null;
@@ -563,12 +562,12 @@ class RealtimeService {
         log.debug(`📤 Emitted ${event}`);
       } else {
         console.warn(`⚠️ Cannot emit ${event}, socket not connected`);
-        
+
         // Try to reconnect if not connected
         if (this.socket && !this.isConnected) {
           console.log('🔄 Attempting to reconnect socket...');
           this.socket.connect();
-          
+
           // Retry emit after short delay
           setTimeout(() => {
             if (this.socket && this.isConnected) {
@@ -593,18 +592,18 @@ class RealtimeService {
         // ⚡ WORLD CLASS: Add unique message ID for de-duplication on backend
         const messageId = data.messageId || `${event}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const dataWithId = { ...data, messageId };
-        
+
         // Set timeout for acknowledgment
         const timeoutId = setTimeout(() => {
           console.warn(`⏱️ Acknowledgment timeout for ${event}`);
           callback({ success: false, error: 'Timeout' });
         }, timeout);
-        
+
         this.socket.emit(event, dataWithId, (response: any) => {
           clearTimeout(timeoutId);
           callback(response);
         });
-        
+
         log.debug(`📤 Emitted ${event} with ack and messageId: ${messageId}`);
       } else {
         console.warn(`⚠️ Cannot emit ${event}, socket not connected`);
