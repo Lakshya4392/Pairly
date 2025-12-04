@@ -126,7 +126,7 @@ router.post('/waitlist', async (req, res) => {
         });
 
         // Send success email to referrer
-        // await sendReferralSuccessEmail(referrer.email, name || 'A new friend');
+        await sendReferralSuccessEmail(referrer.email, name || 'A new friend');
       }
     }
 
@@ -147,7 +147,7 @@ router.post('/waitlist', async (req, res) => {
 
     // Send welcome email
     const apkUrl = process.env.APK_DOWNLOAD_URL || '#';
-    // await sendWaitlistEmail(email, apkUrl);
+    await sendWaitlistEmail(email, apkUrl);
 
     return res.json({
       success: true,
@@ -237,6 +237,77 @@ router.get('/my-invites/:clerkId', async (req, res) => {
   } catch (error) {
     console.error('Error fetching invite stats:', error);
     return res.status(500).json({ error: 'Failed to fetch stats' });
+  }
+});
+
+// ✅ Verify email for app login (after Clerk authentication)
+router.post('/verify-email', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        verified: false,
+        message: 'Email is required',
+      });
+    }
+
+    // Find user in waitlist
+    const invitedUser = await prisma.invitedUser.findUnique({
+      where: { email: email.toLowerCase() },
+    });
+
+    if (!invitedUser) {
+      return res.status(404).json({
+        verified: false,
+        message: 'Email not in waitlist. Please join at pairly-iota.vercel.app',
+      });
+    }
+
+    // Return user data
+    return res.json({
+      verified: true,
+      userId: invitedUser.id,
+      referralCode: invitedUser.inviteCode,
+      isPremium: invitedUser.isPremium,
+      referralCount: invitedUser.referralCount,
+    });
+
+  } catch (error) {
+    console.error('Email verification error:', error);
+    return res.status(500).json({
+      verified: false,
+      error: 'Internal server error',
+    });
+  }
+});
+
+// 📊 Get referral count for user (by referral code)
+router.get('/count', async (req, res) => {
+  try {
+    const { code } = req.query;
+
+    if (!code || typeof code !== 'string') {
+      return res.status(400).json({ error: 'Referral code is required' });
+    }
+
+    // Find user by referral code
+    const user = await prisma.invitedUser.findUnique({
+      where: { inviteCode: code },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    return res.json({
+      count: user.referralCount,
+      isPremium: user.isPremium,
+    });
+
+  } catch (error) {
+    console.error('Error fetching referral count:', error);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 

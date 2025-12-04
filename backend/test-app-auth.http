@@ -1,0 +1,49 @@
+### Test App Authentication Endpoints
+### Use this file with REST Client extension in VS Code
+
+@baseUrl = https://pairly-60qj.onrender.com
+# @baseUrl = http://localhost:3000
+
+### 1. Test Verify Email (After Clerk Login)
+POST {{baseUrl}}/auth/verify-email
+Content-Type: application/json
+
+{
+  "email": "test@example.com"
+}
+
+### 2. Test Get Referral Count
+GET {{baseUrl}}/auth/count?code=YOUR_REFERRAL_CODE_HERE
+
+### 3. Test Waitlist Signup (Website)
+POST {{baseUrl}}/invites/waitlist
+Content-Type: application/json
+
+{
+  "email": "newuser@example.com",
+  "name": "New User",
+  "source": "website"
+}
+
+### 4. Test Waitlist Signup with Referral
+POST {{baseUrl}}/invites/waitlist
+Content-Type: application/json
+
+{
+  "email": "referred@example.com",
+  "name": "Referred User",
+  "source": "website",
+  "referralCode": "YOUR_REFERRAL_CODE_HERE"
+}
+
+### 5. Test Check Access (APK Login)
+POST {{baseUrl}}/invites/check-access
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "clerkId": "user_abc123"
+}
+
+### 6. Health Check
+GET {{baseUrl}}/health

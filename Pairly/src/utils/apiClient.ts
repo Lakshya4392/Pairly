@@ -105,15 +105,15 @@ class ApiClient {
             errorData = { error: errorText };
           }
           
-          // Provide more specific error messages
+          // Provide more specific error messages, but keep HTTP status for retry logic
           if (response.status === 401) {
-            throw new Error(errorData.error || 'Authentication required. Please sign in again.');
+            throw new Error(`HTTP 401: ${errorData.error || 'Authentication required. Please sign in again.'}`);
           } else if (response.status === 403) {
-            throw new Error(errorData.error || 'Access denied.');
+            throw new Error(`HTTP 403: ${errorData.error || 'Access denied.'}`);
           } else if (response.status === 404) {
-            throw new Error(errorData.error || 'Resource not found.');
+            throw new Error(`HTTP 404: ${errorData.error || 'Resource not found.'}`);
           } else {
-            throw new Error(errorData.error || `HTTP ${response.status}: ${errorText}`);
+            throw new Error(`HTTP ${response.status}: ${errorData.error || errorText}`);
           }
         }
 

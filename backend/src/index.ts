@@ -111,6 +111,7 @@ app.get('/keep-alive', (req, res) => {
 
 // API routes
 app.use('/auth', authRoutes);
+app.use('/auth', inviteRoutes); // ✅ Add invite routes to /auth for app compatibility
 app.use('/pairs', pairRoutes);
 app.use('/moments', momentRoutes);
 app.use('/test', testRoutes);

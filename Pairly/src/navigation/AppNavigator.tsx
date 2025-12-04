@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Alert, Platform } from 'react-native';
+import { View, StyleSheet, Alert, Platform, AppState } from 'react-native';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SplashScreen } from '../screens/SplashScreen';
@@ -535,6 +535,21 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
       handleSplashComplete();
     }
   }, [isAuthChecked, hasSeenOnboarding]);
+
+  // Refresh Auth on Foreground
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'active' && isSignedIn && user) {
+        console.log('🔄 App foregrounded - refreshing backend auth...');
+        authenticateWithBackend();
+        checkPremiumStatus();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [isSignedIn, user]);
 
   // --- Render ---
 
