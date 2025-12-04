@@ -1,0 +1,6 @@
+@echo off
+echo ⏳ Waiting 40 seconds for Render deployment...
+timeout /t 40 /nobreak
+echo.
+echo 🧪 Testing backend...
+node test-simple.js

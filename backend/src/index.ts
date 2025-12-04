@@ -90,7 +90,7 @@ app.use((req, res, next) => {
 app.get('/health', (req, res) => {
   res.json({ 
     status: 'ok', 
-    message: 'Pairly API is running',
+    message: 'Pairly API is running - v2.0',
     timestamp: new Date().toISOString(),
     uptime: process.uptime()
   });
