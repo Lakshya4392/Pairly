@@ -125,8 +125,13 @@ router.post('/waitlist', async (req, res) => {
           }
         });
 
-        // Send success email to referrer
-        await sendReferralSuccessEmail(referrer.email, name || 'A new friend');
+        // Send success email to referrer (non-blocking)
+        try {
+          await sendReferralSuccessEmail(referrer.email, name || 'A new friend');
+          console.log('✅ Referral email sent');
+        } catch (emailError) {
+          console.warn('⚠️ Referral email failed (non-critical):', emailError);
+        }
       }
     }
 
@@ -145,9 +150,15 @@ router.post('/waitlist', async (req, res) => {
 
     console.log(`📝 Waitlist signup: ${email} (source: ${source || 'website'})`);
 
-    // Send welcome email
-    const apkUrl = process.env.APK_DOWNLOAD_URL || '#';
-    await sendWaitlistEmail(email, apkUrl);
+    // Send welcome email (non-blocking, don't fail if email fails)
+    try {
+      const apkUrl = process.env.APK_DOWNLOAD_URL || '#';
+      await sendWaitlistEmail(email, apkUrl);
+      console.log('✅ Welcome email sent');
+    } catch (emailError) {
+      console.warn('⚠️ Email send failed (non-critical):', emailError);
+      // Continue anyway - email is optional
+    }
 
     return res.json({
       success: true,

@@ -1,9 +1,12 @@
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Initialize Resend only if API key is available
+const resend = process.env.RESEND_API_KEY 
+  ? new Resend(process.env.RESEND_API_KEY)
+  : null;
 
 export async function sendWaitlistEmail(email: string, apkUrl: string) {
-    if (!process.env.RESEND_API_KEY) {
+    if (!resend || !process.env.RESEND_API_KEY) {
         console.warn('⚠️ RESEND_API_KEY not found, skipping email send');
         return { success: false, error: 'Missing API key' };
     }
@@ -79,7 +82,10 @@ export async function sendWaitlistEmail(email: string, apkUrl: string) {
 }
 
 export async function sendReferralSuccessEmail(referrerEmail: string, newUserName: string) {
-    if (!process.env.RESEND_API_KEY) return;
+    if (!resend || !process.env.RESEND_API_KEY) {
+        console.warn('⚠️ RESEND_API_KEY not found, skipping referral email');
+        return;
+    }
 
     try {
         await resend.emails.send({
