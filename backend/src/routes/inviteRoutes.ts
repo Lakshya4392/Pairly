@@ -136,16 +136,14 @@ router.post('/waitlist', async (req, res) => {
     }
 
     // Add to waitlist
-    const createData: Prisma.InvitedUserCreateInput = {
-      email: email.toLowerCase(),
-      status: 'pending',
-      invitedBy: referrerId, // Link to referrer
-      source: source || 'website',
-      name: name || null,
-    };
-
     const invite = await prisma.invitedUser.create({
-      data: createData,
+      data: {
+        email: email.toLowerCase(),
+        status: 'pending',
+        invitedBy: referrerId, // Link to referrer
+        source: source || 'website',
+        name: name || null,
+      },
     });
 
     console.log(`📝 Waitlist signup: ${email} (source: ${source || 'website'})`);
