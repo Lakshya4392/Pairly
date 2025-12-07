@@ -10,6 +10,26 @@ import { ApiResponse, MomentResponse } from '../types';
 export const uploadMoment = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.userId!;
+    const { momentId, messageId } = req.body;
+
+    // ✅ DUPLICATE DETECTION: Check if moment already exists
+    if (momentId) {
+      const existingMoment = await prisma.moment.findUnique({
+        where: { id: momentId },
+      });
+
+      if (existingMoment) {
+        console.log('⚠️ Duplicate moment detected, sending ACK:', momentId);
+        res.json({
+          success: true,
+          duplicate: true,
+          message: 'Moment already received',
+          momentId,
+          receivedAt: existingMoment.uploadedAt.toISOString(),
+        } as ApiResponse);
+        return;
+      }
+    }
 
     // Get user to check premium status and daily limit
     const user = await prisma.user.findUnique({

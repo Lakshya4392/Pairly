@@ -108,39 +108,62 @@ class MomentService {
           quality
         );
 
-        // 6. Send to partner via Socket.IO with acknowledgment
+        // 6. Send to partner via Socket.IO with ACK and retry logic
         const partnerSocketId = partner.clerkId || partner.id;
         const messageId = `${photoId}_${Date.now()}`;
         
         console.log('📤 [SENDER] Sending to partner:', partner.displayName);
         
         try {
-          await new Promise<void>((resolve, reject) => {
-            const timeout = setTimeout(() => {
-              reject(new Error('Send timeout'));
-            }, 5000);
-
-            RealtimeService.emitWithAck(
-              'send_photo',
-              {
-                photoId: photoId,
-                photoData: compressedPhoto.base64,
-                timestamp: Date.now(),
-                caption: note || photo.caption,
-                partnerId: partnerSocketId,
-                messageId,
-              },
-              (response: any) => {
-                clearTimeout(timeout);
-                if (response && response.success !== false) {
-                  console.log('✅ [SENDER] Photo sent successfully!');
-                  resolve();
-                } else {
-                  reject(new Error(response?.error || 'Send failed'));
-                }
+          // Retry logic: 3 attempts with exponential backoff
+          const maxRetries = 3;
+          let lastError: Error | null = null;
+          
+          for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+              console.log(`📤 [SENDER] Attempt ${attempt}/${maxRetries}...`);
+              
+              await new Promise<void>((resolve, reject) => {
+                RealtimeService.emitWithAck(
+                  'send_photo',
+                  {
+                    photoId: photoId,
+                    photoData: compressedPhoto.base64,
+                    timestamp: Date.now(),
+                    caption: note || photo.caption,
+                    partnerId: partnerSocketId,
+                    messageId,
+                  },
+                  (response: any) => {
+                    if (response && response.success !== false) {
+                      console.log('✅ [SENDER] ACK received - Photo delivered!');
+                      resolve();
+                    } else {
+                      reject(new Error(response?.error || 'Server rejected photo'));
+                    }
+                  },
+                  10000 // 10 second timeout for ACK
+                );
+              });
+              
+              // Success! Break out of retry loop
+              break;
+              
+            } catch (attemptError: any) {
+              lastError = attemptError;
+              console.log(`⚠️ [SENDER] Attempt ${attempt} failed: ${attemptError.message}`);
+              
+              // If this was the last attempt, throw error
+              if (attempt === maxRetries) {
+                throw lastError;
               }
-            );
-          });
+              
+              // Wait before retry (exponential backoff: 2s, 4s, 8s)
+              const delayMs = 2000 * Math.pow(2, attempt - 1);
+              console.log(`⏳ [SENDER] Waiting ${delayMs}ms before retry...`);
+              await new Promise(resolve => setTimeout(resolve, delayMs));
+            }
+          }
 
           // Show success notification
           try {

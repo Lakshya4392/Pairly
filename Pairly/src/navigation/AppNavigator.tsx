@@ -13,7 +13,7 @@ import { PremiumScreen } from '../screens/PremiumScreen';
 import { ManagePremiumScreen } from '../screens/ManagePremiumScreen';
 import { GalleryScreen } from '../screens/GalleryScreen';
 import { SocketTestScreen } from '../screens/SocketTestScreen';
-import ReferralScreen from '../screens/ReferralScreen';
+import { ReferralScreen } from '../screens/ReferralScreen';
 import { API_CONFIG } from '../config/api.config';
 
 type Screen =
@@ -309,44 +309,18 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
         return;
       }
 
-      const PremiumService = (await import('../services/PremiumService')).default;
-      const isPremiumUser = await PremiumService.isPremium();
-      setIsPremium(isPremiumUser);
+      // NEW: Check premium from waitlist system (PremiumCheckService)
+      const PremiumCheckService = (await import('../services/PremiumCheckService')).default;
+      const status = await PremiumCheckService.getLocalPremiumStatus();
+      
+      console.log('💎 Premium status (waitlist):', status.isPremium, 'Days:', status.daysRemaining);
+      setIsPremium(status.isPremium);
 
-      if (currentScreen === 'splash' || currentScreen === 'auth') {
-        console.log('💎 Premium status:', isPremiumUser);
-      }
-
-      if (currentScreen === 'settings' || currentScreen === 'premium' || currentScreen === 'managePremium') {
-        try {
-          const UserSyncService = (await import('../services/UserSyncService')).default;
-          const backendUser = await UserSyncService.getUserFromBackend();
-
-          if (backendUser) {
-            if (backendUser.isPremium !== isPremiumUser) {
-              console.log('✅ Premium status updated from backend:', backendUser.isPremium);
-            }
-
-            if (backendUser.isPremium) {
-              const expiryDate = backendUser.premiumExpiry
-                ? new Date(backendUser.premiumExpiry)
-                : undefined;
-
-              await PremiumService.setPremiumStatus(
-                true,
-                backendUser.premiumPlan || 'monthly',
-                expiryDate
-              );
-
-              setIsPremium(true);
-            } else if (isPremiumUser && !backendUser.isPremium) {
-              await PremiumService.setPremiumStatus(false);
-              setIsPremium(false);
-            }
-          }
-        } catch (syncError) {
-          // Silent
-        }
+      // Also update old PremiumService for backward compatibility
+      if (status.isPremium) {
+        const PremiumService = (await import('../services/PremiumService')).default;
+        const expiryDate = status.premiumExpiresAt ? new Date(status.premiumExpiresAt) : undefined;
+        await PremiumService.setPremiumStatus(true, 'waitlist', expiryDate);
       }
     } catch (error) {
       console.error('Error checking premium status:', error);
@@ -487,7 +461,24 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
     initializeWidgetService();
     setupRealtimeListeners();
     initializeFCM();
+    initializeNetworkMonitor();
   }, []);
+
+  const initializeNetworkMonitor = async () => {
+    try {
+      const NetworkMonitor = (await import('../services/NetworkMonitor')).default;
+      await NetworkMonitor.initialize();
+      console.log('✅ Network Monitor initialized');
+      
+      // Listen for network changes
+      NetworkMonitor.onChange((isOnline) => {
+        console.log(`🌐 Network status changed: ${isOnline ? 'Online' : 'Offline'}`);
+        // You can show a toast/banner here if needed
+      });
+    } catch (error) {
+      console.error('❌ Error initializing Network Monitor:', error);
+    }
+  };
 
   // Premium Check Loop
   const [lastPremiumCheck, setLastPremiumCheck] = useState(0);

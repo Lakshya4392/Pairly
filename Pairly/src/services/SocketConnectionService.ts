@@ -382,12 +382,15 @@ class SocketConnectionService {
   }
 
   /**
-   * Manual reconnection
+   * Manual reconnection (public for NetworkMonitor)
    */
-  private reconnect(): void {
+  reconnect(): void {
     if (this.socket && !this.socket.connected && this.userId) {
       console.log('🔄 Attempting manual reconnection...');
       this.socket.connect();
+    } else if (!this.socket && this.userId) {
+      console.log('🔄 Socket not initialized, reinitializing...');
+      this.initialize(this.userId);
     }
   }
 

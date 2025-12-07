@@ -174,9 +174,9 @@ export const PairingConnectionScreen: React.FC<PairingConnectionScreenProps> = (
           }
         }, 1000); // Update every second
 
-        // AGGRESSIVE polling fallback - check every 1 second for INSTANT detection
-        // NO TIMEOUT - will continue until code expires (15 minutes)
-        console.log('⏰ Starting AGGRESSIVE polling for pairing status (15 min timeout)...');
+        // Polling fallback - check every 5 seconds (reduced from 1 second)
+        // Will continue until code expires (15 minutes)
+        console.log('⏰ Starting polling for pairing status (check every 5s)...');
         let pollCount = 0;
         pollingInterval = setInterval(async () => {
           if (!mounted || mode !== 'waiting') {
@@ -218,10 +218,15 @@ export const PairingConnectionScreen: React.FC<PairingConnectionScreenProps> = (
                 }
               }, 2000);
             }
-          } catch (error) {
-            // Silent - polling will continue
+          } catch (error: any) {
+            // Stop polling on auth errors
+            if (error?.message?.includes('401') || error?.message?.includes('expired')) {
+              console.log('🛑 Stopping polling due to auth error');
+              clearInterval(pollingInterval);
+            }
+            // Otherwise silent - polling will continue
           }
-        }, 1000); // Poll every 1 second for INSTANT detection
+        }, 5000); // Poll every 5 seconds (reduced from 1s to save battery/network)
 
         return () => {
           if (socketListenerCleanup) socketListenerCleanup();

@@ -5,7 +5,7 @@ import { prisma } from '../index';
 import { ApiResponse, UserResponse } from '../types';
 
 const JWT_SECRET: string = process.env.JWT_SECRET || 'your-secret-key';
-const JWT_EXPIRES_IN: string = process.env.JWT_EXPIRES_IN || '1h';
+const JWT_EXPIRES_IN: string = process.env.JWT_EXPIRES_IN || '7d'; // 7 days for better UX
 
 /**
  * Authenticate user with Google via Clerk

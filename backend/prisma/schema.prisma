@@ -102,6 +102,22 @@ model Moment {
   @@index([isScheduled, scheduledFor])
 }
 
+// Pending Moments - Server-side queue for offline users
+model PendingMoment {
+  id            String    @id @default(cuid())
+  userId        String    // Recipient user ID
+  momentId      String    // Original moment ID
+  photoData     Bytes     // Compressed photo data
+  photoUrl      String?   // Optional CDN URL
+  senderName    String    // Sender's display name
+  note          String?   // Optional note
+  createdAt     DateTime  @default(now())
+  expiresAt     DateTime  // Auto-delete after 7 days
+  
+  @@index([userId, createdAt])
+  @@index([expiresAt])
+}
+
 // NEW PREMIUM FEATURES
 
 // Shared Notes - "Because not every moment needs a photo"

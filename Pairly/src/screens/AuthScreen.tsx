@@ -81,23 +81,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
       // 1. Sync user first (to ensure they exist in DB)
       await syncUserInBackground();
 
-      // 2. Check waitlist status
-      console.log('🔍 Checking waitlist status...');
-      const token = await useAuth().getToken();
-
-      // If no token (e.g. offline), we might want to let them in if they have cached access
-      // For now, let's assume online check is required for beta
-
-      if (!token) {
-        console.log('⚠️ No token available for waitlist check');
-        return;
-      }
-
-      const response = await fetch(`${API_CONFIG.baseUrl}/invites/check-access`, {
+      // 2. NEW: Verify email and get premium status
+      console.log('🔍 Verifying email and checking premium status...');
+      
+      const response = await fetch(`${API_CONFIG.baseUrl}/auth/verify-email`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           email: user?.primaryEmailAddress?.emailAddress,
@@ -106,22 +96,36 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
       });
 
       const data = await response.json();
-      console.log('🎟️ Waitlist check result:', data);
+      console.log('✅ Verify email result:', data);
 
-      if (data.allowed) {
+      if (data.verified) {
+        // Store premium info in AsyncStorage
+        const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+        await AsyncStorage.setItem('referralCode', data.referralCode || '');
+        await AsyncStorage.setItem('isPremium', data.isPremium ? 'true' : 'false');
+        await AsyncStorage.setItem('premiumDaysRemaining', data.premiumDaysRemaining?.toString() || '0');
+        await AsyncStorage.setItem('premiumExpiresAt', data.premiumExpiresAt || '');
+        await AsyncStorage.setItem('referralCount', data.referralCount?.toString() || '0');
+        await AsyncStorage.setItem('userEmail', user?.primaryEmailAddress?.emailAddress || '');
+        await AsyncStorage.setItem('clerkId', user?.id || '');
+        
+        // Show premium status
+        if (data.isPremium) {
+          console.log(`⭐ Premium active: ${data.premiumDaysRemaining} days remaining`);
+        } else {
+          console.log('⏰ Premium expired - refer friends to unlock!');
+        }
+        
+        // Allow access
         onAuthSuccess();
       } else {
-        // Not allowed
-        setErrorMessage(data.message || 'You are on the waitlist. We will notify you when you can join!');
+        // Not verified or waitlist period
+        setErrorMessage(data.message || 'Please join the waitlist first at pairly-iota.vercel.app');
         setShowErrorAlert(true);
-        // Optional: Sign out if strict
-        // signOut();
       }
     } catch (error) {
-      console.error('❌ Error checking waitlist:', error);
-      // Fallback: If error (e.g. backend offline), maybe let them in or show error?
-      // For beta, let's show error
-      setErrorMessage('Unable to verify waitlist status. Please check your connection.');
+      console.error('❌ Error verifying email:', error);
+      setErrorMessage('Unable to verify email. Please check your connection.');
       setShowErrorAlert(true);
     }
   };

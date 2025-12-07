@@ -36,7 +36,9 @@ export const authenticate = async (
 
     // Verify JWT token
     try {
-      const decoded = jwt.verify(token, JWT_SECRET) as JWTPayload;
+      const decoded = jwt.verify(token, JWT_SECRET, {
+        ignoreExpiration: false, // Strict expiry check
+      }) as JWTPayload;
 
       // Verify user exists in database
       const user = await prisma.user.findUnique({
@@ -56,9 +58,19 @@ export const authenticate = async (
       };
 
       next();
-    } catch (jwtError) {
-      console.error('JWT verification error:', jwtError);
-      res.status(401).json({ error: 'Invalid or expired token' });
+    } catch (jwtError: any) {
+      // Better error logging
+      if (jwtError.name === 'TokenExpiredError') {
+        console.warn('⚠️ JWT token expired, user needs to re-authenticate');
+        res.status(401).json({ 
+          error: 'Token expired',
+          code: 'TOKEN_EXPIRED',
+          message: 'Please login again'
+        });
+      } else {
+        console.error('JWT verification error:', jwtError);
+        res.status(401).json({ error: 'Invalid token' });
+      }
       return;
     }
   } catch (error) {

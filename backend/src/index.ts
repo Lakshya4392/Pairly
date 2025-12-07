@@ -149,6 +149,19 @@ io.on('connection', (socket) => {
         // Send acknowledgment
         socket.emit('room_joined', { userId: data.userId });
         
+        // ✅ PUSH PENDING MOMENTS: Send queued moments to user
+        try {
+          const PendingMomentService = (await import('./services/pendingMomentService')).default;
+          const pushedCount = await PendingMomentService.pushPendingMoments(user.id);
+          
+          if (pushedCount > 0) {
+            console.log(`✅ Pushed ${pushedCount} pending moments to ${user.displayName}`);
+          }
+        } catch (error) {
+          console.error('⚠️ Error pushing pending moments:', error);
+          // Non-critical - don't break connection
+        }
+        
         // Notify partner that user is online
         const pair = await prisma.user.findUnique({
           where: { id: user.id },
@@ -301,8 +314,24 @@ io.on('connection', (socket) => {
           console.log('✅ FCM notification sent (partner online)');
         }
       } else {
-        // Partner is offline - send via FCM
-        console.log('⚫ Partner offline - sending via FCM');
+        // Partner is offline - send via FCM AND queue on server
+        console.log('⚫ Partner offline - sending via FCM + queueing on server');
+        
+        // ✅ QUEUE ON SERVER: Store moment for delivery when user reconnects
+        try {
+          const PendingMomentService = (await import('./services/pendingMomentService')).default;
+          await PendingMomentService.queueMoment({
+            userId: partner.id, // Database ID
+            momentId: data.photoId,
+            photoData: Buffer.from(data.photoData, 'base64'),
+            senderName: sender.displayName,
+            note: data.caption,
+          });
+          console.log('✅ Moment queued on server for offline user');
+        } catch (queueError) {
+          console.error('⚠️ Failed to queue moment on server:', queueError);
+          // Non-critical - FCM will still deliver
+        }
         
         if (partner.fcmToken) {
           // Send notification with photo data
@@ -314,7 +343,7 @@ io.on('connection', (socket) => {
           );
           console.log('✅ FCM notification sent (partner offline)');
         } else {
-          console.log('⚠️ Partner has no FCM token - photo will be delivered when they come online');
+          console.log('⚠️ Partner has no FCM token - photo queued for delivery on reconnect');
         }
       }
 
@@ -545,6 +574,21 @@ cron.schedule('* * * * *', async () => {
 });
 
 console.log('⏰ Scheduled moments cron job started (runs every minute)');
+
+// Setup cron job for pending moment cleanup (runs every hour)
+cron.schedule('0 * * * *', async () => {
+  try {
+    const PendingMomentService = (await import('./services/pendingMomentService')).default;
+    const cleaned = await PendingMomentService.cleanupExpired();
+    if (cleaned > 0) {
+      console.log(`🧹 Cleaned up ${cleaned} expired pending moments`);
+    }
+  } catch (error) {
+    console.error('Error in pending moment cleanup cron:', error);
+  }
+});
+
+console.log('⏰ Pending moment cleanup cron job started (runs every hour)');
 
 // Start server
 const PORT = process.env.PORT || 3000;

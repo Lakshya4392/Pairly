@@ -212,6 +212,14 @@ class BackgroundSyncService {
       processing: this.isProcessing,
     };
   }
+
+  /**
+   * Trigger immediate sync (called by NetworkMonitor)
+   */
+  async syncNow(): Promise<void> {
+    console.log('🔄 Triggering immediate background sync...');
+    await this.processQueue();
+  }
 }
 
 export default new BackgroundSyncService();

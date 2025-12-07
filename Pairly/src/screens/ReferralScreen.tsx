@@ -1,280 +1,419 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Share, Clipboard, Alert, ScrollView } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import React, { useEffect, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Share,
+  ScrollView,
+  ActivityIndicator,
+  Clipboard,
+} from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../contexts/ThemeContext';
-import { useUser, useAuth } from '@clerk/clerk-expo';
-import { API_CONFIG } from '../config/api.config';
+import { colors as defaultColors, gradients } from '../theme/colorsIOS';
 import { spacing, borderRadius } from '../theme/spacingIOS';
-import { typography } from '../theme/typography';
+import { shadows } from '../theme/shadowsIOS';
+import PremiumCheckService from '../services/PremiumCheckService';
 
 interface ReferralScreenProps {
-    onBack: () => void;
+  onBack?: () => void;
 }
 
-export default function ReferralScreen({ onBack }: ReferralScreenProps) {
-    const { colors } = useTheme();
-    const { user } = useUser();
-    const { getToken } = useAuth();
-    const styles = createStyles(colors);
+export const ReferralScreen: React.FC<ReferralScreenProps> = ({ onBack }) => {
+  const { colors } = useTheme();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
+  
+  const [referralCode, setReferralCode] = useState('');
+  const [referralCount, setReferralCount] = useState(0);
+  const [premiumDays, setPremiumDays] = useState(0);
+  const [isPremium, setIsPremium] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
 
-    const [referralCode, setReferralCode] = useState<string>('');
-    const [referralCount, setReferralCount] = useState<number>(0);
-    const [isPremium, setIsPremium] = useState<boolean>(false);
-    const [loading, setLoading] = useState<boolean>(true);
+  useEffect(() => {
+    loadReferralData();
+  }, []);
 
-    useEffect(() => {
-        fetchReferralData();
-    }, []);
+  const loadReferralData = async () => {
+    try {
+      setLoading(true);
+      
+      // Get fresh data from backend
+      const status = await PremiumCheckService.checkPremiumStatus();
+      const code = await PremiumCheckService.getReferralCode();
+      
+      setReferralCode(code);
+      setReferralCount(status.referralCount);
+      setPremiumDays(status.daysRemaining);
+      setIsPremium(status.isPremium);
+      
+      console.log('✅ Referral data loaded:', { code, count: status.referralCount, days: status.daysRemaining });
+    } catch (error) {
+      console.error('❌ Error loading referral data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    const fetchReferralData = async () => {
-        try {
-            const token = await getToken();
-            if (!user || !token) return;
+  const shareReferralCode = async () => {
+    try {
+      const referralUrl = `https://pairly-iota.vercel.app?ref=${referralCode}`;
+      
+      await Share.share({
+        message: `Join Pairly with my referral code and get 30 days of premium free! 🎁\n\nReferral Code: ${referralCode}\n\nSign up here: ${referralUrl}`,
+        title: 'Join Pairly',
+      });
+      
+      console.log('✅ Referral code shared');
+    } catch (error) {
+      console.error('❌ Share error:', error);
+    }
+  };
 
-            // Call backend to get referral stats
-            // We can reuse check-access or create a specific endpoint
-            // For now, let's assume we store it in local storage or fetch from check-access
-            // But since we are in the app, let's hit the endpoint
+  const copyReferralCode = async () => {
+    try {
+      await Clipboard.setString(referralCode);
+      setCopied(true);
+      console.log('✅ Referral code copied');
+      
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      console.error('❌ Copy error:', error);
+    }
+  };
 
-            const response = await fetch(`${API_CONFIG.baseUrl}/invites/check-access`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                    email: user.primaryEmailAddress?.emailAddress,
-                    clerkId: user.id
-                })
-            });
+  const getRewardText = () => {
+    if (referralCount >= 5) return '🎉 6 months premium unlocked!';
+    if (referralCount >= 3) return '🎉 3 months premium unlocked!';
+    if (referralCount >= 1) return `✨ ${referralCount * 7} days bonus earned!`;
+    return '🎁 Refer friends to unlock premium!';
+  };
 
-            const data = await response.json();
+  const getNextRewardText = () => {
+    if (referralCount >= 5) return 'Maximum rewards unlocked! 🎉';
+    if (referralCount >= 3) return 'Refer 2 more for 6 months premium!';
+    if (referralCount >= 1) return `Refer ${3 - referralCount} more for 3 months premium!`;
+    return 'Refer 3 friends to get 3 months premium!';
+  };
 
-            if (data.allowed) {
-                setReferralCode(data.inviteCode || 'Loading...');
-                setReferralCount(data.referralCount || 0);
-                setIsPremium(data.isPremium || false);
-            }
-
-        } catch (error) {
-            console.error('Error fetching referral data:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleShare = async () => {
-        if (!referralCode) return;
-
-        const link = `https://pairly-iota.vercel.app?ref=${referralCode}`;
-        const message = `Join me on Pairly! Use my invite code to skip the waitlist: ${link}`;
-
-        try {
-            await Share.share({
-                message,
-                url: link,
-            });
-        } catch (error) {
-            console.error('Share error:', error);
-        }
-    };
-
-    const handleCopy = () => {
-        if (!referralCode) return;
-        Clipboard.setString(referralCode);
-        Alert.alert('Copied!', 'Referral code copied to clipboard');
-    };
-
+  if (loading) {
     return (
-        <View style={styles.container}>
-            {/* Header */}
-            <View style={styles.header}>
-                <TouchableOpacity onPress={onBack} style={styles.backButton}>
-                    <Ionicons name="arrow-back" size={24} color={colors.text} />
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>Invite Friends</Text>
-                <View style={{ width: 24 }} />
-            </View>
-
-            <ScrollView contentContainerStyle={styles.content}>
-                {/* Hero Section */}
-                <LinearGradient
-                    colors={[colors.primary, colors.secondary]}
-                    style={styles.heroCard}
-                >
-                    <Ionicons name="gift-outline" size={48} color="white" />
-                    <Text style={styles.heroTitle}>Get Premium Free</Text>
-                    <Text style={styles.heroSubtitle}>
-                        Invite 3 friends to unlock 1 month of Pairly Premium for free!
-                    </Text>
-                </LinearGradient>
-
-                {/* Stats */}
-                <View style={styles.statsContainer}>
-                    <View style={styles.statBox}>
-                        <Text style={styles.statValue}>{referralCount}</Text>
-                        <Text style={styles.statLabel}>Friends Invited</Text>
-                    </View>
-                    <View style={styles.divider} />
-                    <View style={styles.statBox}>
-                        <Text style={styles.statValue}>{isPremium ? 'Active' : 'Free'}</Text>
-                        <Text style={styles.statLabel}>Status</Text>
-                    </View>
-                </View>
-
-                {/* Code Section */}
-                <View style={styles.codeContainer}>
-                    <Text style={styles.codeLabel}>Your Invite Code</Text>
-                    <TouchableOpacity style={styles.codeBox} onPress={handleCopy}>
-                        <Text style={styles.codeText}>{referralCode || '...'}</Text>
-                        <Ionicons name="copy-outline" size={20} color={colors.primary} />
-                    </TouchableOpacity>
-                </View>
-
-                {/* Actions */}
-                <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
-                    <LinearGradient
-                        colors={[colors.primary, colors.primaryLight]}
-                        style={styles.buttonGradient}
-                    >
-                        <Text style={styles.shareButtonText}>Share Invite Link</Text>
-                        <Ionicons name="share-outline" size={20} color="white" style={{ marginLeft: 8 }} />
-                    </LinearGradient>
-                </TouchableOpacity>
-
-                <Text style={styles.footerText}>
-                    Your friends get to skip the waitlist when they use your code.
-                </Text>
-            </ScrollView>
-        </View>
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={styles.loadingText}>Loading referral data...</Text>
+      </View>
     );
-}
+  }
+
+  return (
+    <View style={styles.container}>
+      {/* Back Button */}
+      {onBack && (
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={onBack}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
+        </TouchableOpacity>
+      )}
+      
+      <ScrollView contentContainerStyle={styles.contentContainer}>
+        {/* Header */}
+        <LinearGradient
+          colors={[colors.primary, colors.secondary]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.header}
+        >
+          <Ionicons name="gift" size={48} color="#FFF" />
+          <Text style={styles.headerTitle}>Invite Friends</Text>
+          <Text style={styles.headerSubtitle}>Get premium by sharing Pairly</Text>
+        </LinearGradient>
+
+      {/* Referral Code Card */}
+      <View style={styles.codeCard}>
+        <Text style={styles.codeLabel}>Your Referral Code</Text>
+        <View style={styles.codeContainer}>
+          <Text style={styles.code}>{referralCode || 'Loading...'}</Text>
+          <TouchableOpacity
+            style={styles.copyButton}
+            onPress={copyReferralCode}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name={copied ? 'checkmark-circle' : 'copy'}
+              size={24}
+              color={copied ? '#4CAF50' : colors.primary}
+            />
+          </TouchableOpacity>
+        </View>
+        {copied && <Text style={styles.copiedText}>✓ Copied!</Text>}
+      </View>
+
+      {/* Stats */}
+      <View style={styles.statsContainer}>
+        <View style={styles.statCard}>
+          <Ionicons name="people" size={32} color={colors.primary} />
+          <Text style={styles.statNumber}>{referralCount}</Text>
+          <Text style={styles.statLabel}>Referrals</Text>
+        </View>
+        
+        <View style={styles.statCard}>
+          <Ionicons name="star" size={32} color={isPremium ? '#FFD700' : '#CCC'} />
+          <Text style={styles.statNumber}>{premiumDays}</Text>
+          <Text style={styles.statLabel}>Days Premium</Text>
+        </View>
+      </View>
+
+      {/* Reward Status */}
+      <View style={styles.rewardCard}>
+        <Text style={styles.rewardTitle}>{getRewardText()}</Text>
+        <Text style={styles.rewardSubtitle}>{getNextRewardText()}</Text>
+      </View>
+
+      {/* Share Button */}
+      <TouchableOpacity
+        style={styles.shareButton}
+        onPress={shareReferralCode}
+        activeOpacity={0.8}
+      >
+        <LinearGradient
+          colors={[colors.primary, colors.secondary]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.shareButtonGradient}
+        >
+          <Ionicons name="share-social" size={20} color="#FFF" />
+          <Text style={styles.shareButtonText}>Share Referral Code</Text>
+        </LinearGradient>
+      </TouchableOpacity>
+
+      {/* Rewards Info */}
+      <View style={styles.rewardsInfo}>
+        <Text style={styles.rewardsTitle}>📊 Referral Rewards:</Text>
+        
+        <View style={styles.rewardItem}>
+          <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+          <Text style={styles.rewardItemText}>1 friend = +7 days premium</Text>
+        </View>
+        
+        <View style={styles.rewardItem}>
+          <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+          <Text style={styles.rewardItemText}>3 friends = +3 months premium</Text>
+        </View>
+        
+        <View style={styles.rewardItem}>
+          <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+          <Text style={styles.rewardItemText}>5 friends = +6 months premium</Text>
+        </View>
+      </View>
+
+      {/* How it Works */}
+      <View style={styles.howItWorks}>
+        <Text style={styles.howItWorksTitle}>How it works:</Text>
+        <Text style={styles.howItWorksText}>
+          1. Share your referral code with friends{'\n'}
+          2. They sign up using your code{'\n'}
+          3. You both get premium rewards!{'\n'}
+          4. More referrals = More premium time
+        </Text>
+      </View>
+      </ScrollView>
+    </View>
+  );
+};
 
 const createStyles = (colors: any) => StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: colors.background,
-    },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: spacing.lg,
-        paddingTop: 60,
-        paddingBottom: spacing.md,
-    },
-    backButton: {
-        padding: spacing.xs,
-    },
-    headerTitle: {
-        fontSize: 18,
-        fontWeight: '600',
-        color: colors.text,
-    },
-    content: {
-        padding: spacing.lg,
-    },
-    heroCard: {
-        padding: spacing.xl,
-        borderRadius: borderRadius.xl,
-        alignItems: 'center',
-        marginBottom: spacing.xl,
-    },
-    heroTitle: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: 'white',
-        marginTop: spacing.sm,
-        marginBottom: spacing.xs,
-    },
-    heroSubtitle: {
-        fontSize: 14,
-        color: 'rgba(255,255,255,0.9)',
-        textAlign: 'center',
-        lineHeight: 20,
-    },
-    statsContainer: {
-        flexDirection: 'row',
-        backgroundColor: colors.card,
-        borderRadius: borderRadius.lg,
-        padding: spacing.lg,
-        marginBottom: spacing.xl,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
-        elevation: 2,
-    },
-    statBox: {
-        flex: 1,
-        alignItems: 'center',
-    },
-    divider: {
-        width: 1,
-        backgroundColor: colors.border,
-    },
-    statValue: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: colors.text,
-        marginBottom: spacing.xs,
-    },
-    statLabel: {
-        fontSize: 12,
-        color: colors.textSecondary,
-        textTransform: 'uppercase',
-        letterSpacing: 1,
-    },
-    codeContainer: {
-        marginBottom: spacing.xl,
-    },
-    codeLabel: {
-        fontSize: 14,
-        color: colors.textSecondary,
-        marginBottom: spacing.sm,
-        marginLeft: spacing.xs,
-    },
-    codeBox: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        backgroundColor: colors.card,
-        padding: spacing.md,
-        borderRadius: borderRadius.lg,
-        borderWidth: 1,
-        borderColor: colors.border,
-        borderStyle: 'dashed',
-    },
-    codeText: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: colors.text,
-        letterSpacing: 2,
-    },
-    shareButton: {
-        marginBottom: spacing.lg,
-        shadowColor: colors.primary,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 4,
-    },
-    buttonGradient: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: spacing.md,
-        borderRadius: borderRadius.full,
-    },
-    shareButtonText: {
-        color: 'white',
-        fontSize: 16,
-        fontWeight: '600',
-    },
-    footerText: {
-        textAlign: 'center',
-        color: colors.textTertiary,
-        fontSize: 12,
-    },
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  backButton: {
+    position: 'absolute',
+    top: spacing.xl + 10,
+    left: spacing.lg,
+    zIndex: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.surface,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...shadows.sm,
+  },
+  contentContainer: {
+    paddingBottom: spacing.xl,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.background,
+  },
+  loadingText: {
+    marginTop: spacing.md,
+    fontSize: 16,
+    color: colors.textSecondary,
+  },
+  header: {
+    padding: spacing.xl,
+    alignItems: 'center',
+    borderBottomLeftRadius: borderRadius.xl,
+    borderBottomRightRadius: borderRadius.xl,
+    ...shadows.md,
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#FFF',
+    marginTop: spacing.md,
+  },
+  headerSubtitle: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.9)',
+    marginTop: spacing.xs,
+  },
+  codeCard: {
+    margin: spacing.lg,
+    padding: spacing.lg,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    ...shadows.sm,
+  },
+  codeLabel: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginBottom: spacing.sm,
+  },
+  codeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  code: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: colors.primary,
+    flex: 1,
+  },
+  copyButton: {
+    padding: spacing.sm,
+  },
+  copiedText: {
+    fontSize: 12,
+    color: '#4CAF50',
+    marginTop: spacing.xs,
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.lg,
+  },
+  statCard: {
+    flex: 1,
+    alignItems: 'center',
+    padding: spacing.lg,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    marginHorizontal: spacing.xs,
+    ...shadows.sm,
+  },
+  statNumber: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: colors.primary,
+    marginTop: spacing.sm,
+  },
+  statLabel: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+  },
+  rewardCard: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.lg,
+    padding: spacing.lg,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    alignItems: 'center',
+    ...shadows.sm,
+  },
+  rewardTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.primary,
+    textAlign: 'center',
+    marginBottom: spacing.xs,
+  },
+  rewardSubtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
+  shareButton: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.lg,
+    borderRadius: borderRadius.lg,
+    overflow: 'hidden',
+    ...shadows.md,
+  },
+  shareButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.lg,
+  },
+  shareButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: spacing.sm,
+  },
+  rewardsInfo: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.lg,
+    padding: spacing.lg,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    ...shadows.sm,
+  },
+  rewardsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: spacing.md,
+  },
+  rewardItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
+  rewardItemText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginLeft: spacing.sm,
+  },
+  howItWorks: {
+    marginHorizontal: spacing.lg,
+    padding: spacing.lg,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    ...shadows.sm,
+  },
+  howItWorksTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: spacing.sm,
+  },
+  howItWorksText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 22,
+  },
 });

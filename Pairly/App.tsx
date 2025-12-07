@@ -204,6 +204,29 @@ export default function App() {
       } else {
         console.warn('⚠️ Notification permissions denied');
       }
+      
+      // ⚡ NEW: Check premium status on app launch
+      setTimeout(async () => {
+        try {
+          const PremiumCheckService = (await import('./src/services/PremiumCheckService')).default;
+          const status = await PremiumCheckService.checkPremiumStatus();
+          
+          if (status.isPremium) {
+            console.log(`⭐ Premium active: ${status.daysRemaining} days remaining`);
+          } else {
+            console.log(`⏰ Premium expired. Referrals: ${status.referralCount}/3`);
+          }
+          
+          // Check if we should show an alert
+          const alert = await PremiumCheckService.getPremiumStatusAlert();
+          if (alert.show) {
+            console.log(`📢 Premium alert: ${alert.title} - ${alert.message}`);
+            // TODO: Show alert to user (can be implemented in HomeScreen)
+          }
+        } catch (error) {
+          console.error('❌ Error checking premium status:', error);
+        }
+      }, 2000); // Check after 2 seconds to not block app startup
     };
     
     initializeApp();
