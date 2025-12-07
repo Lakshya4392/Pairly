@@ -150,17 +150,18 @@ io.on('connection', (socket) => {
         socket.emit('room_joined', { userId: data.userId });
         
         // ✅ PUSH PENDING MOMENTS: Send queued moments to user
-        try {
-          const PendingMomentService = (await import('./services/pendingMomentService')).default;
-          const pushedCount = await PendingMomentService.pushPendingMoments(user.id);
+        // TODO: Enable after database migration
+        // try {
+        //   const PendingMomentService = (await import('./services/pendingMomentService')).default;
+        //   const pushedCount = await PendingMomentService.pushPendingMoments(user.id);
           
-          if (pushedCount > 0) {
-            console.log(`✅ Pushed ${pushedCount} pending moments to ${user.displayName}`);
-          }
-        } catch (error) {
-          console.error('⚠️ Error pushing pending moments:', error);
-          // Non-critical - don't break connection
-        }
+        //   if (pushedCount > 0) {
+        //     console.log(`✅ Pushed ${pushedCount} pending moments to ${user.displayName}`);
+        //   }
+        // } catch (error) {
+        //   console.error('⚠️ Error pushing pending moments:', error);
+        //   // Non-critical - don't break connection
+        // }
         
         // Notify partner that user is online
         const pair = await prisma.user.findUnique({
@@ -318,20 +319,21 @@ io.on('connection', (socket) => {
         console.log('⚫ Partner offline - sending via FCM + queueing on server');
         
         // ✅ QUEUE ON SERVER: Store moment for delivery when user reconnects
-        try {
-          const PendingMomentService = (await import('./services/pendingMomentService')).default;
-          await PendingMomentService.queueMoment({
-            userId: partner.id, // Database ID
-            momentId: data.photoId,
-            photoData: Buffer.from(data.photoData, 'base64'),
-            senderName: sender.displayName,
-            note: data.caption,
-          });
-          console.log('✅ Moment queued on server for offline user');
-        } catch (queueError) {
-          console.error('⚠️ Failed to queue moment on server:', queueError);
-          // Non-critical - FCM will still deliver
-        }
+        // TODO: Enable after database migration
+        // try {
+        //   const PendingMomentService = (await import('./services/pendingMomentService')).default;
+        //   await PendingMomentService.queueMoment({
+        //     userId: partner.id, // Database ID
+        //     momentId: data.photoId,
+        //     photoData: Buffer.from(data.photoData, 'base64'),
+        //     senderName: sender.displayName,
+        //     note: data.caption,
+        //   });
+        //   console.log('✅ Moment queued on server for offline user');
+        // } catch (queueError) {
+        //   console.error('⚠️ Failed to queue moment on server:', queueError);
+        //   // Non-critical - FCM will still deliver
+        // }
         
         if (partner.fcmToken) {
           // Send notification with photo data
@@ -564,31 +566,52 @@ io.on('connection', (socket) => {
 // Export io for use in other modules
 export { io };
 
-// Setup cron job for scheduled moments (runs every minute)
-cron.schedule('* * * * *', async () => {
+// ⏰ CRON JOB 1: Process scheduled moments (every 5 minutes)
+cron.schedule('*/5 * * * *', async () => {
   try {
-    await ScheduledMomentService.processScheduledMoments();
-  } catch (error) {
-    console.error('Error in scheduled moments cron:', error);
-  }
-});
-
-console.log('⏰ Scheduled moments cron job started (runs every minute)');
-
-// Setup cron job for pending moment cleanup (runs every hour)
-cron.schedule('0 * * * *', async () => {
-  try {
-    const PendingMomentService = (await import('./services/pendingMomentService')).default;
-    const cleaned = await PendingMomentService.cleanupExpired();
-    if (cleaned > 0) {
-      console.log(`🧹 Cleaned up ${cleaned} expired pending moments`);
+    const result = await ScheduledMomentService.processScheduledMoments();
+    // Only log if something was processed
+    if (result && result.delivered > 0) {
+      console.log(`✅ Processed ${result.delivered} scheduled moments`);
     }
   } catch (error) {
-    console.error('Error in pending moment cleanup cron:', error);
+    console.error('❌ Error in scheduled moments cron:', error);
   }
 });
 
-console.log('⏰ Pending moment cleanup cron job started (runs every hour)');
+console.log('⏰ Cron: Scheduled moments (every 5 minutes)');
+
+// ⏰ CRON JOB 2: Cleanup expired pending moments (every hour)
+// Disabled until database migration - will enable in production
+cron.schedule('0 * * * *', async () => {
+  try {
+    // TODO: Enable after database migration to production
+    // const PendingMomentService = (await import('./services/pendingMomentService')).default;
+    // const cleaned = await PendingMomentService.cleanupExpired();
+    // if (cleaned > 0) {
+    //   console.log(`🧹 Cleaned up ${cleaned} expired pending moments`);
+    // }
+  } catch (error) {
+    console.error('❌ Error in pending moment cleanup cron:', error);
+  }
+});
+
+console.log('⏰ Cron: Pending moment cleanup (every hour) - Currently disabled');
+
+// ⏰ CRON JOB 3: Keep-Alive Ping (every 10 minutes)
+// Prevents Render free tier from sleeping after 15 minutes of inactivity
+cron.schedule('*/10 * * * *', async () => {
+  try {
+    const uptime = Math.floor(process.uptime());
+    const hours = Math.floor(uptime / 3600);
+    const minutes = Math.floor((uptime % 3600) / 60);
+    console.log(`💓 Keep-Alive: Backend running for ${hours}h ${minutes}m`);
+  } catch (error) {
+    console.error('❌ Error in keep-alive cron:', error);
+  }
+});
+
+console.log('⏰ Cron: Keep-Alive ping (every 10 minutes)');
 
 // Start server
 const PORT = process.env.PORT || 3000;

@@ -105,28 +105,10 @@ class ApiClient {
             errorData = { error: errorText };
           }
           
-          // Handle 401 with automatic token refresh
-          if (response.status === 401 && !skipAuth && attempt === 0) {
-            console.log('🔄 Got 401, attempting to refresh token...');
-            try {
-              // Get fresh Clerk token and re-authenticate
-              const { useAuth } = await import('@clerk/clerk-expo');
-              const { getToken } = useAuth();
-              const clerkToken = await getToken();
-              
-              if (clerkToken) {
-                const AuthService = (await import('../services/AuthService')).default;
-                await AuthService.authenticateWithBackend(clerkToken);
-                console.log('✅ Token refreshed, retrying request...');
-                // Retry the request with new token (will happen in next loop iteration)
-                continue;
-              }
-            } catch (refreshError) {
-              console.error('❌ Token refresh failed:', refreshError);
-            }
-            throw new Error(`HTTP 401: ${errorData.error || 'Authentication required. Please sign in again.'}`);
-          } else if (response.status === 401) {
-            throw new Error(`HTTP 401: ${errorData.error || 'Authentication required. Please sign in again.'}`);
+          // Handle 401 - just throw error, let app handle re-auth
+          if (response.status === 401) {
+            console.log('⚠️ Got 401 - Token expired');
+            throw new Error(`HTTP 401: ${errorData.error || 'Token expired. Please sign in again.'}`);
           } else if (response.status === 403) {
             throw new Error(`HTTP 403: ${errorData.error || 'Access denied.'}`);
           } else if (response.status === 404) {

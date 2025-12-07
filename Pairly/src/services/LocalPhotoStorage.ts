@@ -179,6 +179,9 @@ class LocalPhotoStorage {
    */
   async getStorageSize(): Promise<number> {
     try {
+      // Ensure directory exists before reading
+      await this.initialize();
+      
       let totalSize = 0;
 
       const photos = await FileSystem.readDirectoryAsync(PHOTOS_DIR);
@@ -192,7 +195,7 @@ class LocalPhotoStorage {
       console.log(`📊 [STORAGE] Total size: ${(totalSize / 1024 / 1024).toFixed(2)} MB`);
       return totalSize;
     } catch (error) {
-      console.error('❌ [STORAGE] Error getting storage size:', error);
+      // Silent error - just return 0
       return 0;
     }
   }
