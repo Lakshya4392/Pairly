@@ -197,14 +197,27 @@ model InvitedUser {
   rewardGranted Boolean   @default(false)
   rewardType    String?   // 'premium_month' | 'premium_3months' | etc.
   
-  // New fields for Complete Setup
+  // App integration (STRICT)
   clerkId       String?   @unique
   referralCount Int       @default(0)
-  isPremium     Boolean   @default(false)
+  
+  // Premium tracking (STRICT - Time-based premium)
+  premiumGrantedAt  DateTime? // When premium was first granted
+  premiumExpiresAt  DateTime? // When premium expires
+  premiumDays       Int       @default(30) // Total premium days earned
   
   @@index([email])
   @@index([phoneNumber])
   @@index([invitedBy])
   @@index([status])
   @@index([clerkId])
+}
+
+// App Configuration - Launch date and waitlist control
+model AppConfig {
+  id              String   @id @default(cuid())
+  launchDate      DateTime // Public launch date
+  isWaitlistOnly  Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }

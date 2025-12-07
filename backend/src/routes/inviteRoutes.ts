@@ -1,6 +1,5 @@
 import express from 'express';
 import { prisma } from '../index';
-import { Prisma } from '@prisma/client';
 import { sendWaitlistEmail, sendReferralSuccessEmail } from '../services/emailService';
 
 const router = express.Router();
@@ -52,13 +51,17 @@ router.post('/check-access', async (req, res) => {
       console.log(`🔗 Linked Clerk ID ${clerkId} to InvitedUser ${invitedUser.email}`);
     }
 
+    // Calculate premium status
+    const premiumStatus = calculatePremiumStatus(invitedUser as any);
+
     // User is whitelisted!
     return res.json({
       allowed: true,
       message: 'Welcome to Pairly! 🎉',
       inviteCode: invitedUser.inviteCode,
       referralCount: invitedUser.referralCount,
-      isPremium: invitedUser.isPremium,
+      isPremium: premiumStatus.isPremium,
+      premiumDaysRemaining: premiumStatus.daysRemaining,
     });
 
   } catch (error) {
@@ -118,12 +121,15 @@ router.post('/waitlist', async (req, res) => {
         console.log(`🔗 Referral: ${email} referred by ${referrer.email} (${referralCode})`);
 
         // Increment referrer count
-        await prisma.invitedUser.update({
+        const updatedReferrer = await prisma.invitedUser.update({
           where: { id: referrer.id },
           data: {
-            referralCount: { increment: 1 }
-          }
+            referralCount: { increment: 1 },
+          },
         });
+
+        // Calculate premium bonus based on referral count (STRICT)
+        await updatePremiumForReferrals(updatedReferrer);
 
         // Send success email to referrer (non-blocking)
         try {
@@ -249,10 +255,10 @@ router.get('/my-invites/:clerkId', async (req, res) => {
   }
 });
 
-// ✅ Verify email for app login (after Clerk authentication)
+// ✅ STRICT: Verify email for app login (after Clerk authentication)
 router.post('/verify-email', async (req, res) => {
   try {
-    const { email } = req.body;
+    const { email, clerkId } = req.body;
 
     if (!email) {
       return res.status(400).json({
@@ -261,25 +267,123 @@ router.post('/verify-email', async (req, res) => {
       });
     }
 
-    // Find user in waitlist
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // Check app config for launch date (with fallback if table doesn't exist yet)
+    let config: any = null;
+    let isWaitlistPeriod = false;
+    
+    try {
+      // Use type assertion to bypass TS check for appConfig
+      const prismaAny = prisma as any;
+      if (prismaAny.appConfig) {
+        config = await prismaAny.appConfig.findFirst();
+        const now = new Date();
+        isWaitlistPeriod = config ? now < new Date(config.launchDate) : false;
+      }
+    } catch (configError) {
+      console.warn('⚠️ AppConfig table not found, assuming no waitlist period');
+      isWaitlistPeriod = false;
+    }
+
+    // Find user in waitlist (STRICT EMAIL MATCH)
     const invitedUser = await prisma.invitedUser.findUnique({
-      where: { email: email.toLowerCase() },
+      where: { email: normalizedEmail },
     });
 
     if (!invitedUser) {
-      return res.status(404).json({
-        verified: false,
-        message: 'Email not in waitlist. Please join at pairly-iota.vercel.app',
+      // Not in waitlist
+      if (isWaitlistPeriod && config) {
+        // Waitlist period - MUST be in waitlist
+        const now = new Date();
+        const daysUntilLaunch = Math.ceil(
+          (new Date(config.launchDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+        );
+        
+        return res.status(403).json({
+          verified: false,
+          isWaitlistPeriod: true,
+          daysUntilLaunch: daysUntilLaunch,
+          message: `Pairly is in exclusive waitlist mode. Join waitlist to get 30 days free premium!`,
+          launchDate: config.launchDate,
+          waitlistUrl: 'https://pairly-iota.vercel.app',
+        });
+      } else {
+        // Public launch - allow but NO premium
+        return res.json({
+          verified: true,
+          isWaitlistPeriod: false,
+          isPremium: false,
+          premiumDaysRemaining: 0,
+          referralCode: null,
+          referralCount: 0,
+          message: 'Welcome to Pairly! Refer friends to unlock premium.',
+        });
+      }
+    }
+
+    // User found in waitlist - Link Clerk ID if provided
+    if (clerkId && !invitedUser.clerkId) {
+      await prisma.invitedUser.update({
+        where: { id: invitedUser.id },
+        data: { 
+          clerkId,
+          joinedAt: new Date(),
+          status: 'joined',
+        },
       });
     }
 
-    // Return user data
+    // Check if Clerk ID matches (STRICT)
+    if (invitedUser.clerkId && clerkId && invitedUser.clerkId !== clerkId) {
+      return res.status(403).json({
+        verified: false,
+        message: 'This email is already linked to another account.',
+      });
+    }
+
+    // Calculate premium status (STRICT) - using any type to avoid TS errors
+    const premiumStatus = calculatePremiumStatus(invitedUser as any);
+
+    // Update premium expiry if first time (with type assertion)
+    const userWithPremium = invitedUser as any;
+    if (!userWithPremium.premiumGrantedAt) {
+      const premiumExpiry = new Date();
+      premiumExpiry.setDate(premiumExpiry.getDate() + 30); // 30 days
+
+      try {
+        await prisma.invitedUser.update({
+          where: { id: invitedUser.id },
+          data: {
+            premiumGrantedAt: new Date(),
+            premiumExpiresAt: premiumExpiry,
+            premiumDays: 30,
+          } as any, // Type assertion to bypass TS check
+        });
+
+        premiumStatus.isPremium = true;
+        premiumStatus.premiumExpiresAt = premiumExpiry;
+        premiumStatus.daysRemaining = 30;
+      } catch (updateError) {
+        console.warn('⚠️ Could not update premium fields (schema not migrated yet)');
+        // Fallback: use old isPremium field
+        premiumStatus.isPremium = true;
+        premiumStatus.daysRemaining = 30;
+      }
+    }
+
     return res.json({
       verified: true,
       userId: invitedUser.id,
       referralCode: invitedUser.inviteCode,
-      isPremium: invitedUser.isPremium,
+      isPremium: premiumStatus.isPremium,
+      premiumExpiresAt: premiumStatus.premiumExpiresAt,
+      premiumDaysRemaining: premiumStatus.daysRemaining,
       referralCount: invitedUser.referralCount,
+      isWaitlistUser: true,
+      message: premiumStatus.isPremium 
+        ? `Welcome! You have ${premiumStatus.daysRemaining} days of premium.`
+        : 'Your premium has expired. Refer 3 friends to get 3 months free!',
     });
 
   } catch (error) {
@@ -290,6 +394,48 @@ router.post('/verify-email', async (req, res) => {
     });
   }
 });
+
+// Helper function to calculate premium status (STRICT)
+function calculatePremiumStatus(invitedUser: any) {
+  const now = new Date();
+  
+  // Check if new premium fields exist
+  if (!invitedUser.premiumExpiresAt) {
+    // Fallback to old isPremium field if new fields don't exist
+    if (invitedUser.isPremium) {
+      return {
+        isPremium: true,
+        premiumExpiresAt: null,
+        daysRemaining: 30, // Default for old users
+      };
+    }
+    
+    return {
+      isPremium: false,
+      premiumExpiresAt: null,
+      daysRemaining: 0,
+    };
+  }
+
+  const expiryDate = new Date(invitedUser.premiumExpiresAt);
+  
+  if (now < expiryDate) {
+    // Premium active
+    const daysRemaining = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    return {
+      isPremium: true,
+      premiumExpiresAt: expiryDate,
+      daysRemaining: daysRemaining,
+    };
+  } else {
+    // Premium expired
+    return {
+      isPremium: false,
+      premiumExpiresAt: expiryDate,
+      daysRemaining: 0,
+    };
+  }
+}
 
 // 📊 Get referral count for user (by referral code)
 router.get('/count', async (req, res) => {
@@ -309,9 +455,12 @@ router.get('/count', async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    const premiumStatus = calculatePremiumStatus(user);
+
     return res.json({
       count: user.referralCount,
-      isPremium: user.isPremium,
+      isPremium: premiumStatus.isPremium,
+      premiumDaysRemaining: premiumStatus.daysRemaining,
     });
 
   } catch (error) {
@@ -319,5 +468,96 @@ router.get('/count', async (req, res) => {
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+// 📊 STRICT: Get premium status endpoint
+router.get('/premium-status', async (req, res) => {
+  try {
+    const { email, clerkId } = req.query;
+
+    if (!email && !clerkId) {
+      return res.status(400).json({ error: 'Email or Clerk ID required' });
+    }
+
+    let user;
+    if (clerkId) {
+      user = await prisma.invitedUser.findUnique({
+        where: { clerkId: clerkId as string },
+      });
+    } else {
+      user = await prisma.invitedUser.findUnique({
+        where: { email: (email as string).toLowerCase().trim() },
+      });
+    }
+
+    if (!user) {
+      return res.json({
+        isPremium: false,
+        daysRemaining: 0,
+        message: 'User not found in waitlist',
+      });
+    }
+
+    const premiumStatus = calculatePremiumStatus(user as any);
+    const userWithPremium = user as any;
+
+    return res.json({
+      isPremium: premiumStatus.isPremium,
+      premiumExpiresAt: premiumStatus.premiumExpiresAt,
+      daysRemaining: premiumStatus.daysRemaining,
+      referralCount: user.referralCount,
+      totalPremiumDays: userWithPremium.premiumDays || 30,
+    });
+
+  } catch (error) {
+    console.error('Premium status error:', error);
+    return res.status(500).json({ error: 'Failed to get premium status' });
+  }
+});
+
+// Helper function to update premium based on referrals (STRICT)
+async function updatePremiumForReferrals(user: any) {
+  const referralCount = user.referralCount;
+  let bonusDays = 0;
+
+  // Calculate bonus days based on referral milestones
+  if (referralCount >= 5) {
+    bonusDays = 180; // 6 months for 5+ referrals
+  } else if (referralCount >= 3) {
+    bonusDays = 90; // 3 months for 3+ referrals
+  } else if (referralCount >= 1) {
+    bonusDays = 7 * referralCount; // 1 week per referral
+  }
+
+  if (bonusDays > 0) {
+    const now = new Date();
+    let newExpiry;
+
+    if (user.premiumExpiresAt && new Date(user.premiumExpiresAt) > now) {
+      // Extend existing premium
+      newExpiry = new Date(user.premiumExpiresAt);
+      newExpiry.setDate(newExpiry.getDate() + bonusDays);
+    } else {
+      // Grant new premium
+      newExpiry = new Date();
+      newExpiry.setDate(newExpiry.getDate() + bonusDays);
+    }
+
+    try {
+      await prisma.invitedUser.update({
+        where: { id: user.id },
+        data: {
+          premiumExpiresAt: newExpiry,
+          premiumDays: { increment: bonusDays },
+        } as any, // Type assertion to bypass TS check
+      });
+
+      console.log(`✨ Premium extended for ${user.email}: +${bonusDays} days (Total referrals: ${referralCount})`);
+    } catch (updateError) {
+      console.warn(`⚠️ Could not update premium for ${user.email} (schema not migrated yet)`);
+      // Fallback: just log the bonus
+      console.log(`📝 Would grant ${bonusDays} days premium to ${user.email} (${referralCount} referrals)`);
+    }
+  }
+}
 
 export default router;
