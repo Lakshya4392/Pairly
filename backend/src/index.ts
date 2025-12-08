@@ -28,13 +28,13 @@ const io = new Server(httpServer, {
   // ⚡ APK OPTIMIZED: Polling first for reliability, then upgrade to WebSocket
   transports: ['polling', 'websocket'], // Polling first for APK reliability
   allowUpgrades: true, // Allow upgrade to WebSocket after connection
-  upgradeTimeout: 10000, // 10s - Give more time for APK to upgrade
-  pingTimeout: 45000, // 45s - Match APK frontend timeout
-  pingInterval: 20000, // 20s - Match APK frontend interval
+  upgradeTimeout: 30000, // 30s - More time for slow connections
+  pingTimeout: 60000, // 60s - Keep alive during pairing (15min code validity)
+  pingInterval: 25000, // 25s - Regular heartbeat
   maxHttpBufferSize: 5e6, // 5MB max message size (for photos)
   allowEIO3: true, // Support older clients
   perMessageDeflate: false, // Disable compression for speed
-  connectTimeout: 45000, // 45s - Match APK frontend timeout
+  connectTimeout: 60000, // 60s - Allow time for pairing process
   // CORS headers for APK
   allowRequest: (req, callback) => {
     // Allow all origins for now (configure properly in production)

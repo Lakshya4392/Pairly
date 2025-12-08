@@ -103,11 +103,11 @@ class SocketConnectionService {
         },
         // ⚡ BULLETPROOF: Transport settings optimized for APK
         transports: isAPK ? ['websocket', 'polling'] : ['polling', 'websocket'],
-        timeout: isAPK ? 60000 : 20000,
+        timeout: 60000, // 60 seconds for initial connection
         reconnection: true,
-        reconnectionAttempts: isAPK ? 10 : 5,
+        reconnectionAttempts: isAPK ? 15 : 10, // More attempts for pairing
         reconnectionDelay: isAPK ? 3000 : 1000,
-        reconnectionDelayMax: isAPK ? 30000 : 10000,
+        reconnectionDelayMax: isAPK ? 60000 : 30000, // Max 60s delay
         forceNew: false,
         // Additional optimizations
         upgrade: true,

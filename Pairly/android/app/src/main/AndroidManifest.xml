@@ -59,12 +59,9 @@
     </activity>
 
     <!-- 🎨 Premium Carousel Widget - iOS Style -->
-    <receiver android:name=".PremiumCarouselWidgetProvider" android:exported="false">
+    <receiver android:name="com.pairly.app.PremiumCarouselWidgetProvider" android:exported="false">
         <intent-filter>
             <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            <action android:name="com.pairly.NEXT_PHOTO" />
-            <action android:name="com.pairly.PREV_PHOTO" />
-            <action android:name="com.pairly.OPEN_APP" />
         </intent-filter>
         <meta-data
             android:name="android.appwidget.provider"

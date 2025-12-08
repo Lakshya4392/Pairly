@@ -37,29 +37,22 @@ class PairlyWidgetModule(reactContext: ReactApplicationContext) : ReactContextBa
             val prefs = context.getSharedPreferences("PairlyPrefs", Context.MODE_PRIVATE)
             prefs.edit().putString("partner_name", partnerName).apply()
             
-            // Update premium carousel widget
+            android.util.Log.d("PairlyWidget", "📸 New photo saved: $photoPath")
+            android.util.Log.d("PairlyWidget", "👤 Partner: $partnerName")
+            
+            // INSTANT UPDATE - Force immediate widget refresh
+            PremiumCarouselWidgetProvider.forceUpdate(context)
+            
+            // Also send broadcast for redundancy
             val intent = Intent(context, PremiumCarouselWidgetProvider::class.java).apply {
                 action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
             }
             context.sendBroadcast(intent)
             
-            // Force update all premium widgets
-            val appWidgetManager = AppWidgetManager.getInstance(context)
-            val widgetComponent = ComponentName(context, PremiumCarouselWidgetProvider::class.java)
-            val widgetIds = appWidgetManager.getAppWidgetIds(widgetComponent)
-            
-            if (widgetIds.isNotEmpty()) {
-                try {
-                    PremiumCarouselWidgetProvider().onUpdate(context, appWidgetManager, widgetIds)
-                } catch (widgetError: Exception) {
-                    // Log but don't fail - widget will show empty state
-                    android.util.Log.e("PairlyWidget", "Widget update error", widgetError)
-                }
-            }
-            
+            android.util.Log.d("PairlyWidget", "✅ Widget force updated instantly")
             promise.resolve(true)
         } catch (e: Exception) {
-            android.util.Log.e("PairlyWidget", "Update widget failed", e)
+            android.util.Log.e("PairlyWidget", "❌ Update widget failed", e)
             promise.reject("ERROR", e.message ?: "Unknown error")
         }
     }
