@@ -434,18 +434,31 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
   const confirmSignOut = async () => {
     try {
-      // Clear premium status
+      console.log('🔄 Starting sign out process...');
+      
+      // 1. Clear premium status
       const PremiumService = (await import('../services/PremiumService')).default;
       await PremiumService.clearPremiumStatus();
-
-      // Sign out
+      
+      // 2. Clear all app data
+      const AuthService = (await import('../services/AuthService')).default;
+      await AuthService.signOut();
+      
+      // 3. Disconnect socket
+      const RealtimeService = (await import('../services/RealtimeService')).default;
+      RealtimeService.disconnect();
+      
+      // 4. Clear Clerk session
       await signOut();
+      
       console.log('✅ Signed out successfully');
       // Navigator will automatically redirect to auth screen
     } catch (error) {
       console.error('❌ Sign out error:', error);
       setSuccessMessage('Failed to sign out. Please try again.');
       setShowSuccessAlert(true);
+    } finally {
+      setShowSignOutAlert(false);
     }
   };
 
@@ -740,29 +753,42 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           <ProfileCard />
         </View>
 
-        {isPremium && (
-          <>
-            <SectionHeader title="PREMIUM" />
-            <View style={styles.section}>
-              <SettingItem
-                icon="diamond"
-                title="Premium Plan"
-                subtitle="Manage your subscription"
-                onPress={() => {
-                  console.log('💎 Premium Plan tapped');
-                  console.log('💎 onUpgradeToPremium exists:', !!onUpgradeToPremium);
-                  // Navigate to manage premium screen
-                  if (onUpgradeToPremium) {
-                    onUpgradeToPremium();
-                  } else {
-                    console.log('❌ onUpgradeToPremium callback missing!');
-                  }
-                }}
-                isLast
-              />
-            </View>
-          </>
-        )}
+        <SectionHeader title="PREMIUM" />
+        <View style={styles.section}>
+          {isPremium ? (
+            <SettingItem
+              icon="diamond"
+              title="Premium Plan"
+              subtitle="Manage your subscription"
+              onPress={() => {
+                console.log('💎 Premium Plan tapped');
+                console.log('💎 onUpgradeToPremium exists:', !!onUpgradeToPremium);
+                // Navigate to manage premium screen
+                if (onUpgradeToPremium) {
+                  onUpgradeToPremium();
+                } else {
+                  console.log('❌ onUpgradeToPremium callback missing!');
+                }
+              }}
+              isLast
+            />
+          ) : (
+            <SettingItem
+              icon="diamond-outline"
+              title="Upgrade to Premium"
+              subtitle="Unlock unlimited moments and premium features"
+              onPress={() => {
+                console.log('💎 Upgrade to Premium tapped');
+                if (onUpgradeToPremium) {
+                  onUpgradeToPremium();
+                } else {
+                  console.log('❌ onUpgradeToPremium callback missing!');
+                }
+              }}
+              isLast
+            />
+          )}
+        </View>
 
         <SectionHeader title="INVITE & EARN" />
         <View style={styles.section}>

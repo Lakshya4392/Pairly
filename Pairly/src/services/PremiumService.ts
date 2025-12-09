@@ -15,25 +15,30 @@ class PremiumService {
   private DAILY_LIMIT_FREE = 3;
   private DAILY_LIMIT_PREMIUM = 999999; // Unlimited
 
+  // ⚡ CACHE: Reduce AsyncStorage hits for render loops
+  private _cachedStatus: PremiumStatus | null = null;
+  private _lastCacheTime: number = 0;
+  private CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
   /**
    * Check if user has premium access
    */
   async isPremium(): Promise<boolean> {
     try {
       const status = await this.getPremiumStatus();
-      
+
       // Check if premium is still valid
       if (status.isPremium && status.expiresAt) {
         const expiryDate = new Date(status.expiresAt);
         const now = new Date();
-        
+
         if (now > expiryDate) {
           // Premium expired
           await this.setPremiumStatus(false);
           return false;
         }
       }
-      
+
       return status.isPremium;
     } catch (error) {
       console.error('Error checking premium status:', error);
@@ -45,17 +50,27 @@ class PremiumService {
    * Get full premium status
    */
   async getPremiumStatus(): Promise<PremiumStatus> {
+    // ⚡ CHECK CACHE: Return in-memory cache if valid
+    const now = Date.now();
+    if (this._cachedStatus && (now - this._lastCacheTime < this.CACHE_TTL)) {
+      return this._cachedStatus;
+    }
+
     try {
       const data = await AsyncStorage.getItem(this.STORAGE_KEY);
       if (data) {
-        return JSON.parse(data);
+        const status = JSON.parse(data);
+        // Update cache
+        this._cachedStatus = status;
+        this._lastCacheTime = now;
+        return status;
       }
     } catch (error) {
       console.error('Error getting premium status:', error);
     }
 
     // Default free status
-    return {
+    const defaultStatus: PremiumStatus = {
       isPremium: false,
       plan: 'free',
       expiresAt: null,
@@ -63,6 +78,12 @@ class PremiumService {
       dailyMomentsCount: 0,
       dailyMomentsLimit: this.DAILY_LIMIT_FREE,
     };
+
+    // Cache default too
+    this._cachedStatus = defaultStatus;
+    this._lastCacheTime = now;
+
+    return defaultStatus;
   }
 
   /**
@@ -84,6 +105,11 @@ class PremiumService {
       };
 
       await AsyncStorage.setItem(this.STORAGE_KEY, JSON.stringify(status));
+
+      // ⚡ UPDATE CACHE
+      this._cachedStatus = status;
+      this._lastCacheTime = Date.now();
+
       console.log('✅ Premium status updated:', status);
     } catch (error) {
       console.error('Error setting premium status:', error);
@@ -101,7 +127,7 @@ class PremiumService {
   }> {
     try {
       const status = await this.getPremiumStatus();
-      
+
       // Premium users have unlimited
       if (status.isPremium) {
         return {
@@ -115,7 +141,7 @@ class PremiumService {
       // Check if we need to reset daily counter
       const today = new Date().toDateString();
       const lastDate = await AsyncStorage.getItem('@pairly_last_moment_date');
-      
+
       if (lastDate !== today) {
         // New day, reset counter
         await AsyncStorage.setItem('@pairly_last_moment_date', today);
@@ -194,7 +220,7 @@ class PremiumService {
         success: boolean;
         data: { isPremium: boolean; premiumPlan: 'monthly' | 'yearly'; premiumExpiry: string };
       }>('/users/me/premium');
-      
+
       if (data.success && data.data) {
         if (data.data.isPremium) {
           await this.setPremiumStatus(
@@ -218,7 +244,7 @@ class PremiumService {
    */
   async hasFeature(feature: PremiumFeature): Promise<boolean> {
     const isPremium = await this.isPremium();
-    
+
     // All premium features require premium
     return isPremium;
   }
@@ -257,7 +283,7 @@ class PremiumService {
   }
 }
 
-export type PremiumFeature = 
+export type PremiumFeature =
   | 'dual-camera'
   | 'shared-notes'
   | 'secret-vault'

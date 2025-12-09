@@ -688,9 +688,8 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
     try {
       if (!selectedPhotoUri) return;
 
-      // Save photo locally first
-      const LocalPhotoStorage = (await import('../services/LocalPhotoStorage')).default;
-      await LocalPhotoStorage.savePhoto(selectedPhotoUri, 'me');
+      // ⚡ REMOVED: Don't save here - MomentService.uploadPhoto already saves it
+      // This was causing duplicate saves!
 
       if (!isPartnerConnected) {
         // Solo mode - just save locally
@@ -761,16 +760,9 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
       // Reload recent photos with animation
       await loadRecentPhotos();
 
-      // Update widget with latest photo
-      try {
-        if (selectedPhotoUri) {
-          const WidgetService = (await import('../services/WidgetService')).default;
-          await WidgetService.updateWidget(selectedPhotoUri, partnerName);
-          console.log('✅ Widget updated with latest photo');
-        }
-      } catch (error) {
-        console.log('⚠️ Widget update skipped:', error);
-      }
+      // ⚡ REMOVED: Don't update widget when SENDING photo
+      // Widget should only update when RECEIVING photo from partner
+      // This is handled in MomentService.receivePhoto()
     } catch (error: any) {
       setAlertMessage(error.message || 'Failed to upload photo');
       setShowErrorAlert(true);

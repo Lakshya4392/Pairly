@@ -320,7 +320,8 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
       if (status.isPremium) {
         const PremiumService = (await import('../services/PremiumService')).default;
         const expiryDate = status.premiumExpiresAt ? new Date(status.premiumExpiresAt) : undefined;
-        await PremiumService.setPremiumStatus(true, 'waitlist', expiryDate);
+        // Use 'monthly' as default plan type for waitlist users
+        await PremiumService.setPremiumStatus(true, 'monthly', expiryDate);
       }
     } catch (error) {
       console.error('Error checking premium status:', error);
@@ -508,17 +509,29 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
   useEffect(() => {
     if (isLoaded) {
       setIsAuthChecked(true);
+      
+      // User logged out - redirect to auth
       if (!isSignedIn && currentScreen !== 'splash' && currentScreen !== 'onboarding') {
         console.log('🚪 User logged out, redirecting to auth');
         setCurrentScreen('auth');
         setIsPremium(false);
+        setHasConnected(false); // Reset connection flag
         AsyncStorage.removeItem('isPremium');
       }
-      if (isSignedIn && user) {
+      
+      // User signed in - redirect to upload
+      if (isSignedIn && user && currentScreen === 'auth') {
+        console.log('✅ User signed in, redirecting to upload');
+        setCurrentScreen('upload');
+        checkPremiumStatus();
+      }
+      
+      // Check premium for signed in users
+      if (isSignedIn && user && currentScreen !== 'auth') {
         checkPremiumStatus();
       }
     }
-  }, [isLoaded, isSignedIn, user]);
+  }, [isLoaded, isSignedIn, user, currentScreen]);
 
   // Auto-navigate
   useEffect(() => {

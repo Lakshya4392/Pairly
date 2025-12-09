@@ -27,9 +27,12 @@ class MomentService {
    * ⚡ PERFECT SYSTEM: Upload photo - Save locally and send to partner
    * Single source of truth: LocalPhotoStorage
    */
+  /**
+   * ⚡ PERFECT SYSTEM: Upload photo - Save locally and send to partner
+   * Single source of truth: LocalPhotoStorage
+   */
   async uploadPhoto(photo: Photo, note?: string): Promise<UploadResult> {
     // ⚡ GUARD: Prevent duplicate uploads of same photo
-    const photoKey = `${photo.uri}_${Date.now()}`;
     if (this.uploadingPhotos.has(photo.uri)) {
       console.log('🚫 [SENDER] Photo already uploading, skipping duplicate');
       return {
@@ -37,169 +40,45 @@ class MomentService {
         error: 'Photo already uploading',
       };
     }
-    
+
     this.uploadingPhotos.add(photo.uri);
-    
+
     try {
-      return await SafeOperations.executeWithTimeout(
-        async () => {
-          console.log('📸 [SENDER] Uploading photo...');
+      console.log('📸 [SENDER] Processing photo...');
 
-        // 1. Save photo locally FIRST (instant) - SINGLE STORAGE
-        const photoId = await LocalPhotoStorage.savePhoto(photo.uri, 'me');
-        
-        if (!photoId) {
-          throw new Error('Failed to save photo locally');
-        }
+      // 1. ⚡ INSTANT: Save photo locally FIRST (instant feedback)
+      const photoId = await LocalPhotoStorage.savePhoto(photo.uri, 'me');
 
-        console.log('✅ [SENDER] Photo saved locally:', photoId.substring(0, 8));
-        
-        // ⚡ NOTE: Sender's widget is NOT updated (only partner's widget updates)
-        // Widget will only show photos received FROM partner, not sent TO partner
-        
-        // Trigger event for UI refresh
-        RealtimeService.emit('photo_saved', { photoId, sender: 'me', timestamp: Date.now() });
+      if (!photoId) {
+        throw new Error('Failed to save photo locally');
+      }
 
-        // 2. Get partner info - VERIFY paired partner exists
-        const partner = await PairingService.getPartner();
-        
-        if (!partner || !partner.id) {
-          console.log('⚠️ [SENDER] No partner paired - photo saved locally only');
-          await this.queueMomentForSending(photoId, photo.uri, note);
-          
-          return {
-            success: true,
-            momentId: photoId,
-            error: 'No partner connected - will send when paired',
-          };
-        }
+      console.log('✅ [SENDER] Photo saved locally:', photoId.substring(0, 8));
 
-        // 3. Verify we have a valid pair
-        const isPaired = await PairingService.isPaired();
-        if (!isPaired) {
-          console.log('⚠️ [SENDER] Not in a valid pair - photo saved locally only');
-          await this.queueMomentForSending(photoId, photo.uri, note);
-          return {
-            success: true,
-            momentId: photoId,
-            error: 'Not paired - will send when paired',
-          };
-        }
+      // 2. ⚡ INSTANT: Trigger UI refresh immediately
+      RealtimeService.emit('photo_saved', { photoId, sender: 'me', timestamp: Date.now() });
 
-        console.log(`✅ [SENDER] Verified paired with: ${partner.displayName}`);
+      // 3. ⚡ INSTANT: Show notification immediately (don't wait for send)
+      this.showInstantNotification();
 
-        // 4. Check if realtime connected
-        if (!RealtimeService.getConnectionStatus()) {
-          console.log('⚠️ [SENDER] Not connected - queueing for later');
-          await this.queueMomentForSending(photoId, photo.uri, note, partner.id);
-          
-          return {
-            success: true,
-            momentId: photoId,
-            error: 'Offline - queued for sending',
-          };
-        }
-
-        // 5. Compress photo and get base64
-        const highQuality = await AsyncStorage.getItem('@pairly_high_quality') === 'true';
-        const quality = highQuality ? 'premium' : 'default';
-        const compressedPhoto = await PhotoService.compressPhoto(
-          { uri: photo.uri, width: 0, height: 0, type: 'image/jpeg', fileName: '', fileSize: 0 }, 
-          quality
-        );
-
-        // 6. Send to partner via Socket.IO with ACK and retry logic
-        const partnerSocketId = partner.clerkId || partner.id;
-        const messageId = `${photoId}_${Date.now()}`;
-        
-        console.log('📤 [SENDER] Sending to partner:', partner.displayName);
-        
-        try {
-          // Retry logic: 3 attempts with exponential backoff
-          const maxRetries = 3;
-          let lastError: Error | null = null;
-          
-          for (let attempt = 1; attempt <= maxRetries; attempt++) {
-            try {
-              console.log(`📤 [SENDER] Attempt ${attempt}/${maxRetries}...`);
-              
-              await new Promise<void>((resolve, reject) => {
-                RealtimeService.emitWithAck(
-                  'send_photo',
-                  {
-                    photoId: photoId,
-                    photoData: compressedPhoto.base64,
-                    timestamp: Date.now(),
-                    caption: note || photo.caption,
-                    partnerId: partnerSocketId,
-                    messageId,
-                  },
-                  (response: any) => {
-                    if (response && response.success !== false) {
-                      console.log('✅ [SENDER] ACK received - Photo delivered!');
-                      resolve();
-                    } else {
-                      reject(new Error(response?.error || 'Server rejected photo'));
-                    }
-                  },
-                  10000 // 10 second timeout for ACK
-                );
-              });
-              
-              // Success! Break out of retry loop
-              break;
-              
-            } catch (attemptError: any) {
-              lastError = attemptError;
-              console.log(`⚠️ [SENDER] Attempt ${attempt} failed: ${attemptError.message}`);
-              
-              // If this was the last attempt, throw error
-              if (attempt === maxRetries) {
-                throw lastError;
-              }
-              
-              // Wait before retry (exponential backoff: 2s, 4s, 8s)
-              const delayMs = 2000 * Math.pow(2, attempt - 1);
-              console.log(`⏳ [SENDER] Waiting ${delayMs}ms before retry...`);
-              await new Promise(resolve => setTimeout(resolve, delayMs));
-            }
-          }
-
-          // Show success notification
-          try {
-            const EnhancedNotificationService = (await import('./EnhancedNotificationService')).default;
-            await EnhancedNotificationService.showMomentSentNotification(partner.displayName);
-          } catch (error) {
-            console.error('Error showing notification:', error);
-          }
-
-          return {
-            success: true,
-            momentId: photoId,
-          };
-          
-        } catch (emitError: any) {
-          console.error('❌ [SENDER] Send failed:', emitError.message);
-          await this.queueMomentForSending(photoId, photo.uri, note, partner.id);
-          
-          return {
-            success: true,
-            momentId: photoId,
-            error: 'Queued for retry',
-          };
-        }
-      },
-        10000, // 10 second timeout (reduced from 15s)
-        'Photo upload timed out'
-      ).then(result => {
-        if (result.success && result.data) {
-          return result.data;
-        }
-        return {
-          success: false,
-          error: result.error || 'Failed to upload photo',
-        };
+      // 4. ⚡ BACKGROUND: Start network process WITHOUT awaiting (Fire-and-forget)
+      // This ensures UI unblocks immediately
+      this.processBackgroundUpload(photoId, photo.uri, note).catch(err => {
+        console.error('❌ [SENDER] Background upload error (handled):', err);
       });
+
+      // 5. ⚡ RETURN SUCCESS IMMEDIATELY
+      return {
+        success: true,
+        momentId: photoId,
+      };
+
+    } catch (error: any) {
+      console.error('❌ [SENDER] Local save failed:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to save photo',
+      };
     } finally {
       // ⚡ CLEANUP: Remove from uploading set
       this.uploadingPhotos.delete(photo.uri);
@@ -207,11 +86,131 @@ class MomentService {
   }
 
   /**
+   * Helper: Show notification immediately
+   */
+  private async showInstantNotification() {
+    try {
+      const EnhancedNotificationService = (await import('./EnhancedNotificationService')).default;
+      const partner = await PairingService.getPartner();
+      if (partner) {
+        // Don't await this either - keep UI snappy
+        EnhancedNotificationService.showMomentSentNotification(partner.displayName).catch(console.error);
+        console.log('✅ [SENDER] Notification trigger sent');
+      }
+    } catch (error) {
+      console.error('Error triggering notification:', error);
+    }
+  }
+
+  /**
+   * ⚡ BACKGROUND PROCESS: Handle the actual network upload
+   * This runs while the user is already seeing "Success"
+   */
+  private async processBackgroundUpload(
+    photoId: string,
+    photoUri: string,
+    note?: string
+  ): Promise<void> {
+    try {
+      // 1. Get partner info
+      const partner = await PairingService.getPartner();
+
+      if (!partner || !partner.id) {
+        console.log('⚠️ [SENDER-BG] No partner paired - queueing');
+        await this.queueMomentForSending(photoId, photoUri, note);
+        return;
+      }
+
+      // 2. Verify connection
+      const isPaired = await PairingService.isPaired();
+      if (!isPaired) {
+        console.log('⚠️ [SENDER-BG] Not in a valid pair - queueing');
+        await this.queueMomentForSending(photoId, photoUri, note);
+        return;
+      }
+
+      // 3. Check Realtime connection
+      if (!RealtimeService.getConnectionStatus()) {
+        console.log('⚠️ [SENDER-BG] Not connected - queueing');
+        await this.queueMomentForSending(photoId, photoUri, note, partner.id);
+        return;
+      }
+
+      // 4. Compress photo (this takes time, good thing we're in background!)
+      const highQuality = await AsyncStorage.getItem('@pairly_high_quality') === 'true';
+      const quality = highQuality ? 'premium' : 'default';
+      const compressedPhoto = await PhotoService.compressPhoto(
+        { uri: photoUri, width: 0, height: 0, type: 'image/jpeg', fileName: '', fileSize: 0 },
+        quality
+      );
+
+      // 5. Send to partner via Socket.IO with ACK and retry logic
+      const partnerSocketId = partner.clerkId || partner.id;
+      const messageId = `${photoId}_${Date.now()}`;
+
+      console.log('📤 [SENDER-BG] Sending to partner:', partner.displayName);
+
+      // Retry logic: 3 attempts with exponential backoff
+      const maxRetries = 3;
+
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          console.log(`📤 [SENDER-BG] Attempt ${attempt}/${maxRetries}...`);
+
+          await new Promise<void>((resolve, reject) => {
+            RealtimeService.emitWithAck(
+              'send_photo',
+              {
+                photoId: photoId,
+                photoData: compressedPhoto.base64,
+                timestamp: Date.now(),
+                caption: note,
+                partnerId: partnerSocketId,
+                messageId,
+              },
+              (response: any) => {
+                if (response && response.success !== false) {
+                  console.log('✅ [SENDER-BG] ACK received - Photo delivered!');
+                  resolve();
+                } else {
+                  reject(new Error(response?.error || 'Server rejected photo'));
+                }
+              },
+              10000 // 10 second timeout
+            );
+          });
+
+          // Success!
+          console.log('✅ [SENDER-BG] Photo delivered to partner successfully');
+          return;
+
+        } catch (attemptError: any) {
+          console.log(`⚠️ [SENDER-BG] Attempt ${attempt} failed: ${attemptError.message}`);
+
+          if (attempt === maxRetries) {
+            throw attemptError;
+          }
+
+          // Exponential backoff
+          const delayMs = 2000 * Math.pow(2, attempt - 1);
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+        }
+      }
+
+    } catch (error: any) {
+      console.error('❌ [SENDER-BG] Send failed after retries:', error.message);
+      // Queue for later retry
+      const partner = await PairingService.getPartner();
+      await this.queueMomentForSending(photoId, photoUri, note, partner?.id);
+    }
+  }
+
+  /**
    * Queue moment for sending later
    */
   private async queueMomentForSending(
-    momentId: string, 
-    photoUri: string, 
+    momentId: string,
+    photoUri: string,
     note?: string,
     partnerId?: string
   ): Promise<void> {
@@ -219,7 +218,7 @@ class MomentService {
       const queueKey = '@pairly_moment_queue';
       const queueJson = await AsyncStorage.getItem(queueKey);
       const queue = queueJson ? JSON.parse(queueJson) : [];
-      
+
       queue.push({
         momentId,
         photoUri,
@@ -227,7 +226,7 @@ class MomentService {
         partnerId,
         queuedAt: Date.now(),
       });
-      
+
       await AsyncStorage.setItem(queueKey, JSON.stringify(queue));
       console.log('📦 Moment queued for later sending:', momentId);
     } catch (error) {
@@ -242,42 +241,42 @@ class MomentService {
     try {
       const queueKey = '@pairly_moment_queue';
       const queueJson = await AsyncStorage.getItem(queueKey);
-      
+
       if (!queueJson) return;
-      
+
       const queue = JSON.parse(queueJson);
-      
+
       if (queue.length === 0) return;
-      
+
       console.log(`📦 Processing ${queue.length} queued moments...`);
-      
+
       // Check if connected
       if (!RealtimeService.getConnectionStatus()) {
         console.log('⚠️ Not connected - skipping queue processing');
         return;
       }
-      
+
       // Get partner
       const partner = await PairingService.getPartner();
       if (!partner) {
         console.log('⚠️ No partner - skipping queue processing');
         return;
       }
-      
+
       const remainingQueue = [];
-      
+
       for (const item of queue) {
         try {
           console.log(`📤 Sending queued moment: ${item.momentId}`);
-          
+
           // Compress and send
           const highQuality = await AsyncStorage.getItem('@pairly_high_quality') === 'true';
           const quality = highQuality ? 'premium' : 'default';
           const compressedPhoto = await PhotoService.compressPhoto(
-            { uri: item.photoUri, width: 0, height: 0, type: 'image/jpeg', fileName: '', fileSize: 0 }, 
+            { uri: item.photoUri, width: 0, height: 0, type: 'image/jpeg', fileName: '', fileSize: 0 },
             quality
           );
-          
+
           RealtimeService.emit('send_photo', {
             photoId: item.momentId,
             photoData: compressedPhoto.base64,
@@ -285,7 +284,7 @@ class MomentService {
             caption: item.note,
             partnerId: partner.clerkId || partner.id,
           });
-          
+
           console.log(`✅ Queued moment sent: ${item.momentId}`);
         } catch (error) {
           console.error(`❌ Failed to send queued moment: ${item.momentId}`, error);
@@ -293,11 +292,11 @@ class MomentService {
           remainingQueue.push(item);
         }
       }
-      
+
       // Update queue with remaining items
       await AsyncStorage.setItem(queueKey, JSON.stringify(remainingQueue));
       console.log(`📦 Queue processed. Remaining: ${remainingQueue.length}`);
-      
+
       // Show notification if all sent successfully
       if (queue.length > 0 && remainingQueue.length === 0) {
         try {
@@ -318,7 +317,7 @@ class MomentService {
   private waitForDeliveryConfirmation(momentId: string, timeout: number): Promise<boolean> {
     return new Promise((resolve) => {
       let confirmed = false;
-      
+
       const confirmHandler = (data: any) => {
         if (data.photoId === momentId || data.momentId === momentId) {
           confirmed = true;
@@ -327,10 +326,10 @@ class MomentService {
           resolve(true);
         }
       };
-      
+
       RealtimeService.on('photo_delivered', confirmHandler);
       RealtimeService.on('moment_received', confirmHandler);
-      
+
       setTimeout(() => {
         if (!confirmed) {
           RealtimeService.off('photo_delivered', confirmHandler);
@@ -368,13 +367,13 @@ class MomentService {
 
       // 2. Save to SINGLE STORAGE (LocalPhotoStorage only)
       const savedPhotoId = await LocalPhotoStorage.savePhoto(fileUri, 'partner');
-      
+
       if (!savedPhotoId) {
         throw new Error('Failed to save photo to LocalPhotoStorage');
       }
 
       console.log('✅ [RECEIVER] Photo saved to storage:', savedPhotoId.substring(0, 8));
-      
+
       // Trigger event for UI refresh
       RealtimeService.emit('photo_saved', { photoId: savedPhotoId, sender: 'partner', timestamp: Date.now() });
 
@@ -411,7 +410,7 @@ class MomentService {
   async getMoments(): Promise<any[]> {
     try {
       const photos = await LocalPhotoStorage.getAllPhotos();
-      
+
       // Convert to format with URIs
       const momentsWithUris = await Promise.all(
         photos.map(async (photo) => {
@@ -419,7 +418,7 @@ class MomentService {
           return { ...photo, uri: uri || '' };
         })
       );
-      
+
       // Filter and sort
       return momentsWithUris
         .filter(m => m.uri)
@@ -466,7 +465,7 @@ class MomentService {
         reaction,
         timestamp: Date.now(),
       });
-      
+
       console.log('✅ Reaction sent:', reaction);
       return true;
     } catch (error) {
@@ -479,9 +478,9 @@ class MomentService {
    * ⚡ PERFECT SYSTEM: Schedule photo to be sent later
    */
   async schedulePhoto(
-    photo: Photo, 
-    note?: string, 
-    scheduledTime?: Date, 
+    photo: Photo,
+    note?: string,
+    scheduledTime?: Date,
     duration?: number
   ): Promise<UploadResult> {
     try {
@@ -489,7 +488,7 @@ class MomentService {
 
       // 1. Save photo locally FIRST - SINGLE STORAGE
       const photoId = await LocalPhotoStorage.savePhoto(photo.uri, 'me');
-      
+
       if (!photoId) {
         throw new Error('Failed to save scheduled photo');
       }
@@ -498,7 +497,7 @@ class MomentService {
 
       // 2. Get partner info
       const partner = await PairingService.getPartner();
-      
+
       if (!partner) {
         console.log('⚠️ [SENDER] No partner paired - scheduled photo saved locally');
         return {
@@ -542,7 +541,7 @@ class MomentService {
 
     } catch (error: any) {
       console.error('❌ Schedule error:', error);
-      
+
       return {
         success: false,
         error: error.message || 'Failed to schedule photo',
@@ -557,7 +556,7 @@ class MomentService {
     try {
       const photos = await LocalPhotoStorage.getAllPhotos();
       const size = await LocalPhotoStorage.getStorageSize();
-      
+
       return {
         totalPhotos: photos.length,
         totalSize: size,
@@ -594,10 +593,10 @@ class MomentService {
     try {
       // Clean up old metadata first
       await LocalPhotoStorage.cleanupOldMetadata();
-      
+
       // Then migrate existing photos
       await this.migrateExistingPhotos();
-      
+
       // Show debug status
       await this.debugStorageStatus();
     } catch (error) {
@@ -611,16 +610,16 @@ class MomentService {
   async debugStorageStatus(): Promise<void> {
     try {
       console.log('\n📊 ========== MOMENT STORAGE STATUS ==========');
-      
+
       // Check PRIMARY storage
       const primaryPhotos = await LocalPhotoStorage.getAllPhotos();
       const myPhotos = primaryPhotos.filter(p => p.sender === 'me').length;
       const partnerPhotos = primaryPhotos.filter(p => p.sender === 'partner').length;
-      
+
       console.log(`✅ Total Moments: ${primaryPhotos.length}`);
       console.log(`   👤 My Photos: ${myPhotos}`);
       console.log(`   ❤️ Partner Photos: ${partnerPhotos}`);
-      
+
       if (primaryPhotos.length > 0) {
         console.log('\n📸 Recent Moments:');
         primaryPhotos.slice(0, 5).forEach((photo, index) => {
@@ -629,12 +628,12 @@ class MomentService {
           console.log(`   ${index + 1}. ${photo.sender === 'me' ? '👤 Me' : '❤️ Partner'} - ${timeAgo}`);
         });
       }
-      
+
       // Storage size
       const size = await LocalPhotoStorage.getStorageSize();
       const sizeMB = (size / 1024 / 1024).toFixed(2);
       console.log(`\n💾 Storage Used: ${sizeMB} MB`);
-      
+
       console.log('============================================\n');
     } catch (error) {
       console.error('❌ Error checking storage status:', error);
@@ -650,7 +649,7 @@ class MomentService {
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
-    
+
     if (diffMins < 1) return 'Just now';
     if (diffMins < 60) return `${diffMins}m ago`;
     if (diffHours < 24) return `${diffHours}h ago`;
@@ -672,23 +671,23 @@ class MomentService {
   async clearAllData(): Promise<boolean> {
     try {
       console.log('🗑️ ========== CLEARING ALL DATA ==========');
-      
+
       // Delete all photos from storage
       const deleted = await LocalPhotoStorage.deleteAllPhotos();
       console.log(`✅ Storage cleared: ${deleted}`);
-      
+
       // Clear moment queue
       await AsyncStorage.removeItem('@pairly_moment_queue');
       console.log('✅ Moment queue cleared');
-      
+
       // Reset migration flag
       await AsyncStorage.removeItem('@pairly_migration_done');
       console.log('✅ Migration flag reset');
-      
+
       console.log('========================================');
       console.log('✅ ALL DATA CLEARED! Fresh start ready.');
       console.log('========================================\n');
-      
+
       return true;
     } catch (error) {
       console.error('❌ Error clearing data:', error);

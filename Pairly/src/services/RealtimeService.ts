@@ -186,7 +186,7 @@ class RealtimeService {
           this.socket.connect();
         }
 
-        // ⚡ WORLD CLASS: Restart heartbeat in foreground
+        // ⚡ WORLD CLASS: Resume fast heartbeat in foreground
         if (this.currentUserId) {
           this.startHeartbeat(this.currentUserId);
         }
@@ -194,10 +194,13 @@ class RealtimeService {
 
       // App going to background
       if (nextAppState.match(/inactive|background/)) {
-        console.log('📱 App background - stopping heartbeat to save battery');
+        console.log('📱 App background - switching to slow heartbeat');
 
-        // ⚡ WORLD CLASS: Stop heartbeat in background to save battery
-        this.stopHeartbeat();
+        // ⚡ WORLD CLASS: Don't stop completely! Switch to slow heartbeat
+        // This keeps presence alive ("Idle") without draining battery
+        if (this.currentUserId) {
+          this.startBackgroundHeartbeat(this.currentUserId);
+        }
       }
 
       this.lastAppState = nextAppState;
@@ -206,11 +209,15 @@ class RealtimeService {
     console.log('✅ App state handler setup complete');
   }
 
+  // ... (rest of the file until startHeartbeat)
+
   /**
    * Set up Socket.IO event handlers
    */
   private setupEventHandlers(userId: string): void {
     if (!this.socket) return;
+
+    // ... (existing event handlers)
 
     // Connection successful
     this.socket.on('connect', async () => {
@@ -218,19 +225,20 @@ class RealtimeService {
       this.isConnected = true;
       this.reconnectAttempts = 0;
 
-      // Record connection performance
-      if (APP_CONFIG.enablePerformanceMonitoring) {
-        try {
-          const PerformanceMonitor = (await import('./PerformanceMonitor')).default;
-          PerformanceMonitor.endTimer('socket_connection');
-        } catch (error) {
-          // Ignore
-        }
-      }
+      // ... (existing code)
 
       // Join user's personal room
       this.socket?.emit('join_room', { userId });
+
+      // ⚡ RESEND HEARTBEAT ON RECONNECT
+      if (this.lastAppState === 'active') {
+        this.startHeartbeat(userId);
+      } else {
+        this.startBackgroundHeartbeat(userId);
+      }
     });
+
+    // ... (rest of event handlers)
 
     // Room joined confirmation
     this.socket.on('room_joined', (data: { userId: string }) => {
@@ -302,6 +310,7 @@ class RealtimeService {
 
           // ⚡ FIXED: Use MomentService.receivePhoto for proper dual storage
           const MomentService = (await import('./MomentService')).default;
+          // ⚡ WIDGET UPDATE HAPPENS INSIDE MomentService.receivePhoto
           const success = await MomentService.receivePhoto({
             photoId: data.photoId,
             photoData: data.photoData,
@@ -311,7 +320,7 @@ class RealtimeService {
           });
 
           if (success) {
-            console.log('✅ Photo received and saved via MomentService (dual storage)');
+            console.log('✅ Photo received and saved via MomentService');
 
             // ⚡ IMPROVED: Trigger event for UI update
             this.triggerEvent('receive_photo', data);
@@ -336,9 +345,11 @@ class RealtimeService {
       }
     });
 
+    // ... (rest of handlers)
+
     // Photo delivered confirmation
     this.socket.on('photo_delivered', (data: any) => {
-      console.log('✅ Photo delivered to partner');
+      // console.log('✅ Photo delivered to partner'); // Reduced log
       this.triggerEvent('photo_delivered', data);
     });
 
@@ -630,7 +641,7 @@ class RealtimeService {
   }
 
   /**
-   * ⚡ WORLD CLASS: Smart heartbeat - only when app is active
+   * ⚡ WORLD CLASS: Smart heartbeat - foreground (fast)
    */
   startHeartbeat(userId: string): void {
     // Clear existing interval
@@ -638,21 +649,38 @@ class RealtimeService {
       clearInterval(this.heartbeatInterval);
     }
 
-    // Only start heartbeat if app is in foreground
-    if (this.lastAppState !== 'active') {
-      console.log('💤 App in background - heartbeat not started (battery saver)');
-      return;
-    }
-
     // Send heartbeat every 30 seconds
     this.heartbeatInterval = setInterval(() => {
-      // Only send if connected AND app is active
-      if (this.isConnected && this.lastAppState === 'active') {
+      // Only send if connected
+      if (this.isConnected) {
         this.sendHeartbeat(userId);
       }
     }, 30000);
 
-    console.log('💓 Heartbeat started (foreground only)');
+    console.log('💓 Heartbeat started (FAST - 30s)');
+
+    // Send one immediately
+    if (this.isConnected) this.sendHeartbeat(userId);
+  }
+
+  /**
+   * ⚡ WORLD CLASS: Background heartbeat (slow)
+   */
+  startBackgroundHeartbeat(userId: string): void {
+    // Clear existing interval
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+    }
+
+    // Send heartbeat every 4 minutes (save battery, but keep presence < 5min timeout)
+    this.heartbeatInterval = setInterval(() => {
+      if (this.isConnected) {
+        this.sendHeartbeat(userId);
+        console.log('💤💓 Background heartbeat sent');
+      }
+    }, 240000); // 4 minutes
+
+    console.log('💤💓 Heartbeat switched to BACKGROUND (SLOW - 4m)');
   }
 
   stopHeartbeat(): void {

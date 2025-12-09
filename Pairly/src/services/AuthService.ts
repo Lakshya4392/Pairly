@@ -154,7 +154,7 @@ class AuthService {
   /**
    * Authenticate with backend using Clerk token
    */
-  async authenticateWithBackend(clerkToken: string): Promise<AuthResponse> {
+  async authenticateWithBackend(clerkToken: string, retryCount: number = 0): Promise<AuthResponse> {
     try {
       console.log('🔐 Sending Clerk token to backend...');
       
@@ -177,6 +177,20 @@ class AuthService {
       return data.data;
     } catch (error: any) {
       console.error('❌ Backend authentication error:', error.message);
+      
+      // Handle token expiration - get fresh Clerk token and retry once
+      if (error.message && error.message.includes('expired') && retryCount === 0) {
+        console.log('⚠️ Token expired, getting fresh Clerk token...');
+        try {
+          // Import Clerk auth dynamically to avoid circular dependency
+          const { useAuth } = await import('@clerk/clerk-expo');
+          // Note: This won't work in service context, needs to be called from component
+          // For now, just throw the error and let the component handle refresh
+          throw new Error('TOKEN_EXPIRED');
+        } catch (refreshError) {
+          throw new Error('TOKEN_EXPIRED');
+        }
+      }
       
       // Handle specific protocol errors
       if (error.message && error.message.includes('protocol')) {
@@ -209,36 +223,70 @@ class AuthService {
   async signOut(): Promise<void> {
     console.log('🔄 Signing out and clearing all data...');
     
-    // Clear auth data
-    await this.removeToken();
-    await this.removeUser();
-    
-    // Clear pairing data
     try {
-      await AsyncStorage.removeItem('pairly_pair');
-      await AsyncStorage.removeItem('partner_info');
-      await AsyncStorage.removeItem('partner_id');
-      await AsyncStorage.removeItem('current_invite_code');
-      await AsyncStorage.removeItem('code_expires_at');
-      await AsyncStorage.removeItem('offline_invite_code');
-      console.log('✅ All pairing data cleared');
-    } catch (error) {
-      console.error('Error clearing pairing data:', error);
-    }
-    
-    // Clear other app data
-    try {
-      const keys = await AsyncStorage.getAllKeys();
-      const pairlyKeys = keys.filter(key => key.startsWith('@pairly_') || key.startsWith('pairly_'));
-      if (pairlyKeys.length > 0) {
-        await AsyncStorage.multiRemove(pairlyKeys);
-        console.log(`✅ Cleared ${pairlyKeys.length} app data keys`);
+      // 1. Disconnect socket first
+      try {
+        const RealtimeService = (await import('./RealtimeService')).default;
+        RealtimeService.disconnect();
+        console.log('✅ Socket disconnected');
+      } catch (error) {
+        console.error('Error disconnecting socket:', error);
       }
+      
+      // 2. Clear auth data
+      await this.removeToken();
+      await this.removeUser();
+      console.log('✅ Auth data cleared');
+      
+      // 3. Clear pairing data
+      try {
+        await AsyncStorage.multiRemove([
+          'pairly_pair',
+          'partner_info',
+          'partner_id',
+          'current_invite_code',
+          'code_expires_at',
+          'offline_invite_code',
+          'offline_code_timestamp',
+        ]);
+        console.log('✅ Pairing data cleared');
+      } catch (error) {
+        console.error('Error clearing pairing data:', error);
+      }
+      
+      // 4. Clear widget data
+      try {
+        await AsyncStorage.multiRemove([
+          'pairly_widget_data',
+          '@pairly_widget_enabled',
+        ]);
+        console.log('✅ Widget data cleared');
+      } catch (error) {
+        console.error('Error clearing widget data:', error);
+      }
+      
+      // 5. Clear all other app data
+      try {
+        const keys = await AsyncStorage.getAllKeys();
+        const pairlyKeys = keys.filter(key => 
+          key.startsWith('@pairly_') || 
+          key.startsWith('pairly_') ||
+          key.includes('moment') ||
+          key.includes('photo')
+        );
+        if (pairlyKeys.length > 0) {
+          await AsyncStorage.multiRemove(pairlyKeys);
+          console.log(`✅ Cleared ${pairlyKeys.length} app data keys`);
+        }
+      } catch (error) {
+        console.error('Error clearing app data:', error);
+      }
+      
+      console.log('✅ Sign out complete - All data cleared');
     } catch (error) {
-      console.error('Error clearing app data:', error);
+      console.error('❌ Sign out error:', error);
+      throw error;
     }
-    
-    console.log('✅ Sign out complete');
   }
 
   /**

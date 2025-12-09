@@ -35,7 +35,10 @@ class PairlyWidgetModule(reactContext: ReactApplicationContext) : ReactContextBa
             
             // Store partner name in SharedPreferences for widget access
             val prefs = context.getSharedPreferences("PairlyPrefs", Context.MODE_PRIVATE)
-            prefs.edit().putString("partner_name", partnerName).apply()
+            prefs.edit()
+                .putString("partner_name", partnerName)
+                .putString("photo_path", photoPath)
+                .apply()
             
             android.util.Log.d("PairlyWidget", "📸 New photo saved: $photoPath")
             android.util.Log.d("PairlyWidget", "👤 Partner: $partnerName")

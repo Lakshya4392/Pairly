@@ -5,7 +5,7 @@ import { prisma } from '../index';
 import { ApiResponse, UserResponse } from '../types';
 
 const JWT_SECRET: string = process.env.JWT_SECRET || 'your-secret-key';
-const JWT_EXPIRES_IN: string = process.env.JWT_EXPIRES_IN || '7d'; // 7 days for better UX
+const JWT_EXPIRES_IN: string = process.env.JWT_EXPIRES_IN || '30d'; // 30 days for mobile apps
 
 /**
  * Authenticate user with Google via Clerk
@@ -28,9 +28,12 @@ export const authenticateWithGoogle = async (
     // Verify token with Clerk
     let clerkUser;
     try {
-      // Verify the JWT token from Clerk
-      const decoded = await clerkClient.verifyToken(idToken);
-      
+      // Verify the JWT token from Clerk with clock skew tolerance
+      const decoded = await clerkClient.verifyToken(idToken, {
+        clockSkewInMs: 60000, // 60 second tolerance for clock differences
+        issuer: null,
+      });
+
       if (!decoded || !decoded.sub) {
         res.status(401).json({
           success: false,
@@ -43,6 +46,17 @@ export const authenticateWithGoogle = async (
       clerkUser = await clerkClient.users.getUser(decoded.sub);
     } catch (clerkError: any) {
       console.error('Clerk verification error:', clerkError);
+
+      // If token is expired, provide more helpful error
+      if (clerkError.reason === 'token-expired') {
+        res.status(401).json({
+          success: false,
+          error: 'Session expired. Please sign in again.',
+          code: 'TOKEN_EXPIRED',
+        } as ApiResponse);
+        return;
+      }
+
       res.status(401).json({
         success: false,
         error: clerkError.message || 'Token verification failed',

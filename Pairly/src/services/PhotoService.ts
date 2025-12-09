@@ -1,7 +1,7 @@
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system/legacy';
-import { Platform, Alert } from 'react-native';
+import { Platform, Alert, Linking } from 'react-native';
 import { PhotoAsset, CompressedPhoto } from '@types';
 
 const qualitySettings = {
@@ -51,22 +51,46 @@ class PhotoService {
   /**
    * Capture photo from camera
    */
+  /**
+   * Capture photo from camera
+   */
   async capturePhoto(): Promise<PhotoAsset | null> {
     try {
-      // Request permission
-      const hasPermission = await this.requestCameraPermission();
-      if (!hasPermission) {
-        Alert.alert('Permission Required', 'Camera permission is required to take photos.');
+      console.log('📸 Requesting camera permissions...');
+
+      // 1. Request Camera permission
+      const cameraStatus = await this.requestCameraPermission();
+      if (!cameraStatus) {
+        Alert.alert(
+          'Permission Required',
+          'Camera permission is required. Please enable it in settings or use the Gallery.',
+          [
+            { text: 'OK' },
+            { text: 'Open Settings', onPress: () => Platform.OS === 'ios' ? Linking.openURL('app-settings:') : Linking.openSettings() }
+          ]
+        );
         return null;
       }
 
-      // Launch camera
+      // 2. Request Media permission (Android often needs this to save the result)
+      if (Platform.OS === 'android') {
+        const mediaStatus = await this.requestMediaLibraryPermission();
+        if (!mediaStatus) {
+          console.warn('⚠️ Media permission missing on Android - camera might fail to save');
+        }
+      }
+
+      console.log('📸 Launching camera...');
+
+      // 3. Launch camera with crash-safe options
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 1, // Always capture at full quality
+        allowsEditing: false, // ⚡ SAFE MODE: Editing causes crashes on some Androids
+        quality: 1,
+        // aspect: [4, 3], // Removed when allowsEditing is false
       });
+
+      console.log('📸 Camera result:', result.canceled ? 'Canceled' : 'Captured');
 
       if (result.canceled || !result.assets || result.assets.length === 0) {
         return null;
@@ -74,9 +98,18 @@ class PhotoService {
 
       const asset = result.assets[0];
       return this.convertToPhotoAsset(asset);
-    } catch (error) {
-      console.error('Error capturing photo:', error);
-      Alert.alert('Error', 'Failed to capture photo. Please try again.');
+    } catch (error: any) {
+      console.error('❌ Error capturing photo:', error);
+
+      // ⚡ FALLBACK: Suggest gallery if camera crashes
+      Alert.alert(
+        'Camera Error',
+        'Could not open camera. Would you like to pick from Gallery instead?',
+        [
+          { text: 'No, Cancel', style: 'cancel' },
+          { text: 'Yes, Open Gallery', onPress: () => this.selectFromGallery().then(() => { }) } // Handled by caller usually, but this is a deep fallback
+        ]
+      );
       return null;
     }
   }
@@ -86,29 +119,42 @@ class PhotoService {
    */
   async selectFromGallery(): Promise<PhotoAsset | null> {
     try {
+      console.log('📸 Requesting media library permission...');
+
       // Request permission
       const hasPermission = await this.requestMediaLibraryPermission();
+      console.log('📸 Permission granted:', hasPermission);
+
       if (!hasPermission) {
+        console.error('❌ Media library permission denied');
         Alert.alert('Permission Required', 'Media library permission is required to select photos.');
         return null;
       }
 
+      console.log('📸 Launching image library...');
+
       // Launch image library
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: [4, 3],
+        allowsEditing: false, // ⚡ FIXED: Don't force editing - causes issues on some devices
         quality: 1, // Always select at full quality
       });
 
+      console.log('📸 Image picker result:', {
+        canceled: result.canceled,
+        assetsCount: result.assets?.length
+      });
+
       if (result.canceled || !result.assets || result.assets.length === 0) {
+        console.log('⚠️ User cancelled or no assets selected');
         return null;
       }
 
       const asset = result.assets[0];
+      console.log('✅ Photo selected:', asset.uri);
       return this.convertToPhotoAsset(asset);
     } catch (error) {
-      console.error('Error selecting photo:', error);
+      console.error('❌ Error selecting photo:', error);
       Alert.alert('Error', 'Failed to select photo. Please try again.');
       return null;
     }
@@ -221,7 +267,7 @@ class PhotoService {
         });
         const fileInfo = await FileSystem.getInfoAsync(lastResult.uri);
         const fileSize = (fileInfo as any).size || 0;
-        
+
         console.log(`📤 Sending photo at ${Math.round(fileSize / 1024)}KB (best effort)`);
         return {
           base64,

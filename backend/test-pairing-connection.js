@@ -5,7 +5,7 @@
 
 const io = require('socket.io-client');
 
-const BASE_URL = process.env.API_URL || 'https://pairly-backend.onrender.com';
+const BASE_URL = process.env.API_URL || 'https://pairly-60qj.onrender.com';
 const SOCKET_URL = BASE_URL;
 
 // Test user credentials

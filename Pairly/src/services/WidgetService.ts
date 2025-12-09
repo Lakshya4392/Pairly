@@ -49,8 +49,13 @@ class WidgetService {
    * Update premium carousel widget with new partner photo
    */
   async updateWidget(photoUri: string, partnerName: string = 'Your Partner'): Promise<boolean> {
-    if (!this.isEnabled || !PairlyWidget) {
-      console.log('Widget not supported on this platform');
+    if (!this.isEnabled) {
+      console.log('⚠️ Widget not supported - Platform is not Android');
+      return false;
+    }
+
+    if (!PairlyWidget) {
+      console.log('⚠️ Widget module not available - Native module not loaded');
       return false;
     }
 
@@ -76,9 +81,12 @@ class WidgetService {
 
       // Update widget (premium carousel will auto-detect new photos)
       const timestamp = Date.now();
-      console.log('📤 Calling native widget update...');
-      await PairlyWidget.updateWidget(savedPhotoPath, partnerName, timestamp);
-      console.log('✅ Native widget update called');
+      console.log('📤 Calling native widget update (background)...');
+
+      // ⚡ OPTIMIZED: Don't await native call, just fire it
+      PairlyWidget.updateWidget(savedPhotoPath, partnerName, timestamp)
+        .then(() => console.log('✅ Native widget update completed'))
+        .catch((e: any) => console.error('❌ Native widget update failed:', e));
 
       // Store latest widget data
       await this.storeWidgetData({
@@ -87,7 +95,7 @@ class WidgetService {
         partnerName,
       });
 
-      console.log('✅ Premium carousel widget updated successfully');
+      console.log('✅ Premium carousel widget update triggered');
       return true;
 
     } catch (error) {
@@ -106,10 +114,10 @@ class WidgetService {
 
     try {
       console.log('Clearing widget');
-      
+
       await PairlyWidget.clearWidget();
       await this.clearWidgetData();
-      
+
       console.log('Widget cleared successfully');
       return true;
 
@@ -140,7 +148,7 @@ class WidgetService {
       // Create widget photos directory
       const widgetDir = `${FileSystem.documentDirectory}widget_photos/`;
       const dirInfo = await FileSystem.getInfoAsync(widgetDir);
-      
+
       if (!dirInfo.exists) {
         await FileSystem.makeDirectoryAsync(widgetDir, { intermediates: true });
       }
@@ -182,11 +190,11 @@ class WidgetService {
       // Keep only the latest 3 photos
       if (photoFiles.length > 3) {
         const filesToDelete = photoFiles.slice(3);
-        
+
         for (const file of filesToDelete) {
           await FileSystem.deleteAsync(`${widgetDir}${file}`, { idempotent: true });
         }
-        
+
         console.log(`Cleaned up ${filesToDelete.length} old widget photos`);
       }
     } catch (error) {
@@ -220,28 +228,31 @@ class WidgetService {
    * Update widget when app receives new photo
    */
   async onPhotoReceived(photoUri: string, partnerName?: string): Promise<void> {
-    console.log('📱 New photo received, updating widget...');
-    console.log('📸 Photo URI:', photoUri);
-    console.log('❤️ Partner name:', partnerName);
-    
+    console.log('📱 [WIDGET] New photo received, updating widget...');
+    console.log('📸 [WIDGET] Photo URI:', photoUri);
+    console.log('❤️ [WIDGET] Partner name:', partnerName);
+    console.log('🤖 [WIDGET] Platform:', Platform.OS);
+    console.log('🔧 [WIDGET] isEnabled:', this.isEnabled);
+    console.log('📦 [WIDGET] PairlyWidget module:', PairlyWidget ? 'Available' : 'Not available');
+
     // Verify photo exists before updating widget
     try {
       const fileInfo = await FileSystem.getInfoAsync(photoUri);
       if (!fileInfo.exists) {
-        console.error('❌ Photo file does not exist:', photoUri);
+        console.error('❌ [WIDGET] Photo file does not exist:', photoUri);
         return;
       }
-      console.log('✅ Photo file verified, size:', fileInfo.size);
+      console.log('✅ [WIDGET] Photo file verified, size:', fileInfo.size);
     } catch (error) {
-      console.error('❌ Error verifying photo file:', error);
+      console.error('❌ [WIDGET] Error verifying photo file:', error);
       return;
     }
-    
-    const success = await this.updateWidget(photoUri, partnerName);
+
+    const success = await this.updateWidget(photoUri, partnerName || 'Partner');
     if (success) {
-      console.log('✅ Widget updated with new photo');
+      console.log('✅ [WIDGET] Widget updated with new photo');
     } else {
-      console.log('❌ Failed to update widget with new photo');
+      console.log('❌ [WIDGET] Failed to update widget with new photo');
     }
   }
 
@@ -254,7 +265,7 @@ class WidgetService {
     }
 
     console.log('📱 Setting up widget background updates');
-    
+
     // Widget will be updated when:
     // 1. App receives new photo (via RealtimeService)
     // 2. App comes to foreground
@@ -267,11 +278,11 @@ class WidgetService {
   async refreshWidget(): Promise<boolean> {
     try {
       const widgetData = await this.getWidgetData();
-      
+
       if (widgetData) {
         return await this.updateWidget(widgetData.uri, widgetData.partnerName);
       }
-      
+
       return false;
     } catch (error) {
       console.error('Error refreshing widget:', error);
