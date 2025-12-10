@@ -26,7 +26,7 @@ class PairlyWidgetModule(reactContext: ReactApplicationContext) : ReactContextBa
     fun hasWidgets(promise: Promise) {
         try {
             val appWidgetManager = AppWidgetManager.getInstance(reactApplicationContext)
-            val widgetComponent = ComponentName(reactApplicationContext, PremiumCarouselWidgetProvider::class.java)
+            val widgetComponent = ComponentName(reactApplicationContext, SimpleWidgetProvider::class.java)
             val widgetIds = appWidgetManager.getAppWidgetIds(widgetComponent)
             promise.resolve(widgetIds.isNotEmpty())
         } catch (e: Exception) {

@@ -58,15 +58,15 @@
       </intent-filter>
     </activity>
 
-    <!-- ⚡ SIMPLE: Premium Carousel Widget (Polling-based) -->
-    <receiver android:name="com.pairly.app.PremiumCarouselWidgetProvider" android:exported="false">
+    <!-- ⚡ SIMPLE: 2x2 Widget (Bulletproof) -->
+    <receiver android:name="com.pairly.app.SimpleWidgetProvider" android:exported="false">
         <intent-filter>
             <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            <action android:name="com.pairly.WIDGET_REFRESH" />
+            <action android:name="com.pairly.SIMPLE_WIDGET_REFRESH" />
         </intent-filter>
         <meta-data
             android:name="android.appwidget.provider"
-            android:resource="@xml/premium_carousel_widget_info" />
+            android:resource="@xml/simple_widget_info" />
     </receiver>
 
     <!-- Pairly Foreground Service for Widget Sync -->

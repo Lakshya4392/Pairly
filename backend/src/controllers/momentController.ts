@@ -393,9 +393,13 @@ export const getLatestMoment = async (req: AuthRequest, res: Response): Promise<
       return;
     }
 
-    // Get latest moment for this pair
+    // 🎯 CRITICAL FIX: Only get moments FROM partner (not sent by current user)
+    // Widget should only show photos received from partner, not sent by user
     const moment = await prisma.moment.findFirst({
-      where: { pairId: pair.id },
+      where: { 
+        pairId: pair.id,
+        uploaderId: { not: userId } // Only moments NOT uploaded by current user
+      },
       orderBy: { uploadedAt: 'desc' },
       include: {
         uploader: true,
@@ -403,10 +407,10 @@ export const getLatestMoment = async (req: AuthRequest, res: Response): Promise<
     });
 
     if (!moment) {
-      console.log(`📭 [GET LATEST] No moment found for pair: ${pair.id.substring(0, 8)}...`);
+      console.log(`📭 [GET LATEST] No moment from partner found for pair: ${pair.id.substring(0, 8)}...`);
       res.status(404).json({
         success: false,
-        error: 'No moment found',
+        error: 'No moment from partner found',
       } as ApiResponse);
       return;
     }
@@ -415,9 +419,9 @@ export const getLatestMoment = async (req: AuthRequest, res: Response): Promise<
     const photoBase64 = Buffer.from(moment.photoData).toString('base64');
     const photoSizeKB = (photoBase64.length / 1024).toFixed(2);
 
-    // Get partner info
-    const partner = moment.uploaderId === pair.user1Id ? pair.user1 : pair.user2;
-    const isReceiver = moment.uploaderId !== userId;
+    // Get partner info (uploader is always the partner since we filtered by NOT userId)
+    const partner = moment.uploader;
+    const isReceiver = true; // Always true since we only get partner's moments
 
     console.log(`✅ [GET LATEST] Moment found:`);
     console.log(`   📸 Moment ID: ${moment.id.substring(0, 8)}...`);

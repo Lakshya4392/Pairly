@@ -8,4 +8,7 @@
   
   <!-- Premium Widget Description -->
   <string name="premium_widget_description">Premium carousel widget showing your latest moments together with smooth animations</string>
+  
+  <!-- Simple Widget Description -->
+  <string name="simple_widget_description">3x3 widget showing your partner's latest moments</string>
 </resources>
