@@ -1,14 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  withSequence,
-  withDelay,
-  withSpring,
-  runOnJS,
-} from 'react-native-reanimated';
+import { View, Text, StyleSheet, Dimensions, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
@@ -25,56 +16,77 @@ interface SplashScreenProps {
 export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
   const { colors } = useTheme();
   const styles = React.useMemo(() => createStyles(colors), [colors]);
-  const logoScale = useSharedValue(0);
-  const logoOpacity = useSharedValue(0);
-  const textOpacity = useSharedValue(0);
-  const backgroundOpacity = useSharedValue(0);
-  const heartPulse = useSharedValue(1);
+  const logoScale = useRef(new Animated.Value(0)).current;
+  const logoOpacity = useRef(new Animated.Value(0)).current;
+  const textOpacity = useRef(new Animated.Value(0)).current;
+  const backgroundOpacity = useRef(new Animated.Value(0)).current;
+  const heartPulse = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     // Animated sequence
-    backgroundOpacity.value = withTiming(1, { duration: 500 });
+    Animated.timing(backgroundOpacity, {
+      toValue: 1,
+      duration: 500,
+      useNativeDriver: true,
+    }).start();
     
-    logoScale.value = withDelay(300, withTiming(1, { duration: 800 }));
-    logoOpacity.value = withDelay(300, withTiming(1, { duration: 800 }));
+    setTimeout(() => {
+      Animated.parallel([
+        Animated.timing(logoScale, {
+          toValue: 1,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(logoOpacity, {
+          toValue: 1,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }, 300);
     
-    heartPulse.value = withDelay(800, 
-      withSequence(
-        withTiming(1.2, { duration: 300 }),
-        withTiming(1, { duration: 300 }),
-        withTiming(1.2, { duration: 300 }),
-        withTiming(1, { duration: 300 })
-      )
-    );
+    setTimeout(() => {
+      Animated.sequence([
+        Animated.timing(heartPulse, {
+          toValue: 1.2,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(heartPulse, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(heartPulse, {
+          toValue: 1.2,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(heartPulse, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }, 800);
     
-    textOpacity.value = withDelay(1200, withTiming(1, { duration: 600 }));
+    setTimeout(() => {
+      Animated.timing(textOpacity, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }).start();
+    }, 1200);
     
     // Complete after animation
     setTimeout(() => {
-      runOnJS(onComplete)();
+      onComplete();
     }, 2500);
   }, []);
 
-  const logoAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: logoScale.value }],
-    opacity: logoOpacity.value,
-  }));
-
-  const textAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: textOpacity.value,
-  }));
-
-  const backgroundAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: backgroundOpacity.value,
-  }));
-
-  const heartAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: heartPulse.value }],
-  }));
-
   return (
     <View style={styles.container}>
-      <Animated.View style={[StyleSheet.absoluteFill, backgroundAnimatedStyle]}>
+      <Animated.View style={[StyleSheet.absoluteFill, { opacity: backgroundOpacity }]}>
         <LinearGradient
           colors={[colors.primary, colors.secondary]}
           style={StyleSheet.absoluteFill}
@@ -84,15 +96,18 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
       </Animated.View>
 
       <View style={styles.content}>
-        <Animated.View style={[styles.logoContainer, logoAnimatedStyle]}>
+        <Animated.View style={[styles.logoContainer, { 
+          transform: [{ scale: logoScale }],
+          opacity: logoOpacity 
+        }]}>
           <View style={styles.logoBackground}>
-            <Animated.View style={heartAnimatedStyle}>
+            <Animated.View style={{ transform: [{ scale: heartPulse }] }}>
               <Ionicons name="heart" size={48} color="white" />
             </Animated.View>
           </View>
         </Animated.View>
 
-        <Animated.View style={[styles.textContainer, textAnimatedStyle]}>
+        <Animated.View style={[styles.textContainer, { opacity: textOpacity }]}>
           <Text style={styles.appName}>Pairly</Text>
           <Text style={styles.tagline}>Share moments, stay connected</Text>
         </Animated.View>

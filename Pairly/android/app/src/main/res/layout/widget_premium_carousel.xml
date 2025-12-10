@@ -3,25 +3,40 @@
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#000000">
+    android:background="@drawable/widget_premium_background">
 
+    <!-- Background gradient for placeholder -->
+    <View
+        android:id="@+id/widget_gradient_bg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/widget_gradient_background"
+        android:visibility="visible" />
+
+    <!-- Main photo -->
     <ImageView
         android:id="@+id/widget_image"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:scaleType="centerCrop"
-        android:src="@mipmap/ic_launcher" />
+        android:src="@drawable/widget_placeholder"
+        android:contentDescription="Partner Photo" />
 
+    <!-- Simple overlay -->
     <View
+        android:id="@+id/widget_overlay"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#40000000" />
+        android:background="#30000000" />
 
+    <!-- Simple bottom panel -->
     <LinearLayout
+        android:id="@+id/widget_bottom_panel"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_alignParentBottom="true"
         android:orientation="vertical"
+        android:background="#80000000"
         android:padding="12dp">
 
         <TextView
@@ -31,32 +46,60 @@
             android:text="Pairly"
             android:textColor="#FFFFFF"
             android:textSize="16sp"
-            android:textStyle="bold"
-            android:shadowColor="#000000"
-            android:shadowDx="1"
-            android:shadowDy="1"
-            android:shadowRadius="2" />
+            android:textStyle="bold" />
             
         <TextView
             android:id="@+id/widget_timestamp"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Tap to update"
+            android:text="Tap to open app"
             android:textColor="#CCFFFFFF"
-            android:textSize="12sp"
-            android:shadowColor="#000000"
-            android:shadowDx="1"
-            android:shadowDy="1"
-            android:shadowRadius="2" />
+            android:textSize="12sp" />
     </LinearLayout>
 
+    <!-- Simple heart icon -->
     <ImageView
         android:layout_width="24dp"
         android:layout_height="24dp"
         android:layout_alignParentTop="true"
         android:layout_alignParentEnd="true"
         android:layout_margin="12dp"
-        android:src="@mipmap/ic_launcher" 
+        android:src="@drawable/ic_heart_filled"
         android:alpha="0.8"/>
+
+    <!-- Placeholder content when no image -->
+    <LinearLayout
+        android:id="@+id/widget_placeholder_content"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="24dp"
+        android:visibility="gone">
+
+        <ImageView
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:src="@drawable/ic_heart_filled"
+            android:alpha="0.8"
+            android:layout_marginBottom="12dp"/>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Pairly"
+            android:textColor="#FFFFFF"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="6dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Share moments together"
+            android:textColor="#CCFFFFFF"
+            android:textSize="14sp"
+            android:gravity="center" />
+    </LinearLayout>
 
 </RelativeLayout>

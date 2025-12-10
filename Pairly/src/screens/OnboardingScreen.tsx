@@ -8,13 +8,8 @@ import {
   TouchableOpacity,
   Platform,
   Alert,
+  Animated,
 } from 'react-native';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  interpolate,
-} from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
@@ -67,7 +62,7 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }
   ];
   const [currentIndex, setCurrentIndex] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
-  const scrollX = useSharedValue(0);
+  const scrollX = useRef(new Animated.Value(0)).current;
 
   const handleNext = async () => {
     const currentSlide = slides[currentIndex];
@@ -136,11 +131,16 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }
     onComplete();
   };
 
-  const onScroll = (event: any) => {
-    scrollX.value = event.nativeEvent.contentOffset.x;
-    const index = Math.round(event.nativeEvent.contentOffset.x / width);
-    setCurrentIndex(index);
-  };
+  const onScroll = Animated.event(
+    [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+    { 
+      useNativeDriver: false,
+      listener: (event: any) => {
+        const index = Math.round(event.nativeEvent.contentOffset.x / width);
+        setCurrentIndex(index);
+      }
+    }
+  );
 
   return (
     <View style={styles.container}>
@@ -176,31 +176,22 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }
       <View style={styles.footer}>
         <View style={styles.pagination}>
           {slides.map((_, index) => {
-            const animatedStyle = useAnimatedStyle(() => {
-              const inputRange = [
-                (index - 1) * width,
-                index * width,
-                (index + 1) * width,
-              ];
-              
-              const scale = interpolate(
-                scrollX.value,
-                inputRange,
-                [0.8, 1.2, 0.8],
-                'clamp'
-              );
-              
-              const opacity = interpolate(
-                scrollX.value,
-                inputRange,
-                [0.4, 1, 0.4],
-                'clamp'
-              );
-
-              return {
-                transform: [{ scale }],
-                opacity,
-              };
+            const inputRange = [
+              (index - 1) * width,
+              index * width,
+              (index + 1) * width,
+            ];
+            
+            const scale = scrollX.interpolate({
+              inputRange,
+              outputRange: [0.8, 1.2, 0.8],
+              extrapolate: 'clamp',
+            });
+            
+            const opacity = scrollX.interpolate({
+              inputRange,
+              outputRange: [0.4, 1, 0.4],
+              extrapolate: 'clamp',
             });
 
             return (
@@ -208,7 +199,10 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }
                 key={index}
                 style={[
                   styles.dot,
-                  animatedStyle,
+                  {
+                    transform: [{ scale }],
+                    opacity,
+                  },
                   index === currentIndex && styles.activeDot,
                 ]}
               />

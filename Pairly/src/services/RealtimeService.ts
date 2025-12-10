@@ -261,8 +261,8 @@ class RealtimeService {
       this.triggerEvent('new_moment', data);
     });
 
-    // Photo received from partner - VERIFY it's from our paired partner
-    this.socket.on('receive_photo', async (data: any) => {
+    // ⚡ SIMPLE MVP: Moment available notification (lightweight)
+    this.socket.on('moment_available', async (data: any) => {
       log.debug('Photo received from partner:', data.senderName);
 
       // ⚡ CRITICAL FIX: Don't receive your own photos!
@@ -308,32 +308,22 @@ class RealtimeService {
         if (isFromPartner) {
           log.debug('Verified photo is from paired partner');
 
-          // ⚡ FIXED: Use MomentService.receivePhoto for proper dual storage
+          // ⚡ SIMPLE: Use MomentService.onMomentAvailable for simple flow
           const MomentService = (await import('./MomentService')).default;
-          // ⚡ WIDGET UPDATE HAPPENS INSIDE MomentService.receivePhoto
-          const success = await MomentService.receivePhoto({
-            photoId: data.photoId,
-            photoData: data.photoData,
+          // ⚡ WIDGET UPDATES ITSELF BY POLLING BACKEND
+          await MomentService.onMomentAvailable({
+            momentId: data.photoId,
             timestamp: data.timestamp,
-            caption: data.caption,
-            senderName: data.senderName,
+            partnerName: data.senderName,
           });
 
-          if (success) {
-            console.log('✅ Photo received and saved via MomentService');
+          console.log('✅ Moment notification processed via MomentService');
 
-            // ⚡ IMPROVED: Trigger event for UI update
-            this.triggerEvent('receive_photo', data);
+          // ⚡ SIMPLE: Trigger event for UI update
+          this.triggerEvent('moment_available', data);
 
-            // ⚡ NEW: Trigger photo_saved event for Recent Moments update
-            this.triggerEvent('photo_saved', {
-              photoId: data.photoId,
-              senderName: data.senderName,
-              timestamp: Date.now(),
-            });
-          } else {
-            console.error('❌ Failed to save received photo');
-          }
+          // ⚡ SIMPLE: Trigger moment_available event for Recent Moments update
+          // (Already triggered above - no need to duplicate)
         } else {
           console.warn('⚠️ Received photo from non-paired user - ignoring');
           console.warn('Sender:', data.senderId, 'Partner:', partner?.clerkId, partner?.id);
@@ -341,7 +331,7 @@ class RealtimeService {
       } catch (error) {
         console.error('Error verifying photo sender:', error);
         // Still trigger event in case of error (fail open)
-        this.triggerEvent('receive_photo', data);
+        this.triggerEvent('moment_available', data);
       }
     });
 
@@ -453,11 +443,8 @@ class RealtimeService {
 
       // Process any queued moments after reconnection
       try {
-        const MomentService = (await import('./MomentService')).default;
-        setTimeout(async () => {
-          await MomentService.processQueuedMoments();
-          console.log('✅ Queued moments processed after reconnect');
-        }, 1000);
+        // ⚡ SIMPLE: No queue processing needed (direct upload to backend)
+        console.log('✅ Realtime reconnected - simple upload flow active');
       } catch (error) {
         console.error('Error processing queued moments:', error);
       }

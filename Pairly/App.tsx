@@ -1,4 +1,4 @@
-import 'react-native-reanimated';
+// import 'react-native-reanimated'; // ⚡ REMOVED: Causing CMake issues
 import './polyfills';
 import 'react-native-gesture-handler';
 import React, { useEffect, useState } from 'react';
@@ -16,8 +16,7 @@ import {
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
 
-// Import services
-import WidgetBackgroundService from './src/services/WidgetBackgroundService';
+// ⚡ SIMPLE: No widget background service needed (widget polls backend independently)
 
 // Import dev tools (only in development)
 import './src/utils/DevTools';
@@ -168,17 +167,16 @@ export default function App() {
         console.error('❌ ConnectionManager init failed:', error);
       }
       
-      // Initialize widget (fast, non-blocking)
-      WidgetBackgroundService.initialize();
+      // ⚡ SIMPLE: Widget initializes itself via AlarmManager (no RN service needed)
       
-      // ⚡ FIXED: Initialize MomentService in background (non-blocking)
+      // ⚡ SIMPLE: Initialize MomentService (lightweight - just socket listener)
       setTimeout(async () => {
         try {
           const MomentService = (await import('./src/services/MomentService')).default;
           await MomentService.initialize();
-          console.log('✅ MomentService initialized and photos migrated');
+          console.log('✅ SimpleMomentService initialized');
         } catch (error) {
-          console.error('❌ Error initializing MomentService:', error);
+          console.error('❌ Error initializing SimpleMomentService:', error);
         }
       }, 100); // Small delay to prevent blocking UI
       

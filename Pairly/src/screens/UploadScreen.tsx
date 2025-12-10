@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Image,
   Modal,
   RefreshControl,
+  Animated,
 } from 'react-native';
 import { CustomAlert } from '../components/CustomAlert';
 import { UpgradePrompt } from '../components/UpgradePrompt';
@@ -16,14 +17,6 @@ import { SharedNoteModal } from '../components/SharedNoteModal';
 import { TimeLockModal } from '../components/TimeLockModal';
 import { DualCameraModal } from '../components/DualCameraModal';
 import { PhotoPreviewScreen } from './PhotoPreviewScreen';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-  withSequence,
-  withTiming,
-  withDelay,
-} from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useUser } from '@clerk/clerk-expo';
@@ -69,11 +62,11 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
   const [uploading, setUploading] = useState(false);
   const [recentPhotos, setRecentPhotos] = useState<string[]>([]);
   const [dailyMomentsRemaining, setDailyMomentsRemaining] = useState(3);
-  const scale = useSharedValue(1);
-  const viewAllScale = useSharedValue(1);
-  const settingsScale = useSharedValue(1);
-  const settingsRotate = useSharedValue(0);
-  const heartScale = useSharedValue(1);
+  const scale = useRef(new Animated.Value(1)).current;
+  const viewAllScale = useRef(new Animated.Value(1)).current;
+  const settingsScale = useRef(new Animated.Value(1)).current;
+  const settingsRotate = useRef(new Animated.Value(0)).current;
+  const heartScale = useRef(new Animated.Value(1)).current;
   const [showPhotoOptions, setShowPhotoOptions] = useState(false);
   const [showSuccessAlert, setShowSuccessAlert] = useState(false);
   const [showErrorAlert, setShowErrorAlert] = useState(false);
@@ -116,12 +109,10 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
         loadRecentPhotos();
       };
 
-      RealtimeService.on('photo_saved', handlePhotoUpdate);
-      RealtimeService.on('receive_photo', handlePhotoUpdate);
+      RealtimeService.on('moment_available', handlePhotoUpdate);
 
       cleanupFunctions.push(() => {
-        RealtimeService.off('photo_saved', handlePhotoUpdate);
-        RealtimeService.off('receive_photo', handlePhotoUpdate);
+        RealtimeService.off('moment_available', handlePhotoUpdate);
       });
 
       // Setup listeners
@@ -135,10 +126,16 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
 
     // Heart pulse animation - smooth and romantic
     const pulseHeart = () => {
-      heartScale.value = withSequence(
-        withSpring(1.3, { damping: 8, stiffness: 120 }),
-        withSpring(1, { damping: 8, stiffness: 120 })
-      );
+      Animated.sequence([
+        Animated.spring(heartScale, {
+          toValue: 1.3,
+          useNativeDriver: true,
+        }),
+        Animated.spring(heartScale, {
+          toValue: 1,
+          useNativeDriver: true,
+        }),
+      ]).start();
     };
 
     // Initial pulse after delay
@@ -532,12 +529,10 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
       };
 
       // Listen to multiple events for maximum reliability
-      const handlePhotoSaved = () => handlePhotoUpdate('photo_saved');
-      const handleReceivePhoto = () => handlePhotoUpdate('receive_photo');
+      const handleMomentAvailable = () => handlePhotoUpdate('moment_available');
       const handleNewMoment = () => handlePhotoUpdate('new_moment');
 
-      RealtimeService.on('photo_saved', handlePhotoSaved);
-      RealtimeService.on('receive_photo', handleReceivePhoto);
+      RealtimeService.on('moment_available', handleMomentAvailable);
       RealtimeService.on('new_moment', handleNewMoment);
 
       console.log('✅ Photo receive listeners registered (3 events)');
@@ -553,8 +548,7 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
 
       // Cleanup
       return () => {
-        RealtimeService.off('photo_saved', handlePhotoSaved);
-        RealtimeService.off('receive_photo', handleReceivePhoto);
+        RealtimeService.off('moment_available', handleMomentAvailable);
         RealtimeService.off('new_moment', handleNewMoment);
         clearInterval(pollInterval);
       };
@@ -570,27 +564,10 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
    */
   const loadRecentPhotos = async () => {
     try {
-      const LocalPhotoStorage = (await import('../services/LocalPhotoStorage')).default;
-      const photos = await LocalPhotoStorage.getAllPhotos();
-
-      // Sort by timestamp (newest first)
-      const sortedPhotos = photos.sort((a, b) => {
-        const timeA = new Date(a.timestamp).getTime();
-        const timeB = new Date(b.timestamp).getTime();
-        return timeB - timeA;
-      });
-
-      // Get latest 4 photos only
-      const recentUris = await Promise.all(
-        sortedPhotos.slice(0, 4).map(async (p) => {
-          const uri = await LocalPhotoStorage.getPhotoUri(p.id);
-          return uri || '';
-        })
-      );
-
-      const filteredUris = recentUris.filter(uri => uri !== '');
-      setRecentPhotos(filteredUris);
-      console.log(`✅ Loaded ${filteredUris.length} recent photos (${photos.length} total)`);
+      // ⚡ SIMPLE: No local photo storage - just show empty for now
+      // In simple MVP, photos are not stored locally
+      setRecentPhotos([]);
+      console.log('✅ Simple MVP - no local photos to load');
     } catch (error) {
       console.error('Error loading recent photos:', error);
     }
@@ -627,10 +604,17 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
     }
 
     // Animate button press
-    scale.value = withSequence(
-      withTiming(0.95, { duration: 100 }),
-      withSpring(1, { damping: 10, stiffness: 100 })
-    );
+    Animated.sequence([
+      Animated.timing(scale, {
+        toValue: 0.95,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scale, {
+        toValue: 1,
+        useNativeDriver: true,
+      }),
+    ]).start();
 
     // Show photo options
     setShowPhotoOptions(true);
@@ -775,28 +759,31 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
   };
 
   // Define all animated styles at component top level
-  const animatedButtonStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
+  const animatedButtonStyle = {
+    transform: [{ scale: scale }],
+  };
 
-  const animatedViewAllStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: viewAllScale.value }],
-  }));
+  const animatedViewAllStyle = {
+    transform: [{ scale: viewAllScale }],
+  };
 
-  const animatedSettingsStyle = useAnimatedStyle(() => ({
-    opacity: withDelay(500, withTiming(1, { duration: 300 })),
-  }));
+  const animatedSettingsStyle = {
+    opacity: 1, // Simple static opacity
+  };
 
-  const animatedSettingsIconStyle = useAnimatedStyle(() => ({
+  const animatedSettingsIconStyle = {
     transform: [
-      { scale: settingsScale.value },
-      { rotate: `${settingsRotate.value}deg` }
+      { scale: settingsScale },
+      { rotate: settingsRotate.interpolate({
+        inputRange: [0, 90],
+        outputRange: ['0deg', '90deg'],
+      }) }
     ],
-  }));
+  };
 
-  const animatedHeartStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: heartScale.value }],
-  }));
+  const animatedHeartStyle = {
+    transform: [{ scale: heartScale }],
+  };
 
   return (
     <View style={styles.container}>
@@ -863,14 +850,31 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
             style={styles.settingsButtonCompact}
             onPress={() => {
               // Scale + Rotate animation
-              settingsScale.value = withSequence(
-                withTiming(0.85, { duration: 100 }),
-                withSpring(1, { damping: 8, stiffness: 150 })
-              );
-              settingsRotate.value = withSequence(
-                withTiming(90, { duration: 200 }),
-                withTiming(0, { duration: 200 })
-              );
+              Animated.parallel([
+                Animated.sequence([
+                  Animated.timing(settingsScale, {
+                    toValue: 0.85,
+                    duration: 100,
+                    useNativeDriver: true,
+                  }),
+                  Animated.spring(settingsScale, {
+                    toValue: 1,
+                    useNativeDriver: true,
+                  }),
+                ]),
+                Animated.sequence([
+                  Animated.timing(settingsRotate, {
+                    toValue: 90,
+                    duration: 200,
+                    useNativeDriver: true,
+                  }),
+                  Animated.timing(settingsRotate, {
+                    toValue: 0,
+                    duration: 200,
+                    useNativeDriver: true,
+                  }),
+                ]),
+              ]).start();
               setTimeout(() => onNavigateToSettings(), 150);
             }}
             activeOpacity={0.7}
@@ -1014,10 +1018,17 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
             <TouchableOpacity
               style={styles.viewAllContainer}
               onPress={() => {
-                viewAllScale.value = withSequence(
-                  withTiming(0.95, { duration: 100 }),
-                  withSpring(1, { damping: 10, stiffness: 200 })
-                );
+                Animated.sequence([
+                  Animated.timing(viewAllScale, {
+                    toValue: 0.95,
+                    duration: 100,
+                    useNativeDriver: true,
+                  }),
+                  Animated.spring(viewAllScale, {
+                    toValue: 1,
+                    useNativeDriver: true,
+                  }),
+                ]).start();
                 setTimeout(() => onNavigateToGallery?.(), 100);
               }}
               activeOpacity={1}

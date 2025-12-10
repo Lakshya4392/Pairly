@@ -89,28 +89,16 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
     }
 
     try {
+      // ⚡ SIMPLE: Widget initializes itself via AlarmManager (no RN service needed)
       const WidgetServiceModule = await import('../services/WidgetService');
-      const WidgetBackgroundServiceModule = await import('../services/WidgetBackgroundService');
-
       const WidgetService = WidgetServiceModule.default;
-      const WidgetBackgroundService = WidgetBackgroundServiceModule.default;
 
-      if (!WidgetService || !WidgetBackgroundService) {
-        console.log('⚠️ Widget services not available');
-        return;
-      }
-
-      if (typeof WidgetService.initialize === 'function') {
+      if (WidgetService && typeof WidgetService.initialize === 'function') {
         await WidgetService.initialize();
+        console.log('✅ Simple widget service initialized');
       }
-
-      if (typeof WidgetBackgroundService.initialize === 'function') {
-        await WidgetBackgroundService.initialize();
-      }
-
-      console.log('✅ Widget services initialized');
     } catch (error) {
-      console.error('❌ Error initializing widget services:', error);
+      console.error('❌ Error initializing widget service:', error);
     }
   };
 
@@ -142,14 +130,8 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
         RealtimeService.startHeartbeat(user.id);
         console.log('✅ Heartbeat started');
 
-        setTimeout(async () => {
-          try {
-            await MomentService.processQueuedMoments();
-            console.log('✅ Queued moments processed');
-          } catch (error) {
-            console.error('Error processing queued moments:', error);
-          }
-        }, 2000);
+        // ⚡ SIMPLE: No queue processing needed (direct upload to backend)
+        console.log('✅ Simple upload flow active - no queue processing needed');
       }
     } catch (error) {
       console.log('⚠️ Realtime connection error (backend may be offline):', error);
@@ -160,7 +142,7 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
     try {
       const RealtimeService = (await import('../services/RealtimeService')).default;
       const WidgetService = (await import('../services/WidgetService')).default;
-      const LocalPhotoStorage = (await import('../services/LocalPhotoStorage')).default;
+      // ⚡ SIMPLE: No LocalPhotoStorage needed (photos fetched from backend)
       const PairingService = (await import('../services/PairingService')).default;
 
       // Partner Connected
@@ -208,34 +190,23 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
         }
       });
 
-      // New Moment
-      RealtimeService.on('new_moment', async (data: any) => {
-        console.log('📥 New moment received:', data);
+      // ⚡ SIMPLE: Moment Available (lightweight notification only)
+      RealtimeService.on('moment_available', async (data: any) => {
+        console.log('📥 Moment available:', data.momentId);
 
         try {
-          if (data.photoBase64) {
-            const photoUri = await LocalPhotoStorage.savePhoto(
-              `data:image/jpeg;base64,${data.photoBase64}`,
-              'partner'
-            );
+          // Just show notification - widget will poll backend for photo
+          const EnhancedNotificationService = (await import('../services/EnhancedNotificationService')).default;
+          await EnhancedNotificationService.showNewMomentNotification(
+            data.partnerName || 'Partner'
+          );
 
-            if (photoUri) {
-              await WidgetService.onPhotoReceived(photoUri, data.partnerName || 'Partner');
-            }
+          // Trigger gallery refresh (will fetch from API)
+          RealtimeService.emit('gallery_refresh', { timestamp: Date.now() });
 
-            const EnhancedNotificationService = (await import('../services/EnhancedNotificationService')).default;
-            await EnhancedNotificationService.showMomentNotification(
-              data.partnerName || 'Partner',
-              data.momentId
-            );
-
-            RealtimeService.emit('moment_received_ack', {
-              momentId: data.momentId,
-              receivedAt: new Date().toISOString(),
-            });
-          }
+          console.log('✅ Notification sent, gallery will refresh');
         } catch (error) {
-          console.error('Error saving moment:', error);
+          console.error('Error handling moment_available:', error);
         }
       });
 

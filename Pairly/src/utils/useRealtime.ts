@@ -53,10 +53,14 @@ export const useRealtime = (options: UseRealtimeOptions) => {
       console.log('📥 Receive photo event:', data);
       
       try {
-        // Save photo locally using MomentService
-        const saved = await MomentService.receivePhoto(data);
+        // Handle moment available notification
+        await MomentService.onMomentAvailable({
+          momentId: data.photoId || data.momentId,
+          timestamp: data.timestamp,
+          partnerName: data.senderName,
+        });
         
-        if (saved && onReceivePhoto) {
+        if (onReceivePhoto) {
           onReceivePhoto(data);
         }
       } catch (error) {
@@ -115,7 +119,7 @@ export const useRealtime = (options: UseRealtimeOptions) => {
         
         // Register event listeners
         RealtimeService.on('new_moment', handleNewMoment);
-        RealtimeService.on('receive_photo', handleReceivePhoto);
+        RealtimeService.on('moment_available', handleReceivePhoto);
         RealtimeService.on('partner_connected', handlePartnerConnected);
         RealtimeService.on('partner_disconnected', handlePartnerDisconnected);
         RealtimeService.on('partner_updated', handlePartnerUpdated);
@@ -130,7 +134,7 @@ export const useRealtime = (options: UseRealtimeOptions) => {
     // Cleanup on unmount
     return () => {
       RealtimeService.off('new_moment', handleNewMoment);
-      RealtimeService.off('receive_photo', handleReceivePhoto);
+      RealtimeService.off('moment_available', handleReceivePhoto);
       RealtimeService.off('partner_connected', handlePartnerConnected);
       RealtimeService.off('partner_disconnected', handlePartnerDisconnected);
       RealtimeService.off('partner_updated', handlePartnerUpdated);

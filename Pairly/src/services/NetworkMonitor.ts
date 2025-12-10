@@ -75,14 +75,8 @@ class NetworkMonitor {
         console.error('⚠️ Socket reconnect failed:', error);
       }
       
-      // 2. Process queued moments
-      try {
-        const MomentService = (await import('./MomentService')).default;
-        await MomentService.processQueuedMoments();
-        console.log('✅ Queued moments processed');
-      } catch (error) {
-        console.error('⚠️ Queue processing failed:', error);
-      }
+      // 2. ⚡ SIMPLE: No queue processing needed (direct upload to backend)
+      console.log('✅ Network restored - simple upload flow active');
       
       // 3. Sync with backend
       try {

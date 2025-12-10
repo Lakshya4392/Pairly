@@ -2,7 +2,9 @@
   "compilerOptions": {
     "target": "esnext",
     "module": "esnext",
-    "lib": ["es2017"],
+    "lib": [
+      "es2017"
+    ],
     "allowJs": true,
     "jsx": "react-native",
     "noEmit": true,
@@ -15,18 +17,44 @@
     "skipLibCheck": true,
     "baseUrl": "./src",
     "paths": {
-      "@screens/*": ["screens/*"],
-      "@components": ["components/index"],
-      "@components/*": ["components/*"],
-      "@services/*": ["services/*"],
-      "@types": ["types/index"],
-      "@types/*": ["types/*"],
-      "@theme": ["theme/index"],
-      "@theme/*": ["theme/*"],
-      "@utils/*": ["utils/*"]
+      "@screens/*": [
+        "screens/*"
+      ],
+      "@components": [
+        "components/index"
+      ],
+      "@components/*": [
+        "components/*"
+      ],
+      "@services/*": [
+        "services/*"
+      ],
+      "@types": [
+        "types/index"
+      ],
+      "@types/*": [
+        "types/*"
+      ],
+      "@theme": [
+        "theme/index"
+      ],
+      "@theme/*": [
+        "theme/*"
+      ],
+      "@utils/*": [
+        "utils/*"
+      ]
     }
   },
-  "include": ["**/*.ts", "**/*.tsx", "src/types/env.d.ts"],
-  "exclude": ["**/node_modules", "**/Pods", "**/*.spec.ts"],
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    "src/types/env.d.ts"
+  ],
+  "exclude": [
+    "**/node_modules",
+    "**/Pods",
+    "**/*.spec.ts"
+  ],
   "extends": "expo/tsconfig.base"
 }

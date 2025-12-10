@@ -36,10 +36,10 @@ export const DevTools = {
     try {
       const stats = await MomentService.getStorageStats();
       console.log('\n📊 ========== STORAGE STATUS ==========');
-      console.log(`✅ Total Photos: ${stats.totalPhotos}`);
-      console.log(`   👤 My Photos: ${stats.myPhotos}`);
-      console.log(`   ❤️ Partner Photos: ${stats.partnerPhotos}`);
-      console.log(`💾 Storage: ${(stats.totalSize / 1024 / 1024).toFixed(2)} MB`);
+      console.log(`✅ Total Moments: ${stats.totalMoments}`);
+      console.log(`   👤 My Moments: ${stats.myMoments}`);
+      console.log(`   ❤️ Partner Moments: ${stats.partnerMoments}`);
+      console.log(`💾 Storage: Metadata only (no photos stored locally)`);
       console.log('======================================\n');
       return stats;
     } catch (error) {

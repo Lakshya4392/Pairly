@@ -87,12 +87,10 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
         loadPhotos();
       };
       
-      RealtimeService.on('photo_saved', handlePhotoSaved);
-      RealtimeService.on('receive_photo', handlePhotoReceived);
+      RealtimeService.on('moment_available', handlePhotoSaved);
       
       return () => {
-        RealtimeService.off('photo_saved', handlePhotoSaved);
-        RealtimeService.off('receive_photo', handlePhotoReceived);
+        RealtimeService.off('moment_available', handlePhotoSaved);
       };
     };
     
@@ -134,34 +132,28 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
 
   const loadPhotos = async () => {
     try {
-      console.log('🔄 [GALLERY] Loading photos...');
+      console.log('🔄 [GALLERY] Loading photos from backend...');
       
-      // Load real photos from LocalPhotoStorage (PRIMARY STORAGE)
-      const LocalPhotoStorage = (await import('../services/LocalPhotoStorage')).default;
-      const allPhotos = await LocalPhotoStorage.getAllPhotos();
+      // ⚡ SIMPLE: Fetch latest moment from backend
+      const MomentService = (await import('../services/MomentService')).default;
+      const latestMoment = await MomentService.getLatestMoment();
       
-      console.log(`📊 [GALLERY] Found ${allPhotos.length} photos in storage`);
-      
-      // Convert to Photo format
-      const loadedPhotos: Photo[] = await Promise.all(
-        allPhotos.map(async (photo) => {
-          const uri = await LocalPhotoStorage.getPhotoUri(photo.id);
-          return {
-            id: photo.id,
-            uri: uri || '',
-            timestamp: new Date(photo.timestamp),
-            sender: photo.sender,
-          };
-        })
-      );
-
-      // Filter out photos without URI
-      const validPhotos = loadedPhotos.filter(p => p.uri);
-
-      // Sort by timestamp (newest first)
-      const sortedPhotos = validPhotos.sort((a, b) => {
-        return b.timestamp.getTime() - a.timestamp.getTime();
-      });
+      if (latestMoment) {
+        console.log(`📊 [GALLERY] Found latest moment from ${latestMoment.partnerName}`);
+        
+        // Convert to Photo format
+        const loadedPhotos: Photo[] = [{
+          id: Date.now().toString(),
+          uri: `data:image/jpeg;base64,${latestMoment.photo}`,
+          timestamp: new Date(latestMoment.sentAt),
+          sender: 'partner',
+        }];
+        
+        const sortedPhotos = loadedPhotos;
+      } else {
+        console.log('📭 [GALLERY] No moments found');
+        const sortedPhotos: Photo[] = [];
+      }
 
       // Count by sender
       const myPhotos = sortedPhotos.filter(p => p.sender === 'me').length;

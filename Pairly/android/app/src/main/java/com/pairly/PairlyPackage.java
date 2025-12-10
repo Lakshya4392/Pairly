@@ -19,7 +19,8 @@ public class PairlyPackage implements ReactPackage {
     @Override
     public List<NativeModule> createNativeModules(ReactApplicationContext reactContext) {
         List<NativeModule> modules = new ArrayList<>();
-        // PairlyWidgetModule removed - using Kotlin version in app package
+        // ⚡ SIMPLE: Use simple widget module (polling-based)
+        modules.add(new com.pairly.app.PairlyWidgetModule(reactContext));
         modules.add(new BackgroundServiceModule(reactContext));
         return modules;
     }

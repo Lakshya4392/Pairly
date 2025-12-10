@@ -58,10 +58,11 @@
       </intent-filter>
     </activity>
 
-    <!-- 🎨 Premium Carousel Widget - iOS Style -->
+    <!-- ⚡ SIMPLE: Premium Carousel Widget (Polling-based) -->
     <receiver android:name="com.pairly.app.PremiumCarouselWidgetProvider" android:exported="false">
         <intent-filter>
             <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            <action android:name="com.pairly.WIDGET_REFRESH" />
         </intent-filter>
         <meta-data
             android:name="android.appwidget.provider"

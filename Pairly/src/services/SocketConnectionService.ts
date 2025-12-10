@@ -232,11 +232,8 @@ class SocketConnectionService {
 
       // Process any queued moments after reconnection
       try {
-        const MomentService = (await import('./MomentService')).default;
-        setTimeout(async () => {
-          await MomentService.processQueuedMoments();
-          console.log('✅ Queued moments processed after socket reconnect');
-        }, 1000);
+        // ⚡ SIMPLE: No queue processing needed (direct upload to backend)
+        console.log('✅ Socket reconnected - simple upload flow active');
       } catch (error) {
         // Silent - don't break reconnection flow
       }

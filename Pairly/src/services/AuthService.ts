@@ -25,6 +25,18 @@ class AuthService {
       console.log('✅ Token backup stored in AsyncStorage');
       
       this.token = token;
+
+      // ⚡ SIMPLE: Save token for widget (Android only)
+      try {
+        const { Platform, NativeModules } = await import('react-native');
+        if (Platform.OS === 'android' && NativeModules.PairlyWidget) {
+          await NativeModules.PairlyWidget.saveAuthToken(token);
+          await NativeModules.PairlyWidget.saveBackendUrl('https://pairly-backend.onrender.com');
+          console.log('✅ Token saved for widget');
+        }
+      } catch (widgetError) {
+        console.log('⚠️ Widget token save failed (non-critical):', widgetError);
+      }
     } catch (error) {
       console.error('Error storing token:', error);
       // Try AsyncStorage as fallback

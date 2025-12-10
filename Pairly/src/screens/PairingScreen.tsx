@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,13 +8,8 @@ import {
   Alert,
   StatusBar,
   ScrollView,
+  Animated,
 } from 'react-native';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-  withTiming,
-} from 'react-native-reanimated';
 import * as Clipboard from 'expo-clipboard';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -40,23 +35,22 @@ export const PairingScreen: React.FC<PairingScreenProps> = ({ onPairingComplete,
   const [userName, setUserName] = useState('You');
 
   // Animation values for cards
-  const generateCardScale = useSharedValue(1);
-  const joinCardScale = useSharedValue(1);
-
-  // Define animated styles at top level
-  const animatedGenerateCardStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: generateCardScale.value }],
-  }));
-
-  const animatedJoinCardStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: joinCardScale.value }],
-  }));
+  const generateCardScale = useRef(new Animated.Value(1)).current;
+  const joinCardScale = useRef(new Animated.Value(1)).current;
 
   const handleGenerateCode = async () => {
     // Animate card press
-    generateCardScale.value = withTiming(0.97, { duration: 100 }, () => {
-      generateCardScale.value = withSpring(1, { damping: 10, stiffness: 200 });
-    });
+    Animated.sequence([
+      Animated.timing(generateCardScale, {
+        toValue: 0.97,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.spring(generateCardScale, {
+        toValue: 1,
+        useNativeDriver: true,
+      }),
+    ]).start();
 
     setLoading(true);
 
@@ -188,7 +182,7 @@ export const PairingScreen: React.FC<PairingScreenProps> = ({ onPairingComplete,
       </View>
 
       <View style={styles.optionsContainer}>
-        <Animated.View style={animatedGenerateCardStyle}>
+        <Animated.View style={{ transform: [{ scale: generateCardScale }] }}>
           <TouchableOpacity
             style={styles.optionCard}
             onPress={handleGenerateCode}
@@ -208,13 +202,21 @@ export const PairingScreen: React.FC<PairingScreenProps> = ({ onPairingComplete,
           </TouchableOpacity>
         </Animated.View>
 
-        <Animated.View style={animatedJoinCardStyle}>
+        <Animated.View style={{ transform: [{ scale: joinCardScale }] }}>
           <TouchableOpacity
             style={styles.optionCard}
             onPress={() => {
-              joinCardScale.value = withTiming(0.97, { duration: 100 }, () => {
-                joinCardScale.value = withSpring(1, { damping: 10, stiffness: 200 });
-              });
+              Animated.sequence([
+                Animated.timing(joinCardScale, {
+                  toValue: 0.97,
+                  duration: 100,
+                  useNativeDriver: true,
+                }),
+                Animated.spring(joinCardScale, {
+                  toValue: 1,
+                  useNativeDriver: true,
+                }),
+              ]).start();
               setTimeout(() => setMode('join'), 100);
             }}
             activeOpacity={1}

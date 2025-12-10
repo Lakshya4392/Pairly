@@ -159,7 +159,7 @@ class SocketHealthCheck {
       'disconnect',
       'reconnect',
       'connect_error',
-      'receive_photo',
+      'moment_available',
       'new_moment',
       'partner_connected',
       'partner_disconnected',

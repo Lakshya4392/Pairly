@@ -83,7 +83,7 @@ class PendingMomentService {
           // Emit to user's socket room
           const userRoom = `user_${userId}`;
           
-          io.to(userRoom).emit('receive_photo', {
+          io.to(userRoom).emit('moment_available', {
             photoId: moment.momentId,
             photoData: Buffer.from(moment.photoData).toString('base64'),
             photoUrl: moment.photoUrl,

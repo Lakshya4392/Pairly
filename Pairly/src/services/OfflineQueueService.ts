@@ -107,8 +107,7 @@ class OfflineQueueService {
           // Attempt to upload
           const result = await MomentService.uploadPhoto({
             uri: photo.photoUri,
-            caption: photo.caption,
-          });
+          }, photo.caption);
 
           if (result.success) {
             console.log(`✅ Queued photo sent: ${photo.id}`);

@@ -146,9 +146,13 @@ export const uploadMoment = async (req: AuthRequest, res: Response): Promise<voi
     }
 
     // Delete previous moment for this pair (ephemeral nature)
-    await prisma.moment.deleteMany({
+    const deletedCount = await prisma.moment.deleteMany({
       where: { pairId: pair.id },
     });
+    
+    if (deletedCount.count > 0) {
+      console.log(`🗑️ [UPLOAD] Deleted ${deletedCount.count} old moment(s) for pair`);
+    }
 
     // Create new moment
     const moment = await prisma.moment.create({
@@ -159,12 +163,20 @@ export const uploadMoment = async (req: AuthRequest, res: Response): Promise<voi
       },
     });
 
+    const photoSizeKB = (photoBuffer.length / 1024).toFixed(2);
+    console.log(`✅ [UPLOAD] Moment created:`);
+    console.log(`   📸 Moment ID: ${moment.id.substring(0, 8)}...`);
+    console.log(`   👤 Uploader: ${user.displayName}`);
+    console.log(`   📏 Photo size: ${photoSizeKB} KB`);
+    console.log(`   ⏰ Uploaded at: ${moment.uploadedAt.toISOString()}`);
+
     // Get partner ID - ONLY send to paired partner
     const partnerId = pair.user1Id === userId ? pair.user2Id : pair.user1Id;
+    const partnerInfo = pair.user1Id === userId ? pair.user2 : pair.user1;
     
     // Verify partner exists and is actually paired
     if (!partnerId || partnerId === userId) {
-      console.error('❌ Invalid partner ID - cannot send moment');
+      console.error('❌ [UPLOAD] Invalid partner ID - cannot send moment');
       res.status(400).json({
         success: false,
         error: 'Invalid partner configuration',
@@ -172,7 +184,7 @@ export const uploadMoment = async (req: AuthRequest, res: Response): Promise<voi
       return;
     }
 
-    console.log(`📤 Sending moment from ${userId} to paired partner ${partnerId}`);
+    console.log(`📤 [UPLOAD] Sending notification to partner: ${partnerInfo.displayName} (${partnerId.substring(0, 8)}...)`);
 
     // Get partner info for notifications
     const partner = await prisma.user.findUnique({
@@ -180,14 +192,16 @@ export const uploadMoment = async (req: AuthRequest, res: Response): Promise<voi
       select: { fcmToken: true, clerkId: true },
     });
 
-    // Emit Socket.IO event ONLY to the paired partner
-    io.to(partnerId).emit('new_moment', {
+    // ⚡ SIMPLE MVP: Emit lightweight notification (NO photo data)
+    const notificationPayload = {
       momentId: moment.id,
-      uploadedBy: userId,
-      uploadedAt: moment.uploadedAt.toISOString(),
-      photoBase64: photoBuffer.toString('base64'),
+      timestamp: moment.uploadedAt.toISOString(),
       partnerName: user.displayName,
-    });
+      // Widget will fetch photo from API - no base64 here!
+    };
+    
+    io.to(partnerId).emit('moment_available', notificationPayload);
+    console.log(`🔔 [SOCKET] Emitted 'moment_available' to partner (payload: ${JSON.stringify(notificationPayload).length} bytes)`);
 
     // Send delivery confirmation to sender
     io.to(userId).emit('moment_sent_confirmation', {
@@ -196,10 +210,12 @@ export const uploadMoment = async (req: AuthRequest, res: Response): Promise<voi
       partnerName: pair.user1Id === userId ? pair.user2.displayName : pair.user1.displayName,
       deliveryMethod: 'socket',
     });
+    console.log(`✅ [SOCKET] Sent confirmation to sender`);
 
     // Send FCM notification for instant widget update (even if app is closed)
     try {
       if (partner?.fcmToken) {
+        console.log(`📲 [FCM] Sending push notification to partner...`);
         const FCMService = (await import('../services/FCMService')).default;
         const fcmSent = await FCMService.sendNewPhotoNotification(
           partner.fcmToken,
@@ -209,7 +225,7 @@ export const uploadMoment = async (req: AuthRequest, res: Response): Promise<voi
         );
         
         if (fcmSent) {
-          console.log('✅ FCM notification sent to partner');
+          console.log('✅ [FCM] Push notification sent successfully');
           
           // Send FCM delivery confirmation to sender
           io.to(userId).emit('moment_delivered', {
@@ -217,12 +233,15 @@ export const uploadMoment = async (req: AuthRequest, res: Response): Promise<voi
             deliveredAt: new Date().toISOString(),
             deliveryMethod: 'fcm',
           });
+          console.log('✅ [FCM] Delivery confirmation sent to sender');
+        } else {
+          console.log('⚠️ [FCM] Push notification failed to send');
         }
       } else {
-        console.log('⚠️ Partner has no FCM token registered');
+        console.log('⚠️ [FCM] Partner has no FCM token registered - skipping push notification');
       }
     } catch (fcmError) {
-      console.log('⚠️ FCM notification failed (non-critical):', fcmError);
+      console.log('⚠️ [FCM] Push notification error (non-critical):', fcmError);
     }
 
     // Return response
@@ -251,10 +270,15 @@ export const uploadMoment = async (req: AuthRequest, res: Response): Promise<voi
 
 /**
  * Get latest moment from partner
+ * ⚡ SIMPLE: Used by widget polling and app gallery
  */
 export const getLatestMoment = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.userId!;
+    const userAgent = req.headers['user-agent'] || 'unknown';
+    const isWidget = userAgent.includes('okhttp') || userAgent.includes('Dalvik'); // Android widget uses OkHttp
+    
+    console.log(`📡 [GET LATEST] Request from userId: ${userId.substring(0, 8)}... ${isWidget ? '(WIDGET)' : '(APP)'}`);
 
     // Find user's pair
     const pair = await prisma.pair.findFirst({
@@ -268,6 +292,7 @@ export const getLatestMoment = async (req: AuthRequest, res: Response): Promise<
     });
 
     if (!pair) {
+      console.log(`⚠️ [GET LATEST] No pairing found for user: ${userId.substring(0, 8)}...`);
       res.status(404).json({
         success: false,
         error: 'No active pairing found',
@@ -285,6 +310,7 @@ export const getLatestMoment = async (req: AuthRequest, res: Response): Promise<
     });
 
     if (!moment) {
+      console.log(`📭 [GET LATEST] No moment found for pair: ${pair.id.substring(0, 8)}...`);
       res.status(404).json({
         success: false,
         error: 'No moment found',
@@ -294,9 +320,20 @@ export const getLatestMoment = async (req: AuthRequest, res: Response): Promise<
 
     // Convert photo to base64
     const photoBase64 = Buffer.from(moment.photoData).toString('base64');
+    const photoSizeKB = (photoBase64.length / 1024).toFixed(2);
 
     // Get partner info
     const partner = moment.uploaderId === pair.user1Id ? pair.user1 : pair.user2;
+    const isReceiver = moment.uploaderId !== userId;
+
+    console.log(`✅ [GET LATEST] Moment found:`);
+    console.log(`   📸 Moment ID: ${moment.id.substring(0, 8)}...`);
+    console.log(`   👤 Uploader: ${moment.uploader.displayName}`);
+    console.log(`   ❤️ Partner: ${partner.displayName}`);
+    console.log(`   📏 Photo size: ${photoSizeKB} KB`);
+    console.log(`   ⏰ Uploaded: ${moment.uploadedAt.toISOString()}`);
+    console.log(`   ${isReceiver ? '📥 User is RECEIVER' : '📤 User is SENDER'}`);
+    console.log(`   ${isWidget ? '📱 Fetched by WIDGET' : '📲 Fetched by APP'}`);
 
     res.json({
       success: true,
@@ -307,7 +344,7 @@ export const getLatestMoment = async (req: AuthRequest, res: Response): Promise<
       },
     } as ApiResponse);
   } catch (error) {
-    console.error('Get latest moment error:', error);
+    console.error('❌ [GET LATEST] Error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch moment',
