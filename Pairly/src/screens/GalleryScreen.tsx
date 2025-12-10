@@ -9,6 +9,7 @@ import {
   Dimensions,
   StatusBar,
   Modal,
+  RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -18,15 +19,19 @@ import { useTheme } from '../contexts/ThemeContext';
 import { colors as defaultColors, gradients } from '../theme/colorsIOS';
 import { spacing, borderRadius, layout } from '../theme/spacingIOS';
 import { shadows } from '../theme/shadowsIOS';
+import ApiClient from '../utils/apiClient';
 
 const { width } = Dimensions.get('window');
 const imageSize = (width - spacing.xl * 3) / 2;
 
 interface Photo {
   id: string;
-  uri: string;
-  timestamp: Date;
+  photo: string; // base64 image data
   sender: 'me' | 'partner';
+  senderName: string;
+  partnerName: string;
+  timestamp: string;
+  uploadedAt: string;
 }
 
 interface GalleryScreenProps {
@@ -34,20 +39,12 @@ interface GalleryScreenProps {
   isPremium?: boolean;
 }
 
-// Mock data - replace with real data from your service
-const mockPhotos: Photo[] = [
-  { id: '1', uri: 'https://picsum.photos/400/400?random=1', timestamp: new Date(), sender: 'me' },
-  { id: '2', uri: 'https://picsum.photos/400/400?random=2', timestamp: new Date(Date.now() - 86400000), sender: 'partner' },
-  { id: '3', uri: 'https://picsum.photos/400/400?random=3', timestamp: new Date(Date.now() - 172800000), sender: 'me' },
-  { id: '4', uri: 'https://picsum.photos/400/400?random=4', timestamp: new Date(Date.now() - 259200000), sender: 'partner' },
-  { id: '5', uri: 'https://picsum.photos/400/400?random=5', timestamp: new Date(Date.now() - 345600000), sender: 'me' },
-  { id: '6', uri: 'https://picsum.photos/400/400?random=6', timestamp: new Date(Date.now() - 432000000), sender: 'partner' },
-];
-
 export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium = false }) => {
   const { colors } = useTheme();
   const styles = React.useMemo(() => createStyles(colors), [colors]);
   const [photos, setPhotos] = useState<Photo[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'timeline'>('grid');
   const [isLocked, setIsLocked] = useState(false);
@@ -132,49 +129,60 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
 
   const loadPhotos = async () => {
     try {
-      console.log('🔄 [GALLERY] Loading photos from backend...');
+      setLoading(true);
+      console.log('🔄 [GALLERY] Loading all moments from backend...');
       
-      // ⚡ SIMPLE: Fetch latest moment from backend
-      const MomentService = (await import('../services/MomentService')).default;
-      const latestMoment = await MomentService.getLatestMoment();
+      // ⚡ SIMPLE: Fetch all moments from backend API
+      const response = await ApiClient.get('/moments/all') as any;
       
-      if (latestMoment) {
-        console.log(`📊 [GALLERY] Found latest moment from ${latestMoment.partnerName}`);
+      if (response.success && response.data?.moments) {
+        const moments = response.data.moments;
+        console.log(`📊 [GALLERY] Found ${moments.length} moments`);
         
-        // Convert to Photo format
-        const loadedPhotos: Photo[] = [{
-          id: Date.now().toString(),
-          uri: `data:image/jpeg;base64,${latestMoment.photo}`,
-          timestamp: new Date(latestMoment.sentAt),
-          sender: 'partner',
-        }];
+        // Convert API response to Photo format
+        const loadedPhotos: Photo[] = moments.map((moment: any) => ({
+          id: moment.id,
+          photo: moment.photo, // Keep base64 for now
+          sender: moment.sender,
+          senderName: moment.senderName,
+          partnerName: moment.partnerName,
+          timestamp: moment.timestamp,
+          uploadedAt: moment.uploadedAt,
+        }));
         
-        const sortedPhotos = loadedPhotos;
+        // Count by sender
+        const myPhotos = loadedPhotos.filter(p => p.sender === 'me').length;
+        const partnerPhotos = loadedPhotos.filter(p => p.sender === 'partner').length;
+        
+        console.log(`✅ [GALLERY] Loaded: ${myPhotos} from me, ${partnerPhotos} from partner`);
+
+        // Limit for free users (show only last 10 photos)
+        const availablePhotos = isPremium ? loadedPhotos : loadedPhotos.slice(0, 10);
+        
+        setPhotos(availablePhotos);
+        console.log(`✅ [GALLERY] Displaying ${availablePhotos.length} photos`);
       } else {
         console.log('📭 [GALLERY] No moments found');
-        const sortedPhotos: Photo[] = [];
+        setPhotos([]);
       }
-
-      // Count by sender
-      const myPhotos = sortedPhotos.filter(p => p.sender === 'me').length;
-      const partnerPhotos = sortedPhotos.filter(p => p.sender === 'partner').length;
-      
-      console.log(`✅ [GALLERY] Loaded: ${myPhotos} from me, ${partnerPhotos} from partner`);
-
-      // Limit for free users (show only last 10 photos)
-      const availablePhotos = isPremium ? sortedPhotos : sortedPhotos.slice(0, 10);
-      
-      setPhotos(availablePhotos);
-      console.log(`✅ [GALLERY] Displaying ${availablePhotos.length} photos`);
 
     } catch (error) {
       console.error('❌ [GALLERY] Error loading photos:', error);
       // Fallback to empty array
       setPhotos([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
   };
 
-  const formatDate = (date: Date) => {
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadPhotos();
+  };
+
+  const formatDate = (timestamp: string) => {
+    const date = new Date(timestamp);
     const now = new Date();
     const diffTime = Math.abs(now.getTime() - date.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -195,7 +203,7 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
       activeOpacity={0.8}
     >
       <Image 
-        source={{ uri: photo.uri }} 
+        source={{ uri: `data:image/jpeg;base64,${photo.photo}` }} 
         style={styles.photoImage}
         resizeMode="cover"
       />
@@ -221,7 +229,7 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
       activeOpacity={0.8}
     >
       <View style={styles.timelineLeft}>
-        <Image source={{ uri: photo.uri }} style={styles.timelineImage} />
+        <Image source={{ uri: `data:image/jpeg;base64,${photo.photo}` }} style={styles.timelineImage} />
       </View>
       <View style={styles.timelineRight}>
         <Text style={styles.timelineDate}>{formatDate(photo.timestamp)}</Text>
@@ -284,7 +292,18 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
         </View>
       )}
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.scrollView} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
+      >
         {photos.length === 0 ? (
           <View style={styles.emptyState}>
             <LinearGradient
@@ -355,7 +374,7 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
             <View style={styles.modalContent}>
               {selectedPhoto && (
                 <>
-                  <Image source={{ uri: selectedPhoto.uri }} style={styles.modalImage} />
+                  <Image source={{ uri: `data:image/jpeg;base64,${selectedPhoto.photo}` }} style={styles.modalImage} />
                   <View style={styles.modalInfo}>
                     <Text style={styles.modalDate}>
                       {formatDate(selectedPhoto.timestamp)}

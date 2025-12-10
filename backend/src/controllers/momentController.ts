@@ -269,6 +269,99 @@ export const uploadMoment = async (req: AuthRequest, res: Response): Promise<voi
 };
 
 /**
+ * Get all moments for memories screen
+ * ⚡ SIMPLE: Returns all moments with metadata for gallery
+ */
+export const getAllMoments = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.userId!;
+    const userAgent = req.headers['user-agent'] || 'unknown';
+    const isApp = !userAgent.includes('okhttp') && !userAgent.includes('Dalvik');
+    
+    console.log(`📡 [GET ALL] Request from userId: ${userId.substring(0, 8)}... ${isApp ? '(APP)' : '(WIDGET)'}`);
+
+    // Find user's pair
+    const pair = await prisma.pair.findFirst({
+      where: {
+        OR: [{ user1Id: userId }, { user2Id: userId }],
+      },
+      include: {
+        user1: true,
+        user2: true,
+      },
+    });
+
+    if (!pair) {
+      console.log(`⚠️ [GET ALL] No pairing found for user: ${userId.substring(0, 8)}...`);
+      res.status(404).json({
+        success: false,
+        error: 'No active pairing found',
+      } as ApiResponse);
+      return;
+    }
+
+    // Get all moments for this pair (ordered by newest first)
+    const moments = await prisma.moment.findMany({
+      where: { pairId: pair.id },
+      orderBy: { uploadedAt: 'desc' },
+      include: {
+        uploader: true,
+      },
+      take: 50, // Limit to last 50 moments for performance
+    });
+
+    if (moments.length === 0) {
+      console.log(`📭 [GET ALL] No moments found for pair: ${pair.id.substring(0, 8)}...`);
+      res.json({
+        success: true,
+        data: {
+          moments: [],
+          total: 0,
+        },
+      } as ApiResponse);
+      return;
+    }
+
+    // Convert moments to response format
+    const momentsData = moments.map(moment => {
+      const photoBase64 = Buffer.from(moment.photoData).toString('base64');
+      const partner = moment.uploaderId === pair.user1Id ? pair.user1 : pair.user2;
+      const isFromMe = moment.uploaderId === userId;
+
+      return {
+        id: moment.id,
+        photo: photoBase64,
+        sender: isFromMe ? 'me' : 'partner',
+        senderName: moment.uploader.displayName,
+        partnerName: partner.displayName,
+        timestamp: moment.uploadedAt.toISOString(),
+        uploadedAt: moment.uploadedAt.toISOString(),
+      };
+    });
+
+    const totalSizeKB = momentsData.reduce((total, moment) => total + (moment.photo.length / 1024), 0);
+
+    console.log(`✅ [GET ALL] Found ${moments.length} moments:`);
+    console.log(`   📏 Total size: ${totalSizeKB.toFixed(2)} KB`);
+    console.log(`   📱 Requested by: ${isApp ? 'APP' : 'WIDGET'}`);
+
+    res.json({
+      success: true,
+      data: {
+        moments: momentsData,
+        total: moments.length,
+      },
+    } as ApiResponse);
+  } catch (error) {
+    console.error('❌ [GET ALL] Error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch moments',
+    } as ApiResponse);
+  }
+};
+
+/**
  * Get latest moment from partner
  * ⚡ SIMPLE: Used by widget polling and app gallery
  */
