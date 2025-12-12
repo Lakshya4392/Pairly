@@ -32,6 +32,7 @@ class UserSyncService {
       
       // Store user ID locally
       await AsyncStorage.setItem('@pairly_user_id', data.user.id);
+      await AsyncStorage.setItem('user_id', data.user.id); // For widget access
       
       // Sync premium status with local storage
       if (data.user.isPremium) {

@@ -110,6 +110,20 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
       if (clerkToken) {
         await AsyncStorage.setItem('auth_token', clerkToken);
         console.log('✅ Auth token stored for socket connection');
+        
+        // 🔥 WIDGET FIX: Also store in SharedPreferences for widget access
+        try {
+          const { NativeModules } = require('react-native');
+          const { SharedPrefsModule } = NativeModules;
+          
+          if (SharedPrefsModule) {
+            await SharedPrefsModule.setString('auth_token', clerkToken);
+            await SharedPrefsModule.setString('user_id', user.id);
+            console.log('✅ Auth token also stored in SharedPreferences for widget');
+          }
+        } catch (widgetError) {
+          console.warn('⚠️ Could not store auth token for widget:', widgetError);
+        }
       }
 
       const SocketConnectionService = (await import('../services/SocketConnectionService')).default;
@@ -197,8 +211,9 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
         try {
           // Just show notification - widget will poll backend for photo
           const EnhancedNotificationService = (await import('../services/EnhancedNotificationService')).default;
-          await EnhancedNotificationService.showNewMomentNotification(
-            data.partnerName || 'Partner'
+          await EnhancedNotificationService.showMomentNotification(
+            data.partnerName || 'Partner',
+            data.momentId
           );
 
           // Trigger gallery refresh (will fetch from API)
@@ -283,7 +298,7 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
       // NEW: Check premium from waitlist system (PremiumCheckService)
       const PremiumCheckService = (await import('../services/PremiumCheckService')).default;
       const status = await PremiumCheckService.getLocalPremiumStatus();
-      
+
       console.log('💎 Premium status (waitlist):', status.isPremium, 'Days:', status.daysRemaining);
       setIsPremium(status.isPremium);
 
@@ -441,7 +456,7 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
       const NetworkMonitor = (await import('../services/NetworkMonitor')).default;
       await NetworkMonitor.initialize();
       console.log('✅ Network Monitor initialized');
-      
+
       // Listen for network changes
       NetworkMonitor.onChange((isOnline) => {
         console.log(`🌐 Network status changed: ${isOnline ? 'Online' : 'Offline'}`);
@@ -480,7 +495,7 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
   useEffect(() => {
     if (isLoaded) {
       setIsAuthChecked(true);
-      
+
       // User logged out - redirect to auth
       if (!isSignedIn && currentScreen !== 'splash' && currentScreen !== 'onboarding') {
         console.log('🚪 User logged out, redirecting to auth');
@@ -489,14 +504,14 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
         setHasConnected(false); // Reset connection flag
         AsyncStorage.removeItem('isPremium');
       }
-      
+
       // User signed in - redirect to upload
       if (isSignedIn && user && currentScreen === 'auth') {
         console.log('✅ User signed in, redirecting to upload');
         setCurrentScreen('upload');
         checkPremiumStatus();
       }
-      
+
       // Check premium for signed in users
       if (isSignedIn && user && currentScreen !== 'auth') {
         checkPremiumStatus();

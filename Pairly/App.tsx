@@ -1,8 +1,8 @@
-// import 'react-native-reanimated'; // ⚡ REMOVED: Causing CMake issues
+// ⚡ CRASH FIX: Minimal imports to prevent React Native AssertionError
 import './polyfills';
 import 'react-native-gesture-handler';
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { PaperProvider } from 'react-native-paper';
 import { ClerkProvider } from '@clerk/clerk-expo';
@@ -123,43 +123,68 @@ class ErrorBoundary extends React.Component<
 }
 
 export default function App() {
-  const [fontsLoaded] = useFonts({
+  // ⚡ CRASH FIX: Safer font loading with error handling
+  const [fontsLoaded, fontError] = useFonts({
     'Inter-Regular': Inter_400Regular,
     'Inter-Medium': Inter_500Medium,
     'Inter-SemiBold': Inter_600SemiBold,
     'Inter-Bold': Inter_700Bold,
   });
 
-  // Apply fonts globally when loaded
+  // ⚡ CRASH FIX: Safer font application with try-catch
   useEffect(() => {
-    if (fontsLoaded) {
-      // Apply default font family globally
-      // This is a common workaround for the deprecation of defaultProps
-      const oldTextRender = (Text as any).render;
-      (Text as any).render = function (...args: any) {
-        const origin = oldTextRender.call(this, ...args);
-        return React.cloneElement(origin, {
-          style: [{ fontFamily: 'Inter-Regular' }, origin.props.style],
-        });
-      };
+    if (fontsLoaded && !fontError) {
+      try {
+        // Apply default font family globally with error handling
+        const oldTextRender = (Text as any).render;
+        if (oldTextRender) {
+          (Text as any).render = function (...args: any) {
+            try {
+              const origin = oldTextRender.call(this, ...args);
+              return React.cloneElement(origin, {
+                style: [{ fontFamily: 'Inter-Regular' }, origin.props.style],
+              });
+            } catch (e) {
+              console.warn('Font render error:', e);
+              return oldTextRender.call(this, ...args);
+            }
+          };
+        }
 
-      const oldTextInputRender = (TextInput as any).render;
-      (TextInput as any).render = function (...args: any) {
-        const origin = oldTextInputRender.call(this, ...args);
-        return React.cloneElement(origin, {
-          style: [{ fontFamily: 'Inter-Regular' }, origin.props.style],
-        });
-      };
-      
-      console.log('✅ Inter fonts loaded and applied globally');
+        const oldTextInputRender = (TextInput as any).render;
+        if (oldTextInputRender) {
+          (TextInput as any).render = function (...args: any) {
+            try {
+              const origin = oldTextInputRender.call(this, ...args);
+              return React.cloneElement(origin, {
+                style: [{ fontFamily: 'Inter-Regular' }, origin.props.style],
+              });
+            } catch (e) {
+              console.warn('TextInput font render error:', e);
+              return oldTextInputRender.call(this, ...args);
+            }
+          };
+        }
+        
+        console.log('✅ Inter fonts loaded and applied globally');
+      } catch (error) {
+        console.warn('⚠️ Font application failed:', error);
+      }
     }
-  }, [fontsLoaded]);
+    
+    if (fontError) {
+      console.warn('⚠️ Font loading error:', fontError);
+    }
+  }, [fontsLoaded, fontError]);
 
-  // Initialize background services and notifications
+  // ⚡ CRASH FIX: Safer initialization with proper error handling
   useEffect(() => {
     const initializeApp = async () => {
-      // ⚡ BULLETPROOF: Initialize connection manager first
+      // ⚡ CRASH FIX: Delay initialization to prevent React Native AssertionError
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
       try {
+        // ⚡ CRASH FIX: Initialize connection manager with error boundary
         const ConnectionManager = (await import('./src/utils/ConnectionManager')).default;
         ConnectionManager.initialize();
         console.log('✅ ConnectionManager initialized');
@@ -167,9 +192,7 @@ export default function App() {
         console.error('❌ ConnectionManager init failed:', error);
       }
       
-      // ⚡ SIMPLE: Widget initializes itself via AlarmManager (no RN service needed)
-      
-      // ⚡ SIMPLE: Initialize MomentService (lightweight - just socket listener)
+      // ⚡ CRASH FIX: Initialize services with longer delay
       setTimeout(async () => {
         try {
           const MomentService = (await import('./src/services/MomentService')).default;
@@ -178,7 +201,7 @@ export default function App() {
         } catch (error) {
           console.error('❌ Error initializing SimpleMomentService:', error);
         }
-      }, 100); // Small delay to prevent blocking UI
+      }, 2000); // Longer delay to prevent crashes
       
       // Request notification permissions (fast)
       const NotificationService = (await import('./src/services/NotificationService')).default;
@@ -249,10 +272,13 @@ export default function App() {
     };
   }, []);
 
-  if (!fontsLoaded) {
+  // ⚡ CRASH FIX: Better loading state handling
+  if (!fontsLoaded || fontError) {
     return (
       <View style={styles.loadingContainer}>
-        <Text>Loading Pairly...</Text>
+        <Text style={styles.loadingText}>
+          {fontError ? 'Loading with system fonts...' : 'Loading Pairly...'}
+        </Text>
       </View>
     );
   }

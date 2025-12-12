@@ -23,6 +23,14 @@ class AuthService {
       await AsyncStorage.setItem(`${TOKEN_KEY}_backup`, token);
       await AsyncStorage.setItem('auth_token', token); // For socket auth
       console.log('✅ Token backup stored in AsyncStorage');
+
+      // Sync to SharedPreferences for widget access
+      try {
+        const WidgetAuthService = (await import('./WidgetAuthService')).default;
+        await WidgetAuthService.syncAuthToken();
+      } catch (widgetError) {
+        console.log('⚠️ Widget auth sync failed (non-critical):', widgetError);
+      }
       
       this.token = token;
 

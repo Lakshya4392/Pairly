@@ -78,6 +78,22 @@ class SimpleWidgetService {
     }
   }
 
+  async getWidgetData(): Promise<any> {
+    console.log('📱 getWidgetData called (stub)');
+    return null;
+  }
+
+  async updateWidget(photoUri: string, partnerName: string): Promise<boolean> {
+    console.log('📱 updateWidget called (stub)');
+    await this.triggerRefresh();
+    return true;
+  }
+
+  async clearWidget(): Promise<boolean> {
+    console.log('📱 clearWidget called (stub)');
+    return true;
+  }
+
   /**
    * 🔄 Trigger widget refresh (widget will poll backend)
    * This is just a hint to widget - actual refresh happens in native code

@@ -1,7 +1,10 @@
 import messaging from '@react-native-firebase/messaging';
-import { Platform } from 'react-native';
+import { Platform, NativeModules } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_CONFIG } from '../config/api.config';
+import * as FileSystem from 'expo-file-system';
+
+const { SharedPrefsModule } = NativeModules;
 
 class FCMService {
   private fcmToken: string | null = null;
@@ -82,19 +85,19 @@ class FCMService {
    */
   private setupMessageHandlers(): void {
     // Foreground messages
-    messaging().onMessage(async (remoteMessage) => {
+    messaging().onMessage(async (remoteMessage: any) => {
       console.log('📥 FCM Foreground Message:', remoteMessage);
       await this.handleMessage(remoteMessage);
     });
 
     // Background messages (app in background/quit)
-    messaging().setBackgroundMessageHandler(async (remoteMessage) => {
+    messaging().setBackgroundMessageHandler(async (remoteMessage: any) => {
       console.log('📥 FCM Background Message:', remoteMessage);
       await this.handleMessage(remoteMessage);
     });
 
     // Token refresh
-    messaging().onTokenRefresh(async (token) => {
+    messaging().onTokenRefresh(async (token: string) => {
       console.log('🔄 FCM Token refreshed:', token);
       this.fcmToken = token;
       await AsyncStorage.setItem('fcmToken', token);
@@ -135,26 +138,56 @@ class FCMService {
   }
 
   /**
-   * Handle new moment notification (with base64 photo data)
+   * Handle new moment notification (with URL for background download)
    */
   private async handleNewMoment(data: any): Promise<void> {
     try {
       console.log('📸 [FCM] New moment notification received');
 
-      // ⚡ SIMPLE: Just show notification - widget will poll backend for photo
+      const { photoUrl, momentId, partnerName } = data;
+
+      // 1. Download photo if URL is provided
+      if (photoUrl) {
+        console.log(`⬇️ [FCM] Downloading photo from: ${photoUrl}`);
+
+        // Define local path (using Cache directory for temporary storage, or Document for persistence)
+        // For widget, we need a stable path.
+        // Define local path (using Cache directory for temporary storage, or Document for persistence)
+        // For widget, we need a stable path.
+        const fileName = `widget_moment.jpg`; // Always overwrite the same file for widget
+        // Cast to any to avoid TS errors with some Expo versions
+        const fs = FileSystem as any;
+        const docDir = fs.documentDirectory || fs.cacheDirectory;
+        const localUri = `${docDir}${fileName}`;
+
+        // Download
+        const downloadResult = await FileSystem.downloadAsync(photoUrl, localUri);
+
+        if (downloadResult.status === 200) {
+          console.log(`✅ [FCM] Photo downloaded to: ${downloadResult.uri}`);
+
+          // 2. Save path to SharedPrefs for Widget (Native Module)
+          if (Platform.OS === 'android' && SharedPrefsModule) {
+            // Remove 'file://' prefix for Android File API
+            const cleanPath = downloadResult.uri.replace('file://', '');
+
+            await SharedPrefsModule.setString('last_moment_path', cleanPath);
+            await SharedPrefsModule.setString('last_moment_timestamp', Date.now().toString());
+
+            // 3. Trigger Widget Update
+            await SharedPrefsModule.notifyWidgetUpdate();
+            console.log('✅ [FCM] Widget refresh triggered');
+          }
+        } else {
+          console.error('❌ [FCM] Download failed:', downloadResult.status);
+        }
+      }
+
+      // Show enhanced notification
       const EnhancedNotificationService = (await import('./EnhancedNotificationService')).default;
-      
       await EnhancedNotificationService.showMomentNotification(
-        data.partnerName || 'Partner',
-        data.momentId
-      );
-
-      console.log('✅ [FCM] Notification shown - widget will fetch photo from backend');
-
-      // Show enhanced notification with sound
-      await EnhancedNotificationService.showMomentNotification(
-        data.partnerName || 'Partner',
-        data.momentId || 'unknown'
+        partnerName || 'Partner',
+        momentId || 'unknown'
       );
 
     } catch (error) {
@@ -171,7 +204,7 @@ class FCMService {
 
       // ⚡ SIMPLE: Just show notification - widget will poll backend for photo
       const EnhancedNotificationService = (await import('./EnhancedNotificationService')).default;
-      
+
       await EnhancedNotificationService.showMomentNotification(
         data.partnerName || 'Partner',
         data.momentId || 'new'

@@ -60,6 +60,20 @@ export const SocketTestScreen = () => {
         if (clerkToken) {
           await AsyncStorage.setItem('auth_token', clerkToken);
           addLog('✅ Auth token stored');
+
+          // 🔥 WIDGET FIX: Also store in SharedPreferences for widget access
+          try {
+            const { NativeModules } = require('react-native');
+            const { SharedPrefsModule } = NativeModules;
+
+            if (SharedPrefsModule && userId) {
+              await SharedPrefsModule.setString('auth_token', clerkToken);
+              await SharedPrefsModule.setString('user_id', userId);
+              addLog('✅ Auth token also stored for widget');
+            }
+          } catch (widgetError) {
+            addLog('⚠️ Widget auth storage failed');
+          }
         } else {
           addLog('❌ Failed to get auth token');
           setIsTesting(false);
@@ -129,7 +143,7 @@ export const SocketTestScreen = () => {
 
       setConnectionTime(duration);
       addLog(`✅ Reconnected in ${duration}ms`);
-      
+
       RealtimeService.startHeartbeat(userId!);
       setIsConnected(true);
     } catch (error: any) {
@@ -141,7 +155,7 @@ export const SocketTestScreen = () => {
 
   const testSendEvent = () => {
     addLog('📤 Sending test event...');
-    
+
     RealtimeService.emitWithAck(
       'ping',
       { userId, timestamp: Date.now() },

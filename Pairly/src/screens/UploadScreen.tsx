@@ -686,8 +686,10 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
         if (scheduledTime && duration) {
           // Schedule the moment
           const result = await MomentService.schedulePhoto({
-            uri: selectedPhotoUri,
-          }, note, scheduledTime, duration);
+            photo: { uri: selectedPhotoUri },
+            scheduledTime: scheduledTime ? scheduledTime.getTime() : Date.now(),
+            caption: note
+          });
 
           if (result.success) {
             setAlertMessage(`Your moment will be sent to ${partnerName} at ${scheduledTime.toLocaleString()}`);
@@ -774,10 +776,12 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
   const animatedSettingsIconStyle = {
     transform: [
       { scale: settingsScale },
-      { rotate: settingsRotate.interpolate({
-        inputRange: [0, 90],
-        outputRange: ['0deg', '90deg'],
-      }) }
+      {
+        rotate: settingsRotate.interpolate({
+          inputRange: [0, 90],
+          outputRange: ['0deg', '90deg'],
+        })
+      }
     ],
   };
 

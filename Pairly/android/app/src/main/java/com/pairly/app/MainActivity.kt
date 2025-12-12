@@ -1,10 +1,7 @@
 package com.pairly.app
 
-import android.content.Intent
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.util.Log
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
@@ -20,33 +17,6 @@ class MainActivity : ReactActivity() {
     // This is required for expo-splash-screen.
     setTheme(R.style.AppTheme);
     super.onCreate(null)
-    
-    // Handle deep link on app launch
-    handleDeepLink(intent)
-  }
-  
-  override fun onNewIntent(intent: Intent) {
-    super.onNewIntent(intent)
-    // Handle deep link when app is already running
-    setIntent(intent)
-    handleDeepLink(intent)
-  }
-  
-  private fun handleDeepLink(intent: Intent?) {
-    val action = intent?.action
-    val data: Uri? = intent?.data
-    
-    if (Intent.ACTION_VIEW == action && data != null) {
-      Log.d("MainActivity", "🔗 Deep link received: $data")
-      Log.d("MainActivity", "🔗 Scheme: ${data.scheme}")
-      Log.d("MainActivity", "🔗 Host: ${data.host}")
-      Log.d("MainActivity", "🔗 Path: ${data.path}")
-      
-      // Log for OAuth callback
-      if (data.host == "oauth-native-callback" || data.path?.contains("oauth") == true) {
-        Log.d("MainActivity", "✅ OAuth callback detected!")
-      }
-    }
   }
 
   /**

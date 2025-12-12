@@ -52,7 +52,7 @@ export const useWidget = (): UseWidgetReturn => {
     }
 
     try {
-      const success = await widgetService.updateWidget(photoUri, partnerName);
+      const success = await widgetService.updateWidget(photoUri, partnerName || 'Partner');
       if (success) {
         setLastUpdate(new Date());
       }

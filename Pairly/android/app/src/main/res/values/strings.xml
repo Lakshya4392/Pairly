@@ -2,13 +2,5 @@
   <string name="app_name">Pairly</string>
   <string name="expo_splash_screen_resize_mode" translatable="false">contain</string>
   <string name="expo_splash_screen_status_bar_translucent" translatable="false">false</string>
-  <string name="widget_description">Displays the latest moment from your partner.</string>
-  <string name="widget_image_description">The latest moment from your partner.</string>
-  <string name="widget_placeholder_text">No moments yet.</string>
-  
-  <!-- Premium Widget Description -->
-  <string name="premium_widget_description">Premium carousel widget showing your latest moments together with smooth animations</string>
-  
-  <!-- Simple Widget Description -->
-  <string name="simple_widget_description">3x3 widget showing your partner's latest moments</string>
+  <string name="widget_description">Share moments with your partner instantly</string>
 </resources>

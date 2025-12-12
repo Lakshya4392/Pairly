@@ -19,7 +19,10 @@
     },
     "android": {
       "package": "com.pairly.app",
-      "versionCode": 1,
+      "versionCode": 3,
+      "compileSdkVersion": 34,
+      "targetSdkVersion": 34,
+      "buildToolsVersion": "34.0.0",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"
@@ -36,6 +39,8 @@
         "android.permission.RECORD_AUDIO",
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.WAKE_LOCK",
+        "android.permission.SCHEDULE_EXACT_ALARM",
+        "android.permission.USE_EXACT_ALARM",
         "com.google.android.c2dm.permission.RECEIVE"
       ],
       "googleServicesFile": "./google-services.json",
@@ -57,28 +62,30 @@
     },
     "plugins": [
       "expo-secure-store",
-      "expo-image-picker",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Pairly to access your photos to share moments with your partner.",
+          "cameraPermission": "Allow Pairly to access your camera to capture moments."
+        }
+      ],
       "expo-font",
       "expo-web-browser",
-      "@react-native-firebase/app",
       [
         "expo-notifications",
         {
-          "icon": "./assets/notification-icon.png",
           "color": "#FF6B9D",
-          "sounds": [
-            "./assets/notification-sound.wav"
-          ],
           "mode": "production"
         }
-      ]
+      ],
+      "./plugins/withAndroidWidget"
     ],
     "extra": {
       "eas": {
         "projectId": "323693d7-995a-4dd2-ba1d-5569c263d4c8"
       },
-      "apiUrl": "http://10.30.27.39:3000",
-      "socketUrl": "http://10.30.27.39:3000"
+      "apiUrl": "https://pairly-60qj.onrender.com",
+      "socketUrl": "https://pairly-60qj.onrender.com"
     }
   }
 }

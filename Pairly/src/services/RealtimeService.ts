@@ -319,6 +319,14 @@ class RealtimeService {
 
           console.log('✅ Moment notification processed via MomentService');
 
+          // 🔥 WIDGET FIX: Notify widget of new moment
+          try {
+            const WidgetUtils = (await import('../utils/WidgetUtils')).default;
+            await WidgetUtils.notifyNewMoment();
+          } catch (widgetError) {
+            console.warn('⚠️ Widget notification failed:', widgetError);
+          }
+
           // ⚡ SIMPLE: Trigger event for UI update
           this.triggerEvent('moment_available', data);
 

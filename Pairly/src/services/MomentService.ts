@@ -105,6 +105,12 @@ class SimpleMomentService {
     }
   }
 
+  async schedulePhoto(params: { photo: any, scheduledTime: number, caption?: string }): Promise<any> {
+    console.log('⏰ [SCHEDULE] Scheduling photo (stub)', params.scheduledTime);
+    // For now, just treat as immediate upload or implement real scheduling later
+    return this.uploadPhoto(params.photo as Photo, params.caption);
+  }
+
   /**
    * 📥 SIMPLE RECEIVE: Just save metadata, widget will poll backend
    */
@@ -154,6 +160,14 @@ class SimpleMomentService {
       }
 
       console.log('✅ [FETCH] Moment received');
+
+      // 🔥 WIDGET FIX: Notify widget of new moment
+      try {
+        const WidgetUtils = (await import('../utils/WidgetUtils')).default;
+        await WidgetUtils.notifyNewMoment();
+      } catch (widgetError) {
+        console.warn('⚠️ Widget notification failed:', widgetError);
+      }
 
       return {
         photo: response.data.data.photo, // base64

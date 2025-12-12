@@ -12,7 +12,3 @@
 -keep class com.facebook.react.turbomodule.** { *; }
 
 # Add any project specific keep options here:
-
-# Keep our custom native modules
--keep class com.pairly.PairlyWidgetModule { *; }
--keep class com.pairly.BackgroundServiceModule { *; }
