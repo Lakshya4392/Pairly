@@ -14,7 +14,7 @@ class FCMService {
     try {
       // Check if service account key exists
       const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
-      
+
       if (!serviceAccount) {
         console.log('⚠️ Firebase service account not configured');
         return;
@@ -94,11 +94,11 @@ class FCMService {
   }
 
   /**
-   * ⚡ IMPROVED: Send new photo notification with base64 data for instant widget update
+   * ⚡ IMPROVED: Send new photo notification with URL for background download
    */
   async sendNewPhotoNotification(
     fcmToken: string,
-    photoBase64: string,
+    photoUrl: string,
     partnerName: string,
     momentId: string
   ): Promise<boolean> {
@@ -106,7 +106,7 @@ class FCMService {
       fcmToken,
       {
         type: 'new_moment',
-        photoBase64,
+        photoUrl,
         partnerName,
         momentId,
         timestamp: Date.now().toString(),
@@ -128,8 +128,8 @@ class FCMService {
     noteId: string
   ): Promise<boolean> {
     // Truncate note content for notification
-    const preview = noteContent.length > 50 
-      ? noteContent.substring(0, 50) + '...' 
+    const preview = noteContent.length > 50
+      ? noteContent.substring(0, 50) + '...'
       : noteContent;
 
     return this.sendNotification(

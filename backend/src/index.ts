@@ -64,6 +64,10 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Serve static files from uploads directory
+import path from 'path';
+app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
+
 // Import routes
 import authRoutes from './routes/authRoutes';
 import pairRoutes from './routes/pairRoutes';
@@ -89,8 +93,8 @@ app.use((req, res, next) => {
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
+  res.json({
+    status: 'ok',
     message: 'Pairly API is running - v2.0',
     timestamp: new Date().toISOString(),
     uptime: process.uptime()
@@ -101,8 +105,8 @@ app.get('/health', (req, res) => {
 app.get('/keep-alive', (req, res) => {
   const timestamp = new Date().toISOString();
   console.log(`🏓 Keep-alive ping received at ${timestamp}`);
-  
-  res.json({ 
+
+  res.json({
     status: 'alive',
     timestamp,
     uptime: process.uptime(),
@@ -135,26 +139,26 @@ io.on('connection', (socket) => {
   socket.on('join_room', async (data: { userId: string }) => {
     try {
       currentUserClerkId = data.userId; // This is clerkId
-      
+
       // Get database ID from clerkId
       const user = await prisma.user.findUnique({
         where: { clerkId: data.userId },
       });
-      
+
       if (user) {
         currentUserDbId = user.id;
         socket.join(data.userId); // Join room with clerkId
         console.log(`✅ User ${user.displayName} (clerk: ${data.userId}, db: ${user.id}) joined room`);
-        
+
         // Send acknowledgment
         socket.emit('room_joined', { userId: data.userId });
-        
+
         // ✅ PUSH PENDING MOMENTS: Send queued moments to user
         // TODO: Enable after database migration
         // try {
         //   const PendingMomentService = (await import('./services/pendingMomentService')).default;
         //   const pushedCount = await PendingMomentService.pushPendingMoments(user.id);
-          
+
         //   if (pushedCount > 0) {
         //     console.log(`✅ Pushed ${pushedCount} pending moments to ${user.displayName}`);
         //   }
@@ -162,7 +166,7 @@ io.on('connection', (socket) => {
         //   console.error('⚠️ Error pushing pending moments:', error);
         //   // Non-critical - don't break connection
         // }
-        
+
         // Notify partner that user is online
         const pair = await prisma.user.findUnique({
           where: { id: user.id },
@@ -178,7 +182,7 @@ io.on('connection', (socket) => {
 
         if (pair?.pairAsUser1 || pair?.pairAsUser2) {
           const partner = pair.pairAsUser1 ? pair.pairAsUser1.user2 : pair.pairAsUser2?.user1;
-          
+
           if (partner) {
             // Send presence update to partner
             io.to(partner.clerkId).emit('partner_presence', {
@@ -209,7 +213,7 @@ io.on('connection', (socket) => {
 
       if (pair) {
         const partnerId = pair.user1Id === data.userId ? pair.user2Id : pair.user1Id;
-        
+
         // Send heartbeat to partner
         io.to(partnerId).emit('partner_heartbeat', {
           userId: data.userId,
@@ -347,7 +351,7 @@ io.on('connection', (socket) => {
         // Send acknowledgment to the sender
         const senderId = moment.uploaderId;
         const sender = moment.pair.user1Id === senderId ? moment.pair.user1 : moment.pair.user2;
-        
+
         io.to(sender.clerkId).emit('moment_received_ack', {
           momentId: data.momentId,
           receivedAt: data.receivedAt,
@@ -385,7 +389,7 @@ io.on('connection', (socket) => {
 
         if (pair) {
           const partner = pair.user1Id === currentUserDbId ? pair.user2 : pair.user1;
-          
+
           // Send offline status to partner (using clerkId for socket room)
           io.to(partner.clerkId).emit('partner_presence', {
             userId: currentUserClerkId,

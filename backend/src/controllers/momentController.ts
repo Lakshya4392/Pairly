@@ -149,7 +149,7 @@ export const uploadMoment = async (req: AuthRequest, res: Response): Promise<voi
     const deletedCount = await prisma.moment.deleteMany({
       where: { pairId: pair.id },
     });
-    
+
     if (deletedCount.count > 0) {
       console.log(`🗑️ [UPLOAD] Deleted ${deletedCount.count} old moment(s) for pair`);
     }
@@ -170,10 +170,32 @@ export const uploadMoment = async (req: AuthRequest, res: Response): Promise<voi
     console.log(`   📏 Photo size: ${photoSizeKB} KB`);
     console.log(`   ⏰ Uploaded at: ${moment.uploadedAt.toISOString()}`);
 
+    // Save photo to disk for static serving (URL-based access for Widget/FCM)
+    const fs = await import('fs');
+    const path = await import('path');
+    const uploadDir = path.join(__dirname, '../../public/uploads');
+
+    // Ensure directory exists
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+
+    // Save file
+    const fileName = `${moment.id}.jpg`;
+    const filePath = path.join(uploadDir, fileName);
+    fs.writeFileSync(filePath, photoBuffer);
+
+    // Construct URL
+    const baseUrl = process.env.API_URL || `${req.protocol}://${req.get('host')}`;
+    const photoUrl = `${baseUrl}/uploads/${fileName}`;
+
+    console.log(`💾 [UPLOAD] Saved locally: ${fileName}`);
+    console.log(`🔗 [UPLOAD] Generated URL: ${photoUrl}`);
+
     // Get partner ID - ONLY send to paired partner
     const partnerId = pair.user1Id === userId ? pair.user2Id : pair.user1Id;
     const partnerInfo = pair.user1Id === userId ? pair.user2 : pair.user1;
-    
+
     // Verify partner exists and is actually paired
     if (!partnerId || partnerId === userId) {
       console.error('❌ [UPLOAD] Invalid partner ID - cannot send moment');
@@ -197,9 +219,9 @@ export const uploadMoment = async (req: AuthRequest, res: Response): Promise<voi
       momentId: moment.id,
       timestamp: moment.uploadedAt.toISOString(),
       partnerName: user.displayName,
-      // Widget will fetch photo from API - no base64 here!
+      photoUrl: photoUrl, // Send URL for socket clients too
     };
-    
+
     io.to(partnerId).emit('moment_available', notificationPayload);
     console.log(`🔔 [SOCKET] Emitted 'moment_available' to partner (payload: ${JSON.stringify(notificationPayload).length} bytes)`);
 
@@ -217,16 +239,17 @@ export const uploadMoment = async (req: AuthRequest, res: Response): Promise<voi
       if (partner?.fcmToken) {
         console.log(`📲 [FCM] Sending push notification to partner...`);
         const FCMService = (await import('../services/FCMService')).default;
+        // ⚡ MODIFIED: Send URL instead of Base64
         const fcmSent = await FCMService.sendNewPhotoNotification(
           partner.fcmToken,
-          photoBuffer.toString('base64'),
+          photoUrl,
           user.displayName || 'Your Partner',
           moment.id
         );
-        
+
         if (fcmSent) {
           console.log('✅ [FCM] Push notification sent successfully');
-          
+
           // Send FCM delivery confirmation to sender
           io.to(userId).emit('moment_delivered', {
             momentId: moment.id,
@@ -277,7 +300,7 @@ export const getAllMoments = async (req: AuthRequest, res: Response): Promise<vo
     const userId = req.userId!;
     const userAgent = req.headers['user-agent'] || 'unknown';
     const isApp = !userAgent.includes('okhttp') && !userAgent.includes('Dalvik');
-    
+
     console.log(`📡 [GET ALL] Request from userId: ${userId.substring(0, 8)}... ${isApp ? '(APP)' : '(WIDGET)'}`);
 
     // Find user's pair
@@ -370,7 +393,7 @@ export const getLatestMoment = async (req: AuthRequest, res: Response): Promise<
     const userId = req.userId!;
     const userAgent = req.headers['user-agent'] || 'unknown';
     const isWidget = userAgent.includes('okhttp') || userAgent.includes('Dalvik'); // Android widget uses OkHttp
-    
+
     console.log(`📡 [GET LATEST] Request from userId: ${userId.substring(0, 8)}... ${isWidget ? '(WIDGET)' : '(APP)'}`);
 
     // Find user's pair
@@ -396,7 +419,7 @@ export const getLatestMoment = async (req: AuthRequest, res: Response): Promise<
     // 🎯 CRITICAL FIX: Only get moments FROM partner (not sent by current user)
     // Widget should only show photos received from partner, not sent by user
     const moment = await prisma.moment.findFirst({
-      where: { 
+      where: {
         pairId: pair.id,
         uploaderId: { not: userId } // Only moments NOT uploaded by current user
       },
@@ -432,13 +455,35 @@ export const getLatestMoment = async (req: AuthRequest, res: Response): Promise<
     console.log(`   ${isReceiver ? '📥 User is RECEIVER' : '📤 User is SENDER'}`);
     console.log(`   ${isWidget ? '📱 Fetched by WIDGET' : '📲 Fetched by APP'}`);
 
+    // Check if file exists on disk
+    const fs = await import('fs');
+    const path = await import('path');
+    const fileName = `${moment.id}.jpg`;
+    const filePath = path.join(__dirname, '../../public/uploads', fileName);
+
+    let photoResponse: any = {
+      partnerName: partner.displayName,
+      sentAt: moment.uploadedAt.toISOString(),
+    };
+
+    if (fs.existsSync(filePath)) {
+      // Return URL if file exists
+      const baseUrl = process.env.API_URL || `${req.protocol}://${req.get('host')}`;
+      photoResponse.photoUrl = `${baseUrl}/uploads/${fileName}`;
+      // Also return base64 for fallback (or if client expects it)
+      // But for "Get Latest", lightweight URL is better.
+      // However, existing client might expect 'photo' as base64. 
+      // For now, let's keep sending base64 to not break existing clients, BUT also send URL.
+      const fileBuffer = fs.readFileSync(filePath);
+      photoResponse.photo = fileBuffer.toString('base64');
+    } else {
+      // Fallback to DB blob if file not found
+      photoResponse.photo = Buffer.from(moment.photoData).toString('base64');
+    }
+
     res.json({
       success: true,
-      data: {
-        photo: photoBase64,
-        partnerName: partner.displayName,
-        sentAt: moment.uploadedAt.toISOString(),
-      },
+      data: photoResponse,
     } as ApiResponse);
   } catch (error) {
     console.error('❌ [GET LATEST] Error:', error);
