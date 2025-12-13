@@ -23,9 +23,42 @@ import java.util.concurrent.TimeUnit
 class PairlyWidget : AppWidgetProvider() {
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
-        // Update all widgets
+        // Update all widgets with bulletproof error handling
         for (appWidgetId in appWidgetIds) {
-            updateAppWidget(context, appWidgetManager, appWidgetId)
+            try {
+                updateAppWidget(context, appWidgetManager, appWidgetId)
+            } catch (e: Exception) {
+                println("❌ Widget onUpdate crashed: ${e.message}")
+                e.printStackTrace()
+                // Show a safe default state even if update crashes
+                showSafeDefaultState(context, appWidgetManager, appWidgetId)
+            }
+        }
+    }
+    
+    /**
+     * Ultimate fallback - shows a basic widget that won't crash
+     */
+    private fun showSafeDefaultState(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int) {
+        try {
+            val views = RemoteViews(context.packageName, R.layout.pairly_widget_simple)
+            views.setTextViewText(R.id.widget_main_text, "Open Pairly")
+            views.setTextViewText(R.id.widget_sub_text, "Tap to start")
+            views.setTextViewText(R.id.widget_title, "Pairly")
+            views.setTextViewText(R.id.widget_status_text, "Waiting")
+            views.setImageViewResource(R.id.widget_image, R.drawable.widget_placeholder)
+            
+            // Basic click handler
+            val intent = Intent(context, MainActivity::class.java)
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            val pendingIntent = PendingIntent.getActivity(context, 0, intent, 
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            views.setOnClickPendingIntent(R.id.widget_container, pendingIntent)
+            
+            appWidgetManager.updateAppWidget(appWidgetId, views)
+            println("✅ Widget: Safe default state shown")
+        } catch (e: Exception) {
+            println("❌ Widget: Even safe default failed: ${e.message}")
         }
     }
 
