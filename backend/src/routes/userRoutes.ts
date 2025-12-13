@@ -10,7 +10,7 @@ router.get('/:userId/premium', auth, getPremiumStatus);
 // Update user's premium status
 router.put('/premium', auth, updatePremiumStatus);
 
-// Update user's FCM token
-router.post('/fcm-token', updateFCMToken);
+// Update user's FCM token (requires auth to prevent hijacking)
+router.post('/fcm-token', auth, updateFCMToken);
 
 export default router;

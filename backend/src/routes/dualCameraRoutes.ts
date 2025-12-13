@@ -1,7 +1,11 @@
 import { Router } from 'express';
 import { prisma } from '../index';
+import { authenticate } from '../middleware/auth';
 
 const router = Router();
+
+// All dual-camera routes require authentication
+router.use(authenticate);
 
 /**
  * Create dual camera moment

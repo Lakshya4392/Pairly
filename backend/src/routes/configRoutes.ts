@@ -1,5 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../index';
+import { authenticate } from '../middleware/auth';
+import { AuthRequest } from '../middleware/auth';
 
 const router = Router();
 
@@ -35,8 +37,8 @@ router.get('/config', async (req: Request, res: Response) => {
   }
 });
 
-// POST /config/config - Set app configuration (admin only)
-router.post('/config', async (req: Request, res: Response) => {
+// POST /config/config - Set app configuration (admin only - requires auth)
+router.post('/config', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { launchDate, isWaitlistOnly } = req.body;
 
