@@ -2,7 +2,12 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../index';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+// JWT Secret - MUST be set in production
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET && process.env.NODE_ENV === 'production') {
+  throw new Error('CRITICAL: JWT_SECRET environment variable is not set in production!');
+}
+const SECRET_KEY = JWT_SECRET || 'dev-only-insecure-key';
 
 export interface AuthRequest extends Request {
   userId?: string;
@@ -36,7 +41,7 @@ export const authenticate = async (
 
     // Verify JWT token
     try {
-      const decoded = jwt.verify(token, JWT_SECRET, {
+      const decoded = jwt.verify(token, SECRET_KEY, {
         ignoreExpiration: false, // Strict expiry check
       }) as JWTPayload;
 
@@ -62,7 +67,7 @@ export const authenticate = async (
       // Better error logging
       if (jwtError.name === 'TokenExpiredError') {
         console.warn('⚠️ JWT token expired, user needs to re-authenticate');
-        res.status(401).json({ 
+        res.status(401).json({
           error: 'Token expired',
           code: 'TOKEN_EXPIRED',
           message: 'Please login again'

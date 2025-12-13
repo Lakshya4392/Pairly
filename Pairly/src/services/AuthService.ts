@@ -2,6 +2,7 @@ import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { User, AuthResponse, ApiResponse } from '@types';
 import apiClient from '../utils/apiClient';
+import { API_CONFIG } from '../config/api.config';
 
 const TOKEN_KEY = 'pairly_auth_token';
 const USER_KEY = 'pairly_user';
@@ -18,7 +19,7 @@ class AuthService {
       // Store in SecureStore
       await SecureStore.setItemAsync(TOKEN_KEY, token);
       console.log('✅ Token stored in SecureStore');
-      
+
       // Also store in AsyncStorage as backup for APK
       await AsyncStorage.setItem(`${TOKEN_KEY}_backup`, token);
       await AsyncStorage.setItem('auth_token', token); // For socket auth
@@ -31,7 +32,7 @@ class AuthService {
       } catch (widgetError) {
         console.log('⚠️ Widget auth sync failed (non-critical):', widgetError);
       }
-      
+
       this.token = token;
 
       // ⚡ SIMPLE: Save token for widget (Android only)
@@ -39,7 +40,7 @@ class AuthService {
         const { Platform, NativeModules } = await import('react-native');
         if (Platform.OS === 'android' && NativeModules.PairlyWidget) {
           await NativeModules.PairlyWidget.saveAuthToken(token);
-          await NativeModules.PairlyWidget.saveBackendUrl('https://pairly-backend.onrender.com');
+          await NativeModules.PairlyWidget.saveBackendUrl(API_CONFIG.baseUrl);
           console.log('✅ Token saved for widget');
         }
       } catch (widgetError) {
@@ -76,7 +77,7 @@ class AuthService {
         console.log('✅ Token retrieved from SecureStore');
         return token;
       }
-      
+
       // Fallback to AsyncStorage
       const backupToken = await AsyncStorage.getItem(`${TOKEN_KEY}_backup`);
       if (backupToken) {
@@ -84,7 +85,7 @@ class AuthService {
         console.log('✅ Token retrieved from AsyncStorage backup');
         return backupToken;
       }
-      
+
       // Try auth_token key
       const authToken = await AsyncStorage.getItem('auth_token');
       if (authToken) {
@@ -92,7 +93,7 @@ class AuthService {
         console.log('✅ Token retrieved from auth_token');
         return authToken;
       }
-      
+
       return null;
     } catch (error) {
       console.error('Error getting token:', error);
@@ -177,9 +178,9 @@ class AuthService {
   async authenticateWithBackend(clerkToken: string, retryCount: number = 0): Promise<AuthResponse> {
     try {
       console.log('🔐 Sending Clerk token to backend...');
-      
+
       const data = await apiClient.post<ApiResponse<AuthResponse>>(
-        '/auth/google', 
+        '/auth/google',
         { idToken: clerkToken },
         { skipAuth: true } // Skip automatic auth header for this endpoint
       );
@@ -197,7 +198,7 @@ class AuthService {
       return data.data;
     } catch (error: any) {
       console.error('❌ Backend authentication error:', error.message);
-      
+
       // Handle token expiration - get fresh Clerk token and retry once
       if (error.message && error.message.includes('expired') && retryCount === 0) {
         console.log('⚠️ Token expired, getting fresh Clerk token...');
@@ -211,20 +212,20 @@ class AuthService {
           throw new Error('TOKEN_EXPIRED');
         }
       }
-      
+
       // Handle specific protocol errors
       if (error.message && error.message.includes('protocol')) {
         console.log('⚠️ Protocol error detected, switching to offline mode');
         throw new Error('Network configuration error - using offline mode');
       }
-      
+
       // Create a fallback user from Clerk token if backend is not available
       if (error.name === 'TimeoutError' || (error instanceof TypeError && error.message.includes('Network request failed'))) {
         console.log('⚠️ Backend not available, creating offline user');
         // You can decode the Clerk token to get user info if needed
         // For now, we'll just throw the error and let the app continue without backend auth
       }
-      
+
       throw error;
     }
   }
@@ -242,7 +243,7 @@ class AuthService {
    */
   async signOut(): Promise<void> {
     console.log('🔄 Signing out and clearing all data...');
-    
+
     try {
       // 1. Disconnect socket first
       try {
@@ -252,12 +253,12 @@ class AuthService {
       } catch (error) {
         console.error('Error disconnecting socket:', error);
       }
-      
+
       // 2. Clear auth data
       await this.removeToken();
       await this.removeUser();
       console.log('✅ Auth data cleared');
-      
+
       // 3. Clear pairing data
       try {
         await AsyncStorage.multiRemove([
@@ -273,7 +274,7 @@ class AuthService {
       } catch (error) {
         console.error('Error clearing pairing data:', error);
       }
-      
+
       // 4. Clear widget data
       try {
         await AsyncStorage.multiRemove([
@@ -284,12 +285,12 @@ class AuthService {
       } catch (error) {
         console.error('Error clearing widget data:', error);
       }
-      
+
       // 5. Clear all other app data
       try {
         const keys = await AsyncStorage.getAllKeys();
-        const pairlyKeys = keys.filter(key => 
-          key.startsWith('@pairly_') || 
+        const pairlyKeys = keys.filter(key =>
+          key.startsWith('@pairly_') ||
           key.startsWith('pairly_') ||
           key.includes('moment') ||
           key.includes('photo')
@@ -301,7 +302,7 @@ class AuthService {
       } catch (error) {
         console.error('Error clearing app data:', error);
       }
-      
+
       console.log('✅ Sign out complete - All data cleared');
     } catch (error) {
       console.error('❌ Sign out error:', error);
@@ -314,11 +315,11 @@ class AuthService {
    */
   async getAuthHeader(): Promise<{ Authorization: string } | {}> {
     const token = await this.getToken();
-    
+
     if (token) {
       return { Authorization: `Bearer ${token}` };
     }
-    
+
     return {};
   }
 

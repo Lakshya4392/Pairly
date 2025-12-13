@@ -19,9 +19,29 @@ const app = express();
 const httpServer = createServer(app);
 
 // Initialize Socket.IO with optimized settings for APK
+// CORS origin configuration - allow app schemes and production domains
+const getAllowedOrigins = () => {
+  const origins = [
+    'pairly://', // Mobile app deep link scheme
+    'exp://',    // Expo development
+  ];
+
+  // Add production domains from environment
+  if (process.env.ALLOWED_ORIGINS) {
+    origins.push(...process.env.ALLOWED_ORIGINS.split(','));
+  }
+
+  // In development, allow all origins
+  if (process.env.NODE_ENV !== 'production') {
+    return '*';
+  }
+
+  return origins;
+};
+
 const io = new Server(httpServer, {
   cors: {
-    origin: '*', // Configure properly in production
+    origin: getAllowedOrigins(),
     methods: ['GET', 'POST'],
     credentials: true,
   },
@@ -35,10 +55,22 @@ const io = new Server(httpServer, {
   allowEIO3: true, // Support older clients
   perMessageDeflate: false, // Disable compression for speed
   connectTimeout: 60000, // 60s - Allow time for pairing process
-  // CORS headers for APK
+  // Mobile app request validation
   allowRequest: (req, callback) => {
-    // Allow all origins for now (configure properly in production)
-    callback(null, true);
+    // In development, allow all
+    if (process.env.NODE_ENV !== 'production') {
+      callback(null, true);
+      return;
+    }
+    // In production, validate origin
+    const origin = req.headers.origin;
+    const allowedOrigins = getAllowedOrigins();
+    if (allowedOrigins === '*' || (Array.isArray(allowedOrigins) && allowedOrigins.some(o => origin?.startsWith(o)))) {
+      callback(null, true);
+    } else {
+      // Still allow for mobile apps without origin header
+      callback(null, !origin || origin === 'null');
+    }
   },
 });
 
@@ -61,8 +93,17 @@ prisma.$connect().then(() => {
 
 // Middleware
 app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' })); // Limit JSON payload size
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Security middleware
+import { securityHeaders, sanitizeRequest } from './middleware/security';
+app.use(securityHeaders);
+app.use(sanitizeRequest);
+
+// Rate limiting
+import { generalLimiter, authLimiter, pairingLimiter, uploadLimiter } from './middleware/rateLimiter';
+app.use(generalLimiter); // Apply general rate limit to all routes
 
 // Serve static files from uploads directory
 import path from 'path';
@@ -86,7 +127,10 @@ app.use((req, res, next) => {
   const start = Date.now();
   res.on('finish', () => {
     const duration = Date.now() - start;
-    console.log(`${req.method} ${req.path} - ${res.statusCode} (${duration}ms)`);
+    // Only log in development or for slow requests
+    if (process.env.NODE_ENV !== 'production' || duration > 1000) {
+      console.log(`${req.method} ${req.path} - ${res.statusCode} (${duration}ms)`);
+    }
   });
   next();
 });
@@ -95,7 +139,7 @@ app.use((req, res, next) => {
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
-    message: 'Pairly API is running - v2.0',
+    message: 'Pairly API is running - v2.1 (Production Ready)',
     timestamp: new Date().toISOString(),
     uptime: process.uptime()
   });
@@ -114,18 +158,18 @@ app.get('/keep-alive', (req, res) => {
   });
 });
 
-// API routes
-app.use('/auth', authRoutes);
-app.use('/auth', inviteRoutes); // ✅ Add invite routes to /auth for app compatibility
-app.use('/pairs', pairRoutes);
-app.use('/moments', momentRoutes);
+// API routes with specific rate limits
+app.use('/auth', authLimiter, authRoutes); // Strict rate limit for auth
+app.use('/auth', authLimiter, inviteRoutes); // Invite routes also under auth
+app.use('/pairs', pairingLimiter, pairRoutes); // Pairing rate limit
+app.use('/moments', uploadLimiter, momentRoutes); // Upload rate limit
 app.use('/test', testRoutes);
 app.use('/users', userRoutes);
 app.use('/notes', noteRoutes);
 app.use('/timelock', timeLockRoutes);
-app.use('/dual-moments', dualCameraRoutes);
+app.use('/dual-moments', uploadLimiter, dualCameraRoutes); // Upload rate limit
 app.use('/widget', widgetRoutes);
-app.use('/invites', inviteRoutes);
+app.use('/invites', authLimiter, inviteRoutes);
 app.use('/config', configRoutes);
 
 // Socket.IO connection handling

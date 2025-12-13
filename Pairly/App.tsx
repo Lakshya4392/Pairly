@@ -38,7 +38,7 @@ const tokenCache = {
         console.log('✅ Token retrieved from SecureStore:', key);
         return token;
       }
-      
+
       // Fallback to AsyncStorage for APK
       const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
       const fallbackToken = await AsyncStorage.getItem(`clerk_${key}`);
@@ -46,7 +46,7 @@ const tokenCache = {
         console.log('✅ Token retrieved from AsyncStorage fallback:', key);
         return fallbackToken;
       }
-      
+
       return null;
     } catch (err) {
       console.error('❌ Error getting token:', err);
@@ -66,7 +66,7 @@ const tokenCache = {
       // Save to both SecureStore AND AsyncStorage for reliability
       await SecureStore.setItemAsync(key, value);
       console.log('✅ Token saved to SecureStore:', key);
-      
+
       // Also save to AsyncStorage as backup
       const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
       await AsyncStorage.setItem(`clerk_${key}`, value);
@@ -85,8 +85,9 @@ const tokenCache = {
   },
 };
 
-// Fallback if env variable fails
-const CLERK_KEY = 'pk_test_bmF0aXZlLWRlZXItOTkuY2xlcmsuYWNjb3VudHMuZGV2JA';
+// Clerk publishable key - use environment variable, fallback for development only
+const CLERK_KEY = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ||
+  (__DEV__ ? 'pk_test_bmF0aXZlLWRlZXItOTkuY2xlcmsuYWNjb3VudHMuZGV2JA' : '');
 
 // Error Boundary Component
 class ErrorBoundary extends React.Component<
@@ -165,13 +166,13 @@ export default function App() {
             }
           };
         }
-        
+
         console.log('✅ Inter fonts loaded and applied globally');
       } catch (error) {
         console.warn('⚠️ Font application failed:', error);
       }
     }
-    
+
     if (fontError) {
       console.warn('⚠️ Font loading error:', fontError);
     }
@@ -182,7 +183,7 @@ export default function App() {
     const initializeApp = async () => {
       // ⚡ CRASH FIX: Delay initialization to prevent React Native AssertionError
       await new Promise(resolve => setTimeout(resolve, 1000));
-      
+
       try {
         // ⚡ CRASH FIX: Initialize connection manager with error boundary
         const ConnectionManager = (await import('./src/utils/ConnectionManager')).default;
@@ -191,7 +192,7 @@ export default function App() {
       } catch (error) {
         console.error('❌ ConnectionManager init failed:', error);
       }
-      
+
       // ⚡ CRASH FIX: Initialize services with longer delay
       setTimeout(async () => {
         try {
@@ -202,14 +203,14 @@ export default function App() {
           console.error('❌ Error initializing SimpleMomentService:', error);
         }
       }, 2000); // Longer delay to prevent crashes
-      
+
       // Request notification permissions (fast)
       const NotificationService = (await import('./src/services/NotificationService')).default;
       const hasPermission = await NotificationService.requestPermissions();
-      
+
       if (hasPermission) {
         console.log('✅ Notification permissions granted');
-        
+
         // Setup notification listeners (non-blocking)
         NotificationService.setupListeners(
           (notification) => {
@@ -225,19 +226,19 @@ export default function App() {
       } else {
         console.warn('⚠️ Notification permissions denied');
       }
-      
+
       // ⚡ NEW: Check premium status on app launch
       setTimeout(async () => {
         try {
           const PremiumCheckService = (await import('./src/services/PremiumCheckService')).default;
           const status = await PremiumCheckService.checkPremiumStatus();
-          
+
           if (status.isPremium) {
             console.log(`⭐ Premium active: ${status.daysRemaining} days remaining`);
           } else {
             console.log(`⏰ Premium expired. Referrals: ${status.referralCount}/3`);
           }
-          
+
           // Check if we should show an alert
           const alert = await PremiumCheckService.getPremiumStatusAlert();
           if (alert.show) {
@@ -249,7 +250,7 @@ export default function App() {
         }
       }, 2000); // Check after 2 seconds to not block app startup
     };
-    
+
     initializeApp();
   }, []);
 
