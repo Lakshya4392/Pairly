@@ -4,7 +4,8 @@ import jwt, { SignOptions } from 'jsonwebtoken';
 import { prisma } from '../index';
 import { ApiResponse, UserResponse } from '../types';
 
-const JWT_SECRET: string = process.env.JWT_SECRET || 'your-secret-key';
+// JWT Secret - MUST match the secret in auth.ts middleware
+const JWT_SECRET: string = process.env.JWT_SECRET || 'dev-only-insecure-key';
 const JWT_EXPIRES_IN: string = process.env.JWT_EXPIRES_IN || '30d'; // 30 days for mobile apps
 
 /**
