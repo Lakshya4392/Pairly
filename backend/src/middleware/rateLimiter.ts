@@ -96,11 +96,11 @@ export const generalLimiter = createRateLimiter({
 });
 
 /**
- * Auth rate limit - 10 requests per minute (strict for login/register)
+ * Auth rate limit - 30 requests per minute (increased for mobile app foreground/background)
  */
 export const authLimiter = createRateLimiter({
     windowMs: 60 * 1000, // 1 minute
-    maxRequests: 10,
+    maxRequests: 30,
     message: 'Too many authentication attempts, please try again in a minute.',
 });
 

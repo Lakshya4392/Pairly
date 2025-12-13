@@ -26,6 +26,7 @@ class MainApplication : Application(), ReactApplication {
               // Packages that cannot be autolinked yet can be added manually here, for example:
               // add(MyReactNativePackage())
               add(SharedPrefsPackage()) // For widget auth token access
+              add(PairlyWidgetPackage()) // For widget control (hasWidgets, refresh, etc)
             }
 
           override fun getJSMainModuleName(): String = ".expo/.virtual-metro-entry"
