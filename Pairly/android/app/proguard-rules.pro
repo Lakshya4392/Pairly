@@ -12,3 +12,19 @@
 -keep class com.facebook.react.turbomodule.** { *; }
 
 # Add any project specific keep options here:
+
+# Pairly Widget - CRITICAL: prevent obfuscation of widget classes
+-keep class com.pairly.app.widget.** { *; }
+-keep class com.pairly.app.PairlyWidgetModule { *; }
+-keep class com.pairly.app.PairlyWidgetPackage { *; }
+-keep class com.pairly.app.SharedPrefsModule { *; }
+-keep class com.pairly.app.SharedPrefsPackage { *; }
+
+# Keep all AppWidgetProviders
+-keep class * extends android.appwidget.AppWidgetProvider { *; }
+
+# Keep RemoteViews related classes
+-keep class android.widget.RemoteViews { *; }
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}

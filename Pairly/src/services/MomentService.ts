@@ -61,11 +61,10 @@ class SimpleMomentService {
       console.log('📤 [UPLOAD] Uploading to backend...');
 
       // 3. Upload to backend
+      // NOTE: Do NOT set Content-Type manually - axios will auto-generate with boundary
       const response: any = await apiClient.post('/moments/upload', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
         timeout: 30000, // 30 second timeout
+        // headers: Content-Type is auto-set by axios for FormData with proper boundary
       });
 
       if (!response.data?.success) {

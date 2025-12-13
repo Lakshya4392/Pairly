@@ -1,123 +1,91 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_container"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/widget_background_3x3"
-    android:padding="8dp"
-    android:clickable="true"
-    android:focusable="true">
+    android:padding="8dp">
 
-    <!-- Header with title -->
+    <!-- Card Background -->
     <LinearLayout
-        android:id="@+id/widget_header"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_alignParentTop="true"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:layout_marginBottom="8dp">
-
-        <ImageView
-            android:layout_width="20dp"
-            android:layout_height="20dp"
-            android:src="@drawable/widget_heart"
-            android:layout_marginEnd="6dp" />
-
-        <TextView
-            android:id="@+id/widget_title"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Pairly"
-            android:textColor="#FF6B9D"
-            android:textSize="16sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/widget_status_text"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Ready"
-            android:textColor="#888888"
-            android:textSize="10sp" />
-
-    </LinearLayout>
-
-    <!-- Main image area (3x3 optimized) -->
-    <FrameLayout
-        android:id="@+id/widget_image_container"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_below="@id/widget_header"
-        android:layout_above="@id/widget_footer"
-        android:layout_marginTop="4dp"
-        android:layout_marginBottom="4dp">
+        android:orientation="vertical"
+        android:background="@drawable/widget_card_bg"
+        android:padding="12dp">
 
-        <ImageView
-            android:id="@+id/widget_image"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:src="@drawable/widget_placeholder"
-            android:scaleType="centerCrop"
-            android:background="@drawable/rounded_background" />
-
-        <!-- Overlay for text on image -->
+        <!-- Header Row -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_gravity="bottom"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:background="#80000000"
-            android:padding="8dp">
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
 
             <TextView
-                android:id="@+id/widget_main_text"
-                android:layout_width="wrap_content"
+                android:id="@+id/widget_title"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:text="Share a Moment"
-                android:textColor="#FFFFFF"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                android:layout_marginBottom="2dp" />
+                android:layout_weight="1"
+                android:text="💕 Pairly"
+                android:textColor="#FF6B9D"
+                android:textSize="15sp"
+                android:textStyle="bold" />
 
             <TextView
-                android:id="@+id/widget_sub_text"
+                android:id="@+id/widget_status_text"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Tap to capture &amp; send"
-                android:textColor="#CCCCCC"
-                android:textSize="12sp" />
+                android:text="Ready"
+                android:textColor="#888888"
+                android:textSize="11sp" />
 
         </LinearLayout>
 
-    </FrameLayout>
+        <!-- Image Container -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="8dp">
 
-    <!-- Footer with connection status -->
-    <LinearLayout
-        android:id="@+id/widget_footer"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_alignParentBottom="true"
-        android:orientation="horizontal"
-        android:gravity="center"
-        android:layout_marginTop="4dp">
+            <ImageView
+                android:id="@+id/widget_image"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="centerCrop"
+                android:src="@drawable/widget_placeholder" />
 
-        <View
-            android:id="@+id/widget_status_dot"
-            android:layout_width="6dp"
-            android:layout_height="6dp"
-            android:background="@drawable/widget_status_dot"
-            android:layout_marginEnd="4dp" />
+            <!-- Overlay for text -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:background="#88000000"
+                android:padding="8dp">
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Connected"
-            android:textColor="#666666"
-            android:textSize="10sp" />
+                <TextView
+                    android:id="@+id/widget_main_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Share a Moment"
+                    android:textColor="#FFFFFF"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/widget_sub_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Tap to capture"
+                    android:textColor="#CCCCCC"
+                    android:textSize="11sp" />
+
+            </LinearLayout>
+
+        </FrameLayout>
 
     </LinearLayout>
 
-</RelativeLayout>
+</FrameLayout>
