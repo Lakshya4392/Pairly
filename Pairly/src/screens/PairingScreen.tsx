@@ -70,7 +70,7 @@ export const PairingScreen: React.FC<PairingScreenProps> = ({ onPairingComplete,
       // Ensure socket is connected for INSTANT pairing detection
       if (!SocketConnectionService.isConnected() && user) {
         console.log('🔌 Initializing socket for instant pairing...');
-        await SocketConnectionService.initialize(user.id);
+        await SocketConnectionService.initialize(user.clerkId);
       }
 
       setUserName(displayName);
@@ -121,7 +121,7 @@ export const PairingScreen: React.FC<PairingScreenProps> = ({ onPairingComplete,
       // Ensure socket is connected for INSTANT pairing detection
       if (!SocketConnectionService.isConnected() && user) {
         console.log('🔌 Initializing socket for instant pairing...');
-        await SocketConnectionService.initialize(user.id);
+        await SocketConnectionService.initialize(user.clerkId);
       }
 
       // Try to join with code FIRST before showing anything

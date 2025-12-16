@@ -144,25 +144,36 @@ export const updatePremiumStatus = async (
 
 /**
  * Update user's FCM token
+ * Accepts userId which can be either clerkId or database ID
  */
 export const updateFCMToken = async (
   req: Request,
   res: Response
 ): Promise<void> => {
   try {
-    const { userId, fcmToken } = req.body;
+    const { userId, clerkId, fcmToken } = req.body;
 
-    if (!userId || !fcmToken) {
+    // Accept either userId or clerkId
+    const userIdentifier = clerkId || userId;
+
+    if (!userIdentifier || !fcmToken) {
       res.status(400).json({
         success: false,
-        error: 'User ID and FCM token are required',
+        error: 'User ID/ClerkId and FCM token are required',
       } as ApiResponse);
       return;
     }
 
-    const user = await prisma.user.findUnique({ where: { id: userId } });
+    // Try to find user by clerkId first (preferred), then by database ID
+    let user = await prisma.user.findUnique({ where: { clerkId: userIdentifier } });
 
     if (!user) {
+      // Fallback: try as database ID
+      user = await prisma.user.findUnique({ where: { id: userIdentifier } });
+    }
+
+    if (!user) {
+      console.log(`⚠️ User not found for identifier: ${userIdentifier}`);
       res.status(404).json({
         success: false,
         error: 'User not found',
@@ -172,11 +183,11 @@ export const updateFCMToken = async (
 
     // Update FCM token in database
     await prisma.user.update({
-      where: { id: userId },
+      where: { id: user.id },
       data: { fcmToken },
     });
 
-    console.log(`✅ FCM token updated for user ${userId}`);
+    console.log(`✅ FCM token updated for user ${user.displayName} (${user.id})`);
 
     res.json({
       success: true,

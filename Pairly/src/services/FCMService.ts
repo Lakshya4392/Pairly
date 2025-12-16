@@ -47,31 +47,51 @@ class FCMService {
       console.error('❌ FCM initialization error:', error);
     }
   }
-
   /**
    * Register FCM token with backend
+   * Uses clerkId for consistency with socket system
    */
   private async registerTokenWithBackend(token: string): Promise<void> {
     try {
-      const userId = await AsyncStorage.getItem('userId');
-      if (!userId) {
-        console.log('⚠️ No userId found, skipping FCM registration');
+      // Get clerkId from stored user object
+      const userJson = await AsyncStorage.getItem('pairly_user');
+      let clerkId: string | null = null;
+      let userId: string | null = null;
+
+      if (userJson) {
+        try {
+          const user = JSON.parse(userJson);
+          clerkId = user.clerkId; // ⚡ Use clerkId for consistency
+          userId = user.id;       // Fallback: database ID
+        } catch (e) {
+          console.log('⚠️ Failed to parse user JSON');
+        }
+      }
+
+      // Must have at least one identifier
+      if (!clerkId && !userId) {
+        console.log('⚠️ No user identifier found, skipping FCM registration');
         return;
       }
+
+      // Get auth token for authenticated request
+      const authToken = await AsyncStorage.getItem('auth_token');
 
       const response = await fetch(`${API_CONFIG.baseUrl}/users/fcm-token`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}),
         },
         body: JSON.stringify({
-          userId,
+          clerkId,      // ⚡ Send clerkId (preferred)
+          userId,       // Also send userId as fallback
           fcmToken: token,
         }),
       });
 
       if (response.ok) {
-        console.log('✅ FCM token registered with backend');
+        console.log('✅ FCM token registered for:', clerkId || userId);
       } else {
         console.log('⚠️ Failed to register FCM token:', response.status);
       }

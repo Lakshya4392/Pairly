@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Alert, Platform, AppState } from 'react-native';
+import { View, StyleSheet, Alert, Platform, AppState, NativeModules } from 'react-native';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as FileSystem from 'expo-file-system';
 import { SplashScreen } from '../screens/SplashScreen';
 import { OnboardingScreen } from '../screens/OnboardingScreen';
 import { AuthScreen } from '../screens/AuthScreen';
@@ -219,10 +220,31 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
           // Trigger gallery refresh (will fetch from API)
           RealtimeService.emit('gallery_refresh', { timestamp: Date.now() });
 
-          // 🔥 WIDGET FIX: Trigger widget refresh immediately
-          if (WidgetService) {
-            console.log('📱 Triggering widget update for new moment');
-            await WidgetService.triggerRefresh();
+          // 🔥 WIDGET FIX: Download photo and update widget via SharedPrefs
+          if (Platform.OS === 'android' && data.photoUrl) {
+            try {
+              const { SharedPrefsModule } = NativeModules;
+
+              const fileName = 'widget_moment_latest.jpg';
+              // Cast to any to avoid TS errors with some Expo versions
+              const fs = FileSystem as any;
+              const docDir = fs.documentDirectory || fs.cacheDirectory;
+              const localUri = `${docDir}${fileName}`;
+
+              console.log('📥 [Socket] Downloading photo for widget:', data.photoUrl);
+              const downloadResult = await FileSystem.downloadAsync(data.photoUrl, localUri);
+
+              if (downloadResult.status === 200 && SharedPrefsModule) {
+                const cleanPath = downloadResult.uri.replace('file://', '');
+                await SharedPrefsModule.setString('last_moment_path', cleanPath);
+                await SharedPrefsModule.setString('last_moment_timestamp', Date.now().toString());
+                await SharedPrefsModule.setString('last_moment_sender', data.partnerName || 'Partner');
+                await SharedPrefsModule.notifyWidgetUpdate();
+                console.log('✅ [Socket] Widget updated with new photo!');
+              }
+            } catch (widgetError) {
+              console.log('⚠️ Widget photo update failed:', widgetError);
+            }
           }
 
           console.log('✅ Notification sent, gallery and widget refreshing');
