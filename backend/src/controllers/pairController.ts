@@ -224,6 +224,47 @@ export const joinWithCode = async (req: AuthRequest, res: Response): Promise<voi
 
     console.log(`✅ Pairing ${pair.user1.displayName} with ${user2.displayName}`);
 
+    // ⚡ FIX: Delete any existing pairs where user2 is already a member
+    // This prevents the unique constraint error on user2Id
+    const existingPairs = await prisma.pair.findMany({
+      where: {
+        OR: [
+          { user1Id: userId },
+          { user2Id: userId },
+        ],
+      },
+    });
+
+    if (existingPairs.length > 0) {
+      console.log(`🧹 Cleaning up ${existingPairs.length} existing pair(s) for user ${userId}`);
+
+      // Notify existing partners about disconnection
+      for (const existingPair of existingPairs) {
+        const existingPartnerId = existingPair.user1Id === userId
+          ? existingPair.user2Id
+          : existingPair.user1Id;
+
+        if (existingPartnerId) {
+          io.to(existingPartnerId).emit('partner_disconnected', {
+            reason: 'partner_repaired',
+            timestamp: new Date().toISOString(),
+          });
+          console.log(`📤 Notified ${existingPartnerId} about disconnection`);
+        }
+      }
+
+      // Delete all existing pairs
+      await prisma.pair.deleteMany({
+        where: {
+          OR: [
+            { user1Id: userId },
+            { user2Id: userId },
+          ],
+        },
+      });
+      console.log(`✅ Existing pairs deleted`);
+    }
+
     // Update pair with user2 - TRANSACTION for safety
     const updatedPair = await prisma.$transaction(async (tx) => {
       // Double-check the pair still exists and is valid

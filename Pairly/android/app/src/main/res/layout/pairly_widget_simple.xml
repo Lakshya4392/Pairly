@@ -1,72 +1,48 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Ultra Simple Pairly Widget - NO CUSTOM DRAWABLES -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_container"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:padding="8dp">
+    android:background="#1A1A1A">
 
-    <!-- Background with rounded corners (simulated) -->
-    <FrameLayout
+    <!-- Full Photo -->
+    <ImageView
+        android:id="@+id/widget_image"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="@drawable/widget_card_bg">
+        android:scaleType="centerCrop" />
 
-        <!-- Full Bleed Image -->
-        <ImageView
-            android:id="@+id/widget_image"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:scaleType="centerCrop"
-            android:src="@drawable/widget_placeholder" />
+    <!-- Tiny Heart (top right) -->
+    <TextView
+        android:id="@+id/widget_heart_icon"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="8dp"
+        android:layout_marginEnd="10dp"
+        android:text="♥"
+        android:textColor="#FF6B6B"
+        android:textSize="12sp" />
 
-        <!-- Gradient Overlay (Bottom) -->
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="80dp"
-            android:layout_gravity="bottom"
-            android:background="@drawable/widget_gradient_overlay" />
+    <!-- Partner Name (bottom left) -->
+    <TextView
+        android:id="@+id/widget_sender_name"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|start"
+        android:layout_marginStart="12dp"
+        android:layout_marginBottom="10dp"
+        android:text="Pairly"
+        android:textColor="#FFFFFF"
+        android:textSize="14sp"
+        android:textStyle="bold" />
 
-        <!-- Heart Icon (Top Right) -->
-        <ImageView
-            android:id="@+id/widget_heart_icon"
-            android:layout_width="20dp"
-            android:layout_height="20dp"
-            android:layout_gravity="top|end"
-            android:layout_marginTop="12dp"
-            android:layout_marginEnd="12dp"
-            android:src="@drawable/widget_heart"
-            android:contentDescription="@null" />
-
-        <!-- Text Info (Bottom Left) -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_gravity="bottom"
-            android:orientation="vertical"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp"
-            android:paddingBottom="12dp">
-
-            <TextView
-                android:id="@+id/widget_sender_name"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Pairly"
-                android:textColor="#FFFFFF"
-                android:textSize="15sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/widget_timestamp"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:text="Tap to share"
-                android:textColor="#CCCCCC"
-                android:textSize="11sp" />
-
-        </LinearLayout>
-
-    </FrameLayout>
+    <!-- Hidden timestamp -->
+    <TextView
+        android:id="@+id/widget_timestamp"
+        android:layout_width="1dp"
+        android:layout_height="1dp"
+        android:visibility="gone" />
 
 </FrameLayout>

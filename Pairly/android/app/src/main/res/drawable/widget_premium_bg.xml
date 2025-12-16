@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <!-- Rounded corners for premium look -->
+    <corners android:radius="20dp" />
+    <!-- White background with slight transparency -->
+    <solid android:color="#FFFFFFFF" />
+</shape>

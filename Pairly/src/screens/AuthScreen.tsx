@@ -83,7 +83,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
 
       // 2. NEW: Verify email and get premium status
       console.log('🔍 Verifying email and checking premium status...');
-      
+
       const response = await fetch(`${API_CONFIG.baseUrl}/auth/verify-email`, {
         method: 'POST',
         headers: {
@@ -108,14 +108,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
         await AsyncStorage.setItem('referralCount', data.referralCount?.toString() || '0');
         await AsyncStorage.setItem('userEmail', user?.primaryEmailAddress?.emailAddress || '');
         await AsyncStorage.setItem('clerkId', user?.id || '');
-        
+
         // Show premium status
         if (data.isPremium) {
           console.log(`⭐ Premium active: ${data.premiumDaysRemaining} days remaining`);
         } else {
           console.log('⏰ Premium expired - refer friends to unlock!');
         }
-        
+
         // Allow access
         onAuthSuccess();
       } else {
@@ -223,6 +223,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
         signUpSessionId: result.signUp?.createdSessionId,
       }, null, 2));
 
+
       // Try to dismiss browser
       try {
         await WebBrowser.dismissBrowser();
@@ -231,34 +232,61 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
         console.log('🔵 Browser already closed or auto-dismissed');
       }
 
+      // ⚡ FIX: Add small delay to let browser redirect complete
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Helper function to activate session with retry
+      const activateSession = async (sessionId: string): Promise<boolean> => {
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            console.log(`🔵 Activating session (attempt ${attempt}/3)...`);
+            await result.setActive!({ session: sessionId });
+            console.log('✅ Session activated!');
+            return true;
+          } catch (err: any) {
+            console.log(`⚠️ Session activation attempt ${attempt} failed:`, err.message);
+            if (attempt < 3) {
+              await new Promise(resolve => setTimeout(resolve, 500));
+            }
+          }
+        }
+        return false;
+      };
+
       // Check for direct session
       if (result.createdSessionId) {
         console.log('✅ Direct session created!');
         console.log('✅ Session ID:', result.createdSessionId);
-        await result.setActive!({ session: result.createdSessionId });
-        console.log('✅ Session activated - Google sign-in successful!');
-        console.log('🔵 ========== OAUTH SUCCESS ==========');
-        return;
+        const activated = await activateSession(result.createdSessionId);
+        if (activated) {
+          console.log('✅ Google sign-in successful!');
+          console.log('🔵 ========== OAUTH SUCCESS ==========');
+          return;
+        }
       }
 
       // Check SignUp flow
       if (result.signUp?.status === 'complete' && result.signUp.createdSessionId) {
         console.log('✅ Sign-up flow completed!');
         console.log('✅ Session ID:', result.signUp.createdSessionId);
-        await result.setActive!({ session: result.signUp.createdSessionId });
-        console.log('✅ Session activated - Account created successfully!');
-        console.log('🔵 ========== OAUTH SUCCESS (SIGNUP) ==========');
-        return;
+        const activated = await activateSession(result.signUp.createdSessionId);
+        if (activated) {
+          console.log('✅ Account created successfully!');
+          console.log('🔵 ========== OAUTH SUCCESS (SIGNUP) ==========');
+          return;
+        }
       }
 
       // Check SignIn flow
       if (result.signIn?.status === 'complete' && result.signIn.createdSessionId) {
         console.log('✅ Sign-in flow completed!');
         console.log('✅ Session ID:', result.signIn.createdSessionId);
-        await result.setActive!({ session: result.signIn.createdSessionId });
-        console.log('✅ Session activated - Signed in successfully!');
-        console.log('🔵 ========== OAUTH SUCCESS (SIGNIN) ==========');
-        return;
+        const activated = await activateSession(result.signIn.createdSessionId);
+        if (activated) {
+          console.log('✅ Signed in successfully!');
+          console.log('🔵 ========== OAUTH SUCCESS (SIGNIN) ==========');
+          return;
+        }
       }
 
       // Handle incomplete states
