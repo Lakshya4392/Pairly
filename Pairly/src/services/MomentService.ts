@@ -8,6 +8,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import { SaveFormat } from 'expo-image-manipulator';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import apiClient from '../utils/apiClient';
+import { API_CONFIG } from '../config/api.config';
 import RealtimeService from './RealtimeService';
 
 export interface Photo {
@@ -62,21 +63,49 @@ class SimpleMomentService {
 
       // 3. Upload to backend
       // NOTE: Do NOT set Content-Type manually - axios will auto-generate with boundary
-      const response: any = await apiClient.post('/moments/upload', formData, {
-        timeout: 30000, // 30 second timeout
-        // headers: Content-Type is auto-set by axios for FormData with proper boundary
+      // 3. Upload to backend
+      // NOTE: We use direct fetch here because apiClient forces JSON.stringify which breaks FormData
+      const token = await AsyncStorage.getItem('auth_token');
+      const uploadUrl = API_CONFIG.baseUrl + '/moments/upload';
+
+      console.log('📡 [UPLOAD] Direct fetch to:', uploadUrl);
+
+      const response = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          // Content-Type: 'multipart/form-data' is set automatically by fetch with boundary
+        },
+        body: formData,
       });
 
-      if (!response.data?.success) {
-        throw new Error(response.data?.error || 'Upload failed');
+      const responseText = await response.text();
+      let responseData;
+
+      try {
+        responseData = JSON.parse(responseText);
+      } catch (e) {
+        console.error('❌ [UPLOAD] Invalid JSON response:', responseText);
+        throw new Error('Invalid response from server');
       }
 
-      console.log('✅ [UPLOAD] Upload successful:', response.data.data.moment.id);
+      if (!response.ok || !responseData.success) {
+        throw new Error(responseData.error || `Upload failed: ${response.status}`);
+      }
+
+      console.log('✅ [UPLOAD] Upload successful:', responseData.data.moment.id);
+
+      // Map to expected local structure for the rest of the function
+      const data = {
+        data: responseData
+      };
+
+
 
       // 4. Save metadata locally (NOT the photo)
       const metadata: MomentMetadata = {
-        momentId: response.data.data.moment.id,
-        timestamp: response.data.data.uploadedAt,
+        momentId: responseData.data.moment.id,
+        timestamp: responseData.data.uploadedAt,
         sender: 'me',
       };
 

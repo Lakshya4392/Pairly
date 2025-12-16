@@ -4,6 +4,7 @@
  */
 
 import { NativeModules, Platform } from 'react-native';
+import { API_CONFIG } from '../config/api.config';
 
 const { PairlyWidget } = NativeModules;
 
@@ -70,6 +71,12 @@ class SimpleWidgetService {
 
       if (isSupported) {
         console.log('✅ Widget is on home screen - will auto-refresh from backend');
+
+        // Sync Backend URL to native widget
+        if (PairlyWidget && PairlyWidget.saveBackendUrl) {
+          await PairlyWidget.saveBackendUrl(API_CONFIG.baseUrl);
+          console.log('✅ Backend URL synced to widget:', API_CONFIG.baseUrl);
+        }
       } else {
         console.log('⚠️ No widget on home screen');
       }
@@ -106,8 +113,14 @@ class SimpleWidgetService {
     try {
       const hasWidgets = await this.hasWidgets();
       if (hasWidgets) {
-        console.log('📱 Widget refresh triggered (widget will poll backend)');
-        // Widget native code will handle the actual API call and update
+        console.log('📱 Widget refresh triggered (calling native refresh)');
+        // Call native module to refresh widget
+        if (PairlyWidget && PairlyWidget.refreshWidget) {
+          await PairlyWidget.refreshWidget();
+          console.log('✅ Native widget refresh requested');
+        } else {
+          console.warn('⚠️ PairlyWidget native module missing refreshWidget method');
+        }
       }
     } catch (error) {
       console.error('Error triggering widget refresh:', error);

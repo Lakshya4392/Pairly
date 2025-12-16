@@ -71,8 +71,12 @@ class PairlyWidget : AppWidgetProvider() {
                 val prefs = context.getSharedPreferences("pairly_prefs", Context.MODE_PRIVATE)
                 val authToken = prefs.getString("auth_token", null) ?: return null
                 val userId = prefs.getString("user_id", null) ?: return null
+                val savedBaseUrl = prefs.getString("backend_url", API_URL)
+                
+                // Remove trailing slash if present to avoid double slashes
+                val baseUrl = savedBaseUrl?.trimEnd('/') ?: API_URL
 
-                val url = URL("$API_URL/moments/latest?userId=$userId")
+                val url = URL("$baseUrl/moments/latest?userId=$userId")
                 val connection = url.openConnection() as HttpURLConnection
                 connection.requestMethod = "GET"
                 connection.setRequestProperty("Authorization", "Bearer $authToken")

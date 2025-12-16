@@ -6,6 +6,11 @@ import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.Promise
 
+import android.appwidget.AppWidgetManager
+import android.content.Intent
+import android.content.ComponentName
+import com.pairly.app.widget.PairlyWidget
+
 class SharedPrefsModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
 
     override fun getName(): String {
@@ -52,10 +57,21 @@ class SharedPrefsModule(reactContext: ReactApplicationContext) : ReactContextBas
     @ReactMethod
     fun notifyWidgetUpdate(promise: Promise) {
         try {
-            val intent = android.content.Intent("com.pairly.app.widget.REFRESH")
-            intent.setPackage(reactApplicationContext.packageName)
-            reactApplicationContext.sendBroadcast(intent)
-            promise.resolve(true)
+            val context = reactApplicationContext
+            val appWidgetManager = AppWidgetManager.getInstance(context)
+            val componentName = ComponentName(context, PairlyWidget::class.java)
+            val widgetIds = appWidgetManager.getAppWidgetIds(componentName)
+
+            if (widgetIds.isNotEmpty()) {
+                val intent = Intent(context, PairlyWidget::class.java).apply {
+                    action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
+                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, widgetIds)
+                }
+                context.sendBroadcast(intent)
+                promise.resolve(true)
+            } else {
+                promise.resolve(false)
+            }
         } catch (e: Exception) {
             promise.reject("ERROR", e.message)
         }

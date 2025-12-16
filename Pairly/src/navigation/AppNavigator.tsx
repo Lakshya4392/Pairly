@@ -110,12 +110,12 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
       if (clerkToken) {
         await AsyncStorage.setItem('auth_token', clerkToken);
         console.log('✅ Auth token stored for socket connection');
-        
+
         // 🔥 WIDGET FIX: Also store in SharedPreferences for widget access
         try {
           const { NativeModules } = require('react-native');
           const { SharedPrefsModule } = NativeModules;
-          
+
           if (SharedPrefsModule) {
             await SharedPrefsModule.setString('auth_token', clerkToken);
             await SharedPrefsModule.setString('user_id', user.id);
@@ -219,7 +219,13 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
           // Trigger gallery refresh (will fetch from API)
           RealtimeService.emit('gallery_refresh', { timestamp: Date.now() });
 
-          console.log('✅ Notification sent, gallery will refresh');
+          // 🔥 WIDGET FIX: Trigger widget refresh immediately
+          if (WidgetService) {
+            console.log('📱 Triggering widget update for new moment');
+            await WidgetService.triggerRefresh();
+          }
+
+          console.log('✅ Notification sent, gallery and widget refreshing');
         } catch (error) {
           console.error('Error handling moment_available:', error);
         }
