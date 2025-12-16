@@ -22,7 +22,7 @@ import { shadows } from '../theme/shadowsIOS';
 interface PairingScreenProps {
   onPairingComplete: () => void;
   onSkipPairing?: () => void;
-  onShowConnectionScreen?: (code: string, userName: string) => void;
+  onShowConnectionScreen?: (code: string, userName: string, mode?: 'waiting' | 'connected', partnerName?: string) => void;
 }
 
 export const PairingScreen: React.FC<PairingScreenProps> = ({ onPairingComplete, onSkipPairing, onShowConnectionScreen }) => {
@@ -124,12 +124,7 @@ export const PairingScreen: React.FC<PairingScreenProps> = ({ onPairingComplete,
         await SocketConnectionService.initialize(user.id);
       }
 
-      // Show connection screen immediately with waiting state
-      if (onShowConnectionScreen) {
-        onShowConnectionScreen(inviteCode, displayName);
-      }
-
-      // Try to join with code
+      // Try to join with code FIRST before showing anything
       const pair = await PairingService.joinWithCode(inviteCode);
 
       // Connection successful - store pair data
@@ -137,30 +132,35 @@ export const PairingScreen: React.FC<PairingScreenProps> = ({ onPairingComplete,
       console.log('✅ Successfully joined with code, pair stored');
 
       setLoading(false);
+
+      // ⚡ FIX: Show connection animation with CONNECTED state, then navigate to home!
+      const partnerDisplayName = pair.partner?.displayName || 'Partner';
+      if (onShowConnectionScreen) {
+        console.log('🎉 Showing connection success animation with partner:', partnerDisplayName);
+        onShowConnectionScreen(inviteCode, displayName, 'connected', partnerDisplayName);
+        // The connection screen will auto-navigate to home after 2 seconds
+      } else {
+        console.log('🏠 Navigating directly to home...');
+        onPairingComplete();
+      }
+
     } catch (error: any) {
       setLoading(false);
+      console.error('Join error:', error.message);
 
-      // Only show error if we haven't navigated to connection screen yet
-      if (!onShowConnectionScreen) {
-        Alert.alert('Error', error.message || 'Invalid or expired code');
-      } else {
-        // If already on connection screen, show error and go back
-        console.error('Join error:', error.message);
-        Alert.alert(
-          'Connection Error',
-          error.message || 'Invalid or expired code. Please try again.',
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                // Go back to pairing screen
-                setMode('choose');
-                setInviteCode('');
-              }
+      Alert.alert(
+        'Connection Error',
+        error.message || 'Invalid or expired code. Please try again.',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              setMode('choose');
+              setInviteCode('');
             }
-          ]
-        );
-      }
+          }
+        ]
+      );
     }
   };
 

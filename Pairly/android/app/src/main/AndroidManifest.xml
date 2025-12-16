@@ -40,6 +40,13 @@
         <category android:name="android.intent.category.BROWSABLE"/>
         <data android:scheme="pairly"/>
       </intent-filter>
+      <!-- OAuth Callback Intent Filter -->
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW"/>
+        <category android:name="android.intent.category.DEFAULT"/>
+        <category android:name="android.intent.category.BROWSABLE"/>
+        <data android:scheme="pairly" android:host="oauth-native-callback"/>
+      </intent-filter>
       <intent-filter android:autoVerify="true" data-generated="true">
         <action android:name="android.intent.action.VIEW"/>
         <data android:scheme="pairly"/>

@@ -38,12 +38,25 @@ export const PairingConnectionScreen: React.FC<PairingConnectionScreenProps> = (
   const [partnerName, setPartnerName] = useState(initialPartnerName);
   const [timeoutReached, setTimeoutReached] = useState(false);
   const [remainingTime, setRemainingTime] = useState<string>('15:00');
-  
+
   // Animations
   const pulseAnim = new Animated.Value(1);
   const rotateAnim = new Animated.Value(0);
   const connectLineAnim = new Animated.Value(0);
   const successScaleAnim = new Animated.Value(0);
+
+  // ⚡ FIX: Auto-navigate to home if initialized with 'connected' mode
+  useEffect(() => {
+    if (initialMode === 'connected') {
+      console.log('🎉 Screen opened with connected mode, auto-navigating in 2s...');
+      const timer = setTimeout(() => {
+        console.log('🏠 Auto-navigating to home...');
+        onGoHome();
+      }, 2000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [initialMode, onGoHome]);
 
   // Setup INSTANT realtime listener - NO TIMEOUT until code expires (15 minutes)
   useEffect(() => {
@@ -56,19 +69,19 @@ export const PairingConnectionScreen: React.FC<PairingConnectionScreenProps> = (
       try {
         const SocketConnectionService = (await import('../services/SocketConnectionService')).default;
         const PairingService = (await import('../services/PairingService')).default;
-        
+
         console.log('🔌 Setting up INSTANT connection listeners...');
-        
+
         // Listen for partner connection via socket
         const handlePairingEvent = async (data: any) => {
           console.log('🎉 Pairing event received:', data);
-          
+
           if (!mounted) return;
-          
+
           // Clear polling since we got the event
           if (pollingInterval) clearInterval(pollingInterval);
           if (countdownInterval) clearInterval(countdownInterval);
-          
+
           // Store partner info from socket event
           if (data.partner) {
             const partnerInfo: any = {
@@ -79,7 +92,7 @@ export const PairingConnectionScreen: React.FC<PairingConnectionScreenProps> = (
               photoUrl: data.partner.photoUrl,
               createdAt: new Date().toISOString(),
             };
-            
+
             // Create pair object and store it
             const pair: any = {
               id: data.pairId || 'temp-id',
@@ -88,14 +101,14 @@ export const PairingConnectionScreen: React.FC<PairingConnectionScreenProps> = (
               pairedAt: new Date().toISOString(),
               partner: partnerInfo,
             };
-            
+
             await PairingService.storePair(pair);
             console.log('✅ Pair data stored from socket event');
-            
+
             if (mounted) {
               setPartnerName(partnerInfo.displayName);
               setMode('connected');
-              
+
               // Auto-redirect to home after 2 seconds
               setTimeout(() => {
                 if (mounted) {
@@ -111,7 +124,7 @@ export const PairingConnectionScreen: React.FC<PairingConnectionScreenProps> = (
               if (partner && mounted) {
                 setPartnerName(partner.displayName || 'Partner');
                 setMode('connected');
-                
+
                 // Auto-redirect to home after 2 seconds
                 setTimeout(() => {
                   if (mounted) {
@@ -126,7 +139,7 @@ export const PairingConnectionScreen: React.FC<PairingConnectionScreenProps> = (
               if (mounted) {
                 setPartnerName('Partner');
                 setMode('connected');
-                
+
                 // Auto-redirect to home after 2 seconds
                 setTimeout(() => {
                   if (mounted) {
@@ -146,16 +159,16 @@ export const PairingConnectionScreen: React.FC<PairingConnectionScreenProps> = (
         // Start countdown timer for code expiry (15 minutes)
         const startTime = Date.now();
         const expiryDuration = 15 * 60 * 1000; // 15 minutes in milliseconds
-        
+
         countdownInterval = setInterval(() => {
           if (!mounted || mode !== 'waiting') {
             clearInterval(countdownInterval);
             return;
           }
-          
+
           const elapsed = Date.now() - startTime;
           const remaining = expiryDuration - elapsed;
-          
+
           if (remaining <= 0) {
             // Code expired
             clearInterval(countdownInterval);
@@ -183,7 +196,7 @@ export const PairingConnectionScreen: React.FC<PairingConnectionScreenProps> = (
             clearInterval(pollingInterval);
             return;
           }
-          
+
           // Check if code expired
           const elapsed = Date.now() - startTime;
           if (elapsed >= expiryDuration) {
@@ -194,13 +207,13 @@ export const PairingConnectionScreen: React.FC<PairingConnectionScreenProps> = (
             }
             return;
           }
-          
+
           pollCount++;
           if (pollCount % 10 === 0) {
             // Log every 10 seconds to avoid spam
             console.log(`🔄 Still waiting for partner... (${pollCount}s elapsed)`);
           }
-          
+
           try {
             const partner = await PairingService.getPartner();
             if (partner && mounted) {
@@ -209,7 +222,7 @@ export const PairingConnectionScreen: React.FC<PairingConnectionScreenProps> = (
               clearInterval(countdownInterval);
               setPartnerName(partner.displayName || 'Partner');
               setMode('connected');
-              
+
               // Auto-redirect to home after 2 seconds
               setTimeout(() => {
                 if (mounted) {
@@ -340,8 +353,8 @@ export const PairingConnectionScreen: React.FC<PairingConnectionScreenProps> = (
           {mode === 'waiting' ? 'Waiting for Connection' : 'Connected! 🎉'}
         </Text>
         <Text style={styles.subtitle}>
-          {mode === 'waiting' 
-            ? 'Share your code with your partner' 
+          {mode === 'waiting'
+            ? 'Share your code with your partner'
             : `You're now connected with ${partnerName}`
           }
         </Text>
@@ -370,13 +383,13 @@ export const PairingConnectionScreen: React.FC<PairingConnectionScreenProps> = (
           <View style={styles.connectionLineContainer}>
             {mode === 'waiting' ? (
               // Searching Animation
-              <Animated.View 
+              <Animated.View
                 style={[
                   styles.searchingDots,
                   { transform: [{ scale: pulseAnim }] }
                 ]}
               >
-                <Animated.View 
+                <Animated.View
                   style={[
                     styles.searchIcon,
                     { transform: [{ rotate: rotateInterpolate }] }
@@ -388,13 +401,13 @@ export const PairingConnectionScreen: React.FC<PairingConnectionScreenProps> = (
             ) : (
               // Connected Line
               <>
-                <Animated.View 
+                <Animated.View
                   style={[
                     styles.connectionLine,
                     { width: lineWidth }
                   ]}
                 />
-                <Animated.View 
+                <Animated.View
                   style={[
                     styles.heartIcon,
                     { transform: [{ scale: successScaleAnim }] }
@@ -409,7 +422,7 @@ export const PairingConnectionScreen: React.FC<PairingConnectionScreenProps> = (
           {/* Right Partner Icon */}
           <View style={styles.userContainer}>
             <View style={[
-              styles.userIcon, 
+              styles.userIcon,
               styles.userIconRight,
               mode === 'waiting' && styles.userIconWaiting
             ]}>
@@ -432,13 +445,13 @@ export const PairingConnectionScreen: React.FC<PairingConnectionScreenProps> = (
         <View style={styles.statusContainer}>
           {mode === 'waiting' ? (
             <>
-              <Ionicons 
-                name={timeoutReached ? "alert-circle-outline" : "time-outline"} 
-                size={20} 
-                color={timeoutReached ? colors.error : colors.textTertiary} 
+              <Ionicons
+                name={timeoutReached ? "alert-circle-outline" : "time-outline"}
+                size={20}
+                color={timeoutReached ? colors.error : colors.textTertiary}
               />
               <Text style={[styles.statusText, timeoutReached && styles.statusTextError]}>
-                {timeoutReached 
+                {timeoutReached
                   ? 'Code expired - Please generate a new code'
                   : `Waiting for partner • Code expires in ${remainingTime}`
                 }
@@ -543,7 +556,7 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     marginBottom: spacing.sm,
   },
   codeText: {
-    fontSize: 28, 
+    fontSize: 28,
     lineHeight: 36,
     color: colors.primary,
     letterSpacing: 8,

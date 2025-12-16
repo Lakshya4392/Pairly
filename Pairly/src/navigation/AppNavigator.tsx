@@ -374,11 +374,12 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
     setCurrentScreen('socketTest');
   };
 
-  const handleShowConnectionScreen = (code: string, userName: string) => {
+  const handleShowConnectionScreen = (code: string, userName: string, connectedMode?: 'waiting' | 'connected', partnerName?: string) => {
     setConnectionData({
       code,
       userName,
-      mode: 'waiting',
+      mode: connectedMode || 'waiting',
+      partnerName: partnerName,
     });
     setCurrentScreen('pairingConnection');
   };
