@@ -12,31 +12,55 @@ import android.util.Base64
 import android.widget.RemoteViews
 import com.pairly.app.MainActivity
 import com.pairly.app.R
+import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
- * Premium Pairly Widget with image support
+ * Premium Pairly Widget with Instant Updates
  */
 class PairlyWidget : AppWidgetProvider() {
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
         for (appWidgetId in appWidgetIds) {
-            updateWidgetWithDefault(context, appWidgetManager, appWidgetId)
-            // Try to fetch latest photo in background
-            FetchPhotoTask(context, appWidgetManager, appWidgetId).execute()
+            updateWidget(context, appWidgetManager, appWidgetId)
         }
     }
 
-    private fun updateWidgetWithDefault(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int) {
+    private fun updateWidget(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int) {
         try {
             val views = RemoteViews(context.packageName, R.layout.pairly_widget_simple)
             
-            views.setTextViewText(R.id.widget_title, "💕 Pairly")
-            views.setTextViewText(R.id.widget_main_text, "Share a Moment")
-            views.setTextViewText(R.id.widget_sub_text, "Tap to capture")
-            views.setTextViewText(R.id.widget_status_text, "Ready")
-            views.setImageViewResource(R.id.widget_image, R.drawable.widget_placeholder)
+            // 1. Try to load local file (INSTANT UPDATE)
+            val prefs = context.getSharedPreferences("pairly_prefs", Context.MODE_PRIVATE)
+            val lastMomentPath = prefs.getString("last_moment_path", null)
+            val senderName = prefs.getString("last_moment_sender", "Partner")
+            val timestamp = prefs.getString("last_moment_timestamp", null)
+
+            var imageLoaded = false
+
+            if (lastMomentPath != null) {
+                val imgFile = File(lastMomentPath)
+                if (imgFile.exists()) {
+                    val bitmap = BitmapFactory.decodeFile(imgFile.absolutePath)
+                    if (bitmap != null) {
+                        views.setImageViewBitmap(R.id.widget_image, bitmap)
+                        views.setTextViewText(R.id.widget_sender_name, senderName)
+                        views.setTextViewText(R.id.widget_timestamp, formatTimestamp(timestamp))
+                        imageLoaded = true
+                    }
+                }
+            }
+
+            // 2. If no local image, show default state (waiting for sync)
+            if (!imageLoaded) {
+                 views.setImageViewResource(R.id.widget_image, R.drawable.widget_placeholder)
+                 views.setTextViewText(R.id.widget_sender_name, "Pairly")
+                 views.setTextViewText(R.id.widget_timestamp, "Tap to share a moment")
+            }
             
             // Click handler
             val intent = Intent(context, MainActivity::class.java)
@@ -48,89 +72,33 @@ class PairlyWidget : AppWidgetProvider() {
             views.setOnClickPendingIntent(R.id.widget_container, pendingIntent)
             
             appWidgetManager.updateAppWidget(appWidgetId, views)
+            
+            // Trigger background fetch only if necessary (or periodically)
+            // For now, we rely on FCM pushing the file to us.
+            
         } catch (e: Exception) {
-            // Silent fail
+            e.printStackTrace()
+        }
+    }
+
+    private fun formatTimestamp(timestampStr: String?): String {
+        if (timestampStr == null) return "Just now"
+        try {
+            val ts = timestampStr.toLong()
+            val sdf = SimpleDateFormat("h:mm a", Locale.getDefault()) // e.g. 10:30 PM
+            return sdf.format(Date(ts))
+        } catch (e: Exception) {
+            return "New Moment"
         }
     }
 
     companion object {
-        private const val API_URL = "https://pairly-60qj.onrender.com"
-    }
-
-    /**
-     * Background task to fetch partner's latest photo
-     */
-    private class FetchPhotoTask(
-        private val context: Context,
-        private val appWidgetManager: AppWidgetManager,
-        private val appWidgetId: Int
-    ) : AsyncTask<Void, Void, Bitmap?>() {
-
-        override fun doInBackground(vararg params: Void?): Bitmap? {
-            try {
-                val prefs = context.getSharedPreferences("pairly_prefs", Context.MODE_PRIVATE)
-                val authToken = prefs.getString("auth_token", null) ?: return null
-                val userId = prefs.getString("user_id", null) ?: return null
-                val savedBaseUrl = prefs.getString("backend_url", API_URL)
-                
-                // Remove trailing slash if present to avoid double slashes
-                val baseUrl = savedBaseUrl?.trimEnd('/') ?: API_URL
-
-                val url = URL("$baseUrl/moments/latest?userId=$userId")
-                val connection = url.openConnection() as HttpURLConnection
-                connection.requestMethod = "GET"
-                connection.setRequestProperty("Authorization", "Bearer $authToken")
-                connection.setRequestProperty("Content-Type", "application/json")
-                connection.connectTimeout = 10000
-                connection.readTimeout = 10000
-
-                if (connection.responseCode == 200) {
-                    val response = connection.inputStream.bufferedReader().readText()
-                    
-                    // Parse JSON to get photo base64
-                    val photoRegex = "\"photo\"\\s*:\\s*\"([^\"]+)\"".toRegex()
-                    val match = photoRegex.find(response)
-                    
-                    if (match != null) {
-                        val base64Photo = match.groupValues[1]
-                        // Remove data:image prefix if present
-                        val cleanBase64 = base64Photo.replace("data:image/[^;]+;base64,".toRegex(), "")
-                        val imageBytes = Base64.decode(cleanBase64, Base64.DEFAULT)
-                        return BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
-                    }
-                }
-                connection.disconnect()
-            } catch (e: Exception) {
-                // Silent fail
+        // Helper to be called from Native Module to force refresh
+        fun updateAllWidgets(context: Context) {
+             val intent = Intent(context, PairlyWidget::class.java).apply {
+                action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
             }
-            return null
-        }
-
-        override fun onPostExecute(bitmap: Bitmap?) {
-            if (bitmap != null) {
-                try {
-                    val views = RemoteViews(context.packageName, R.layout.pairly_widget_simple)
-                    
-                    views.setTextViewText(R.id.widget_title, "💕 Pairly")
-                    views.setTextViewText(R.id.widget_main_text, "New Moment!")
-                    views.setTextViewText(R.id.widget_sub_text, "From your partner 💝")
-                    views.setTextViewText(R.id.widget_status_text, "New")
-                    views.setImageViewBitmap(R.id.widget_image, bitmap)
-                    
-                    // Click handler
-                    val intent = Intent(context, MainActivity::class.java)
-                    intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                    val pendingIntent = PendingIntent.getActivity(
-                        context, appWidgetId, intent,
-                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                    )
-                    views.setOnClickPendingIntent(R.id.widget_container, pendingIntent)
-                    
-                    appWidgetManager.updateAppWidget(appWidgetId, views)
-                } catch (e: Exception) {
-                    // Silent fail
-                }
-            }
+            context.sendBroadcast(intent)
         }
     }
 }

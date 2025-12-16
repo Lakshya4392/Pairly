@@ -187,10 +187,10 @@ export const joinWithCode = async (req: AuthRequest, res: Response): Promise<voi
     // Check if code is expired
     if (pair.codeExpiresAt && isCodeExpired(pair.codeExpiresAt)) {
       console.log(`❌ Code expired: ${upperCode}`);
-      
+
       // Delete expired pair
       await prisma.pair.delete({ where: { id: pair.id } });
-      
+
       res.status(400).json({
         success: false,
         error: 'This code has expired. Please ask for a new code.',
@@ -260,7 +260,7 @@ export const joinWithCode = async (req: AuthRequest, res: Response): Promise<voi
       email: updatedPair.user1.email,
       photoUrl: updatedPair.user1.photoUrl,
     };
-    
+
     const user2Data = {
       id: updatedPair.user2!.id,
       displayName: updatedPair.user2!.displayName,
@@ -270,17 +270,14 @@ export const joinWithCode = async (req: AuthRequest, res: Response): Promise<voi
 
     // IMMEDIATELY emit socket events to both users with retry mechanism
     const emitWithRetry = async (userId: string, event: string, data: any, retries = 3) => {
-      const userRoom = `user_${userId}`;
-      
+      // ⚡ FIX: Users join room with just userId (clerkId), NOT user_${userId}
+      const userRoom = userId; // This is the clerkId - same as what users join with
+
       for (let i = 0; i < retries; i++) {
         try {
           // Emit to user's room (primary method)
           io.to(userRoom).emit(event, data);
           console.log(`✅ Socket event '${event}' sent to room ${userRoom} (attempt ${i + 1})`);
-          
-          // Also emit to userId directly as fallback
-          io.to(userId).emit(event, data);
-          console.log(`✅ Socket event '${event}' sent to ${userId} directly (attempt ${i + 1})`);
           break;
         } catch (error) {
           console.error(`❌ Socket emit failed for ${userId} (attempt ${i + 1}):`, error);
@@ -300,7 +297,7 @@ export const joinWithCode = async (req: AuthRequest, res: Response): Promise<voi
       pairId: updatedPair.id,
       timestamp: new Date().toISOString(),
     });
-    
+
     // Emit to user2 (who entered code)  
     await emitWithRetry(userId, 'partner_connected', {
       partnerId: pair.user1Id,
@@ -316,7 +313,7 @@ export const joinWithCode = async (req: AuthRequest, res: Response): Promise<voi
       partnerName: user2Data.displayName,
       pairId: updatedPair.id,
     });
-    
+
     await emitWithRetry(userId, 'pairing_success', {
       partnerId: pair.user1Id,
       partner: user1Data,
@@ -329,13 +326,13 @@ export const joinWithCode = async (req: AuthRequest, res: Response): Promise<voi
     // Send FCM notifications as backup
     try {
       const FCMService = (await import('../services/FCMService')).default;
-      
+
       // Get FCM tokens
       const user1Token = await prisma.user.findUnique({
         where: { id: pair.user1Id },
         select: { fcmToken: true },
       });
-      
+
       const user2Token = await prisma.user.findUnique({
         where: { id: userId },
         select: { fcmToken: true },
@@ -394,10 +391,10 @@ export const joinWithCode = async (req: AuthRequest, res: Response): Promise<voi
     } as ApiResponse);
   } catch (error) {
     console.error('❌ Join with code error:', error);
-    
+
     // Provide specific error messages
     let errorMessage = 'Failed to join with code. Please try again.';
-    
+
     if (error instanceof Error) {
       if (error.message.includes('Code is no longer valid')) {
         errorMessage = 'This code is no longer valid. Please ask for a new code.';
@@ -506,22 +503,25 @@ export const disconnect = async (req: AuthRequest, res: Response): Promise<void>
       return;
     }
 
-    // Get partner ID
-    const partnerId = pair.user1Id === userId ? pair.user2Id : pair.user1Id;
+    // Get partner info (need clerkId for socket room)
+    const partner = await prisma.user.findUnique({
+      where: { id: pair.user1Id === userId ? pair.user2Id : pair.user1Id },
+      select: { clerkId: true },
+    });
 
     // Delete pair (this will cascade delete moments)
     await prisma.pair.delete({
       where: { id: pair.id },
     });
 
-    // Emit socket event to partner (using user room)
-    const partnerRoom = `user_${partnerId}`;
-    io.to(partnerRoom).emit('partner_disconnected', {
-      reason: 'Partner disconnected',
-      userId: userId,
-    });
-    
-    console.log(`✅ Disconnect event sent to partner: ${partnerRoom}`);
+    // ⚡ FIX: Emit socket event to partner using clerkId (that's what they join with)
+    if (partner?.clerkId) {
+      io.to(partner.clerkId).emit('partner_disconnected', {
+        reason: 'Partner disconnected',
+        userId: userId,
+      });
+      console.log(`✅ Disconnect event sent to partner: ${partner.clerkId}`);
+    }
 
     res.json({
       success: true,

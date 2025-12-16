@@ -154,7 +154,7 @@ class FCMService {
         // For widget, we need a stable path.
         // Define local path (using Cache directory for temporary storage, or Document for persistence)
         // For widget, we need a stable path.
-        const fileName = `widget_moment.jpg`; // Always overwrite the same file for widget
+        const fileName = `widget_moment_latest.jpg`; // Always overwrite the same file for widget
         // Cast to any to avoid TS errors with some Expo versions
         const fs = FileSystem as any;
         const docDir = fs.documentDirectory || fs.cacheDirectory;
@@ -173,6 +173,7 @@ class FCMService {
 
             await SharedPrefsModule.setString('last_moment_path', cleanPath);
             await SharedPrefsModule.setString('last_moment_timestamp', Date.now().toString());
+            await SharedPrefsModule.setString('last_moment_sender', partnerName || 'Partner');
 
             // 3. Trigger Widget Update
             await SharedPrefsModule.notifyWidgetUpdate();

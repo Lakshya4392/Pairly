@@ -259,12 +259,44 @@ class PairingService {
   }
 
   /**
-   * Remove pair data
+   * Remove pair data - CLEAR ALL PARTNER DATA
    */
   async removePair(): Promise<void> {
     try {
+      console.log('🗑️ Clearing ALL partner data...');
+      
+      // 1. Clear main pair data
       await AsyncStorage.removeItem(PAIR_KEY);
       this.pair = null;
+      
+      // 2. Clear partner info cache
+      await AsyncStorage.removeItem('partner_info');
+      await AsyncStorage.removeItem('partner_id');
+      await AsyncStorage.removeItem('@pairly/api-cache/partner_info');
+      
+      // 3. Clear invite codes
+      await AsyncStorage.removeItem('current_invite_code');
+      await AsyncStorage.removeItem('code_expires_at');
+      await AsyncStorage.removeItem('offline_invite_code');
+      
+      // 4. Clear widget data from SharedPreferences (native)
+      try {
+        const { NativeModules } = require('react-native');
+        const SharedPrefsModule = NativeModules.SharedPrefsModule;
+        if (SharedPrefsModule) {
+          await SharedPrefsModule.remove('last_moment_path');
+          await SharedPrefsModule.remove('last_moment_sender');
+          await SharedPrefsModule.remove('last_moment_timestamp');
+          console.log('✅ Widget prefs cleared');
+        }
+      } catch (widgetError) {
+        console.warn('⚠️ Could not clear widget prefs:', widgetError);
+      }
+      
+      // 5. Reset validation cache
+      this.lastValidationTime = 0;
+      
+      console.log('✅ All partner data cleared successfully');
     } catch (error) {
       console.error('Error removing pair:', error);
     }
