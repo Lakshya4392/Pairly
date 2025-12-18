@@ -185,9 +185,11 @@ export const uploadMoment = async (req: AuthRequest, res: Response): Promise<voi
     const filePath = path.join(uploadDir, fileName);
     fs.writeFileSync(filePath, photoBuffer);
 
-    // Construct URL - FORCE HTTPS in production (Render proxy returns http internally)
-    const protocol = process.env.NODE_ENV === 'production' ? 'https' : req.protocol;
-    const baseUrl = process.env.API_URL || `${protocol}://${req.get('host')}`;
+    // Construct URL - FORCE HTTPS for Render (detects by hostname)
+    const host = req.get('host') || '';
+    const isRender = host.includes('onrender.com') || host.includes('render.com');
+    const protocol = isRender ? 'https' : req.protocol;
+    const baseUrl = process.env.API_URL || `${protocol}://${host}`;
     const photoUrl = `${baseUrl}/uploads/${fileName}`;
 
     console.log(`💾 [UPLOAD] Saved locally: ${fileName}`);

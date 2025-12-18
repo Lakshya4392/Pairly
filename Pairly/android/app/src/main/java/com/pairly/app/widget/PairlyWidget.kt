@@ -32,10 +32,9 @@ class PairlyWidget : AppWidgetProvider() {
         try {
             val views = RemoteViews(context.packageName, R.layout.pairly_widget_simple)
             
-            views.setTextViewText(R.id.widget_title, "💕 Pairly")
-            views.setTextViewText(R.id.widget_main_text, "Share a Moment")
-            views.setTextViewText(R.id.widget_sub_text, "Tap to capture")
-            views.setTextViewText(R.id.widget_status_text, "Ready")
+            // Use current layout IDs
+            views.setTextViewText(R.id.widget_sender_name, "Pairly")
+            views.setTextViewText(R.id.widget_timestamp, "Tap to share")
             views.setImageViewResource(R.id.widget_image, R.drawable.widget_placeholder)
             
             // Click handler
@@ -111,10 +110,9 @@ class PairlyWidget : AppWidgetProvider() {
                 try {
                     val views = RemoteViews(context.packageName, R.layout.pairly_widget_simple)
                     
-                    views.setTextViewText(R.id.widget_title, "💕 Pairly")
-                    views.setTextViewText(R.id.widget_main_text, "New Moment!")
-                    views.setTextViewText(R.id.widget_sub_text, "From your partner 💝")
-                    views.setTextViewText(R.id.widget_status_text, "New")
+                    // Use current layout IDs
+                    views.setTextViewText(R.id.widget_sender_name, "From Partner 💝")
+                    views.setTextViewText(R.id.widget_timestamp, "Just now")
                     views.setImageViewBitmap(R.id.widget_image, bitmap)
                     
                     // Click handler
