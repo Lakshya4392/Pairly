@@ -63,11 +63,19 @@ class SharedPrefsModule(reactContext: ReactApplicationContext) : ReactContextBas
             val widgetIds = appWidgetManager.getAppWidgetIds(componentName)
 
             if (widgetIds.isNotEmpty()) {
+                // Debug Toast
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    android.widget.Toast.makeText(context, "Refreshing ${widgetIds.size} Widgets 🔄", android.widget.Toast.LENGTH_SHORT).show()
+                }
+
                 // ⚡ FORCE UPDATE: Call static helper on Widget class
                 // This updates views directly (instant) AND sends broadcast (backup)
                 PairlyWidget.updateAllWidgets(context)
                 promise.resolve(true)
             } else {
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                   android.widget.Toast.makeText(context, "No Widgets Found ⚠️", android.widget.Toast.LENGTH_SHORT).show()
+                }
                 promise.resolve(false)
             }
         } catch (e: Exception) {

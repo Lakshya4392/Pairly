@@ -101,13 +101,13 @@ import { securityHeaders, sanitizeRequest } from './middleware/security';
 app.use(securityHeaders);
 app.use(sanitizeRequest);
 
+// Serve static files from uploads directory (Exempt from Rate Limiting)
+import path from 'path';
+app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
+
 // Rate limiting
 import { generalLimiter, authLimiter, pairingLimiter, uploadLimiter } from './middleware/rateLimiter';
 app.use(generalLimiter); // Apply general rate limit to all routes
-
-// Serve static files from uploads directory
-import path from 'path';
-app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
 
 // Import routes
 import authRoutes from './routes/authRoutes';

@@ -55,8 +55,10 @@ class PairlyWidget : AppWidgetProvider() {
                         if (bitmap != null) {
                             views.setImageViewBitmap(R.id.widget_image, bitmap)
                             views.setTextViewText(R.id.widget_sender_name, senderName)
-                            views.setTextViewText(R.id.widget_timestamp, formatTimestamp(timestamp))
+                            views.setTextViewText(R.id.widget_timestamp, "✅ " + formatTimestamp(timestamp))
                             imageLoaded = true
+                        } else {
+                             views.setTextViewText(R.id.widget_timestamp, "⚠️ Image Load Fail")
                         }
                     }
                 }
@@ -103,6 +105,9 @@ class PairlyWidget : AppWidgetProvider() {
                  val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
                  
                  // 1. Force Direct Update (Bypass Broadcast Latency)
+                 // Yield briefly to ensure FileSystem flush from JS side
+                 try { Thread.sleep(500) } catch (e: InterruptedException) {}
+
                  for (appWidgetId in appWidgetIds) {
                      updateWidget(context, appWidgetManager, appWidgetId)
                  }
@@ -112,6 +117,8 @@ class PairlyWidget : AppWidgetProvider() {
                     action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
                     putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, appWidgetIds)
                 }
+                // Use explicit class name to ensure it hits our receiver
+                intent.component = componentName
                 context.sendBroadcast(intent)
              } catch (e: Exception) {
                  e.printStackTrace()
