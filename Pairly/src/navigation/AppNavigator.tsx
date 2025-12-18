@@ -78,6 +78,10 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
       console.log('👤 User:', authResponse.user.displayName);
       console.log('🔑 JWT token stored');
 
+      // 🔥 FIX: Register FCM token now that we have a user
+      const FCMService = (await import('../services/FCMService')).default;
+      await FCMService.registerUser();
+
     } catch (error: any) {
       console.error('❌ Backend authentication failed:', error.message);
     }
@@ -460,7 +464,8 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
         }
       }
 
-      await checkPremiumStatus();
+      // Run premium check in background to prevent splash freeze
+      checkPremiumStatus();
       setCurrentScreen('upload');
     } catch (error) {
       console.error('❌ Error handling premium purchase:', error);

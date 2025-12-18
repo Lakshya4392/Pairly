@@ -181,7 +181,17 @@ export const updateFCMToken = async (
       return;
     }
 
-    // Update FCM token in database
+    // ⚡ SECURITY FIX: Ensure One Token = One User
+    // Remove this token from ANY other users to prevent cross-account notifications
+    await prisma.user.updateMany({
+      where: {
+        fcmToken: fcmToken,
+        id: { not: user.id }, // Don't touch current user yet
+      },
+      data: { fcmToken: null },
+    });
+
+    // Update FCM token for current user
     await prisma.user.update({
       where: { id: user.id },
       data: { fcmToken },

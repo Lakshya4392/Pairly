@@ -310,9 +310,9 @@ export const joinWithCode = async (req: AuthRequest, res: Response): Promise<voi
     };
 
     // IMMEDIATELY emit socket events to both users with retry mechanism
-    const emitWithRetry = async (userId: string, event: string, data: any, retries = 3) => {
-      // ⚡ FIX: Users join room with just userId (clerkId), NOT user_${userId}
-      const userRoom = userId; // This is the clerkId - same as what users join with
+    const emitWithRetry = async (targetClerkId: string, event: string, data: any, retries = 3) => {
+      // ⚡ FIX: Users join room with clerkId, so we must emit to clerkId
+      const userRoom = targetClerkId;
 
       for (let i = 0; i < retries; i++) {
         try {
@@ -321,9 +321,9 @@ export const joinWithCode = async (req: AuthRequest, res: Response): Promise<voi
           console.log(`✅ Socket event '${event}' sent to room ${userRoom} (attempt ${i + 1})`);
           break;
         } catch (error) {
-          console.error(`❌ Socket emit failed for ${userId} (attempt ${i + 1}):`, error);
+          console.error(`❌ Socket emit failed for ${targetClerkId} (attempt ${i + 1}):`, error);
           if (i === retries - 1) {
-            console.error(`❌ Failed to emit to ${userId} after ${retries} attempts`);
+            console.error(`❌ Failed to emit to ${targetClerkId} after ${retries} attempts`);
           }
           // Wait 100ms before retry
           await new Promise(resolve => setTimeout(resolve, 100));
@@ -331,32 +331,32 @@ export const joinWithCode = async (req: AuthRequest, res: Response): Promise<voi
       }
     };
 
-    // Emit to user1 (who generated code)
-    await emitWithRetry(pair.user1Id, 'partner_connected', {
-      partnerId: userId,
+    // Emit to user1 (who generated code) - Use ClerkId!
+    await emitWithRetry(updatedPair.user1.clerkId, 'partner_connected', {
+      partnerId: user2.clerkId, // Send ClerkId as partnerId for consistency
       partner: user2Data,
       pairId: updatedPair.id,
       timestamp: new Date().toISOString(),
     });
 
-    // Emit to user2 (who entered code)  
-    await emitWithRetry(userId, 'partner_connected', {
-      partnerId: pair.user1Id,
+    // Emit to user2 (who entered code) - Use ClerkId!  
+    await emitWithRetry(user2.clerkId, 'partner_connected', {
+      partnerId: updatedPair.user1.clerkId, // Send ClerkId as partnerId
       partner: user1Data,
       pairId: updatedPair.id,
       timestamp: new Date().toISOString(),
     });
 
     // Also emit pairing success event with full partner data
-    await emitWithRetry(pair.user1Id, 'pairing_success', {
-      partnerId: userId,
+    await emitWithRetry(updatedPair.user1.clerkId, 'pairing_success', {
+      partnerId: user2.clerkId,
       partner: user2Data,
       partnerName: user2Data.displayName,
       pairId: updatedPair.id,
     });
 
-    await emitWithRetry(userId, 'pairing_success', {
-      partnerId: pair.user1Id,
+    await emitWithRetry(user2.clerkId, 'pairing_success', {
+      partnerId: updatedPair.user1.clerkId,
       partner: user1Data,
       partnerName: user1Data.displayName,
       pairId: updatedPair.id,

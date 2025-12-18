@@ -101,6 +101,34 @@ class FCMService {
   }
 
   /**
+   * Public method to register user with backend
+   * Should be called after successful login
+   */
+  public async registerUser(): Promise<void> {
+    console.log('🔄 Manually registering user for FCM...');
+
+    // Ensure we have a token
+    if (!this.fcmToken) {
+      try {
+        const token = await messaging().getToken();
+        if (token) {
+          this.fcmToken = token;
+          await AsyncStorage.setItem('fcmToken', token);
+        }
+      } catch (e) {
+        console.log('⚠️ Failed to get FCM token for manual registration');
+        return;
+      }
+    }
+
+    if (this.fcmToken) {
+      await this.registerTokenWithBackend(this.fcmToken);
+    } else {
+      console.log('⚠️ No FCM token available for registration');
+    }
+  }
+
+  /**
    * Setup foreground and background message handlers
    */
   private setupMessageHandlers(): void {

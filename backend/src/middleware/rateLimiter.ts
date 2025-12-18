@@ -89,27 +89,30 @@ export const createRateLimiter = (options: RateLimitOptions) => {
 /**
  * General API rate limit - 100 requests per minute
  */
+/**
+ * General API rate limit - 300 requests per minute
+ */
 export const generalLimiter = createRateLimiter({
     windowMs: 60 * 1000, // 1 minute
-    maxRequests: 100,
+    maxRequests: 300,
     message: 'Too many requests, please slow down.',
 });
 
 /**
- * Auth rate limit - 30 requests per minute (increased for mobile app foreground/background)
+ * Auth rate limit - 60 requests per minute
  */
 export const authLimiter = createRateLimiter({
     windowMs: 60 * 1000, // 1 minute
-    maxRequests: 30,
+    maxRequests: 60,
     message: 'Too many authentication attempts, please try again in a minute.',
 });
 
 /**
- * Pairing rate limit - 20 requests per minute
+ * Pairing rate limit - 60 requests per minute
  */
 export const pairingLimiter = createRateLimiter({
     windowMs: 60 * 1000, // 1 minute
-    maxRequests: 20,
+    maxRequests: 60,
     message: 'Too many pairing attempts, please wait.',
 });
 
