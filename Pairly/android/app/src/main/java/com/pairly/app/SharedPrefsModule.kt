@@ -63,11 +63,9 @@ class SharedPrefsModule(reactContext: ReactApplicationContext) : ReactContextBas
             val widgetIds = appWidgetManager.getAppWidgetIds(componentName)
 
             if (widgetIds.isNotEmpty()) {
-                val intent = Intent(context, PairlyWidget::class.java).apply {
-                    action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
-                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, widgetIds)
-                }
-                context.sendBroadcast(intent)
+                // ⚡ FORCE UPDATE: Call static helper on Widget class
+                // This updates views directly (instant) AND sends broadcast (backup)
+                PairlyWidget.updateAllWidgets(context)
                 promise.resolve(true)
             } else {
                 promise.resolve(false)

@@ -3,6 +3,7 @@ import { Platform, NativeModules } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_CONFIG } from '../config/api.config';
 import * as FileSystem from 'expo-file-system';
+import * as Notifications from 'expo-notifications';
 
 const { SharedPrefsModule } = NativeModules;
 
@@ -28,6 +29,18 @@ class FCMService {
       if (!enabled) {
         console.log('❌ FCM permission denied');
         return;
+      }
+
+      // 🔥 FIX: Create Notification Channel (Required for Android 8+)
+      // Backend sends channelId: 'moments'
+      if (Platform.OS === 'android') {
+        await Notifications.setNotificationChannelAsync('moments', {
+          name: 'Moments',
+          importance: Notifications.AndroidImportance.HIGH,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: '#FF231F7C',
+        });
+        console.log('✅ Notification Channel created');
       }
 
       // Get FCM token
