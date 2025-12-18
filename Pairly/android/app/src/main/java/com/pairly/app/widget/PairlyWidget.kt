@@ -55,10 +55,8 @@ class PairlyWidget : AppWidgetProvider() {
                         if (bitmap != null) {
                             views.setImageViewBitmap(R.id.widget_image, bitmap)
                             views.setTextViewText(R.id.widget_sender_name, senderName)
-                            views.setTextViewText(R.id.widget_timestamp, "✅ " + formatTimestamp(timestamp))
+                            views.setTextViewText(R.id.widget_timestamp, formatTimestamp(timestamp))
                             imageLoaded = true
-                        } else {
-                             views.setTextViewText(R.id.widget_timestamp, "⚠️ Image Load Fail")
                         }
                     }
                 }

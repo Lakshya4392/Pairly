@@ -224,30 +224,14 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
           // Trigger gallery refresh (will fetch from API)
           RealtimeService.emit('gallery_refresh', { timestamp: Date.now() });
 
-          // 🔥 WIDGET FIX: Download photo and update widget via SharedPrefs
+          // 🔥 WIDGET FIX: Update widget using Service
           if (Platform.OS === 'android' && data.photoUrl) {
             try {
-              const { SharedPrefsModule } = NativeModules;
-
-              const fileName = 'widget_moment_latest.jpg';
-              // Cast to any to avoid TS errors with some Expo versions
-              const fs = FileSystem as any;
-              const docDir = fs.documentDirectory || fs.cacheDirectory;
-              const localUri = `${docDir}${fileName}`;
-
-              console.log('📥 [Socket] Downloading photo for widget:', data.photoUrl);
-              const downloadResult = await FileSystem.downloadAsync(data.photoUrl, localUri);
-
-              if (downloadResult.status === 200 && SharedPrefsModule) {
-                const cleanPath = downloadResult.uri.replace('file://', '');
-                await SharedPrefsModule.setString('last_moment_path', cleanPath);
-                await SharedPrefsModule.setString('last_moment_timestamp', Date.now().toString());
-                await SharedPrefsModule.setString('last_moment_sender', data.partnerName || 'Partner');
-                await SharedPrefsModule.notifyWidgetUpdate();
-                console.log('✅ [Socket] Widget updated with new photo!');
-              }
+              const { WidgetUpdateService } = await import('../services/WidgetUpdateService');
+              console.log('📥 [Socket] Updating widget via Service...');
+              await WidgetUpdateService.updateWidgetWithPhoto(data.photoUrl, data.partnerName || 'Partner');
             } catch (widgetError) {
-              console.log('⚠️ Widget photo update failed:', widgetError);
+              console.log('⚠️ Widget update failed:', widgetError);
             }
           }
 
