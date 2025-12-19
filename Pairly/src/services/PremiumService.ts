@@ -39,7 +39,18 @@ class PremiumService {
         }
       }
 
-      return status.isPremium;
+      if (status.isPremium) {
+        return true;
+      }
+
+      // ⚡ FALLBACK: Also check PremiumCheckService source (InvitedUser/Waitlist premium)
+      const waitlistPremium = await AsyncStorage.getItem('isPremium');
+      if (waitlistPremium === 'true') {
+        console.log('✅ [PremiumService] Waitlist premium detected');
+        return true;
+      }
+
+      return false;
     } catch (error) {
       console.error('Error checking premium status:', error);
       return false;
