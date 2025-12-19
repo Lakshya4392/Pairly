@@ -21,6 +21,16 @@ import java.net.URL
  */
 class PairlyWidget : AppWidgetProvider() {
 
+    override fun onReceive(context: Context, intent: Intent) {
+        super.onReceive(context, intent)
+        
+        // Handle custom refresh action (from FCM or manual trigger)
+        if (intent.action == ACTION_REFRESH) {
+            println("📱 [Widget] Received refresh broadcast")
+            updateAllWidgets(context)
+        }
+    }
+
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
         for (appWidgetId in appWidgetIds) {
             updateWidgetWithDefault(context, appWidgetManager, appWidgetId)
@@ -55,6 +65,7 @@ class PairlyWidget : AppWidgetProvider() {
 
     companion object {
         private const val API_URL = "https://pairly-60qj.onrender.com"
+        const val ACTION_REFRESH = "com.pairly.app.widget.ACTION_REFRESH"
         
         /**
          * Static helper to refresh all widgets from JS
@@ -70,6 +81,50 @@ class PairlyWidget : AppWidgetProvider() {
                 widget.onUpdate(context, appWidgetManager, appWidgetIds)
             } catch (e: Exception) {
                 // Silent fail
+            }
+        }
+        
+        /**
+         * Update all widgets with a specific photo bitmap.
+         * Called by PairlyMessagingService when FCM message received in background.
+         * This enables instant widget updates even when app is killed.
+         */
+        fun updateWithPhoto(context: Context, bitmap: Bitmap, senderName: String) {
+            try {
+                println("📱 [Widget] Updating with photo from: $senderName")
+                
+                val appWidgetManager = AppWidgetManager.getInstance(context)
+                val componentName = ComponentName(context, PairlyWidget::class.java)
+                val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
+                
+                if (appWidgetIds.isEmpty()) {
+                    println("⚠️ [Widget] No widgets on home screen")
+                    return
+                }
+                
+                for (appWidgetId in appWidgetIds) {
+                    val views = RemoteViews(context.packageName, R.layout.pairly_widget_simple)
+                    
+                    // Set photo
+                    views.setImageViewBitmap(R.id.widget_image, bitmap)
+                    views.setTextViewText(R.id.widget_sender_name, "From $senderName 💝")
+                    views.setTextViewText(R.id.widget_timestamp, "Just now")
+                    
+                    // Click handler
+                    val intent = Intent(context, MainActivity::class.java)
+                    intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    val pendingIntent = PendingIntent.getActivity(
+                        context, appWidgetId, intent,
+                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                    )
+                    views.setOnClickPendingIntent(R.id.widget_container, pendingIntent)
+                    
+                    appWidgetManager.updateAppWidget(appWidgetId, views)
+                }
+                
+                println("✅ [Widget] Updated ${appWidgetIds.size} widgets with new photo")
+            } catch (e: Exception) {
+                println("❌ [Widget] updateWithPhoto error: ${e.message}")
             }
         }
     }

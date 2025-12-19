@@ -137,10 +137,11 @@ class PremiumService {
     upgradeRequired: boolean;
   }> {
     try {
-      const status = await this.getPremiumStatus();
+      // ⚡ Use isPremium() method which includes waitlist premium check
+      const isPremiumUser = await this.isPremium();
 
       // Premium users have unlimited
-      if (status.isPremium) {
+      if (isPremiumUser) {
         return {
           canSend: true,
           remaining: 999999,
@@ -153,19 +154,20 @@ class PremiumService {
       const today = new Date().toDateString();
       const lastDate = await AsyncStorage.getItem('@pairly_last_moment_date');
 
+      let dailyMomentsCount = 0;
       if (lastDate !== today) {
         // New day, reset counter
         await AsyncStorage.setItem('@pairly_last_moment_date', today);
         await AsyncStorage.setItem('@pairly_daily_count', '0');
-        status.dailyMomentsCount = 0;
+        dailyMomentsCount = 0;
       } else {
         // Load current count
         const countStr = await AsyncStorage.getItem('@pairly_daily_count');
-        status.dailyMomentsCount = countStr ? parseInt(countStr, 10) : 0;
+        dailyMomentsCount = countStr ? parseInt(countStr, 10) : 0;
       }
 
-      const canSend = status.dailyMomentsCount < this.DAILY_LIMIT_FREE;
-      const remaining = Math.max(0, this.DAILY_LIMIT_FREE - status.dailyMomentsCount);
+      const canSend = dailyMomentsCount < this.DAILY_LIMIT_FREE;
+      const remaining = Math.max(0, this.DAILY_LIMIT_FREE - dailyMomentsCount);
 
       return {
         canSend,

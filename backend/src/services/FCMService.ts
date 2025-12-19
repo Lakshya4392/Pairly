@@ -51,33 +51,42 @@ class FCMService {
     }
 
     try {
+      // Convert all data values to strings (FCM requirement)
+      const stringData = Object.keys(data).reduce((acc, key) => {
+        acc[key] = String(data[key]);
+        return acc;
+      }, {} as Record<string, string>);
+
+      // For new_moment type, send DATA-ONLY message for background delivery
+      // Native service will receive this even when app is killed
+      const isBackgroundType = data.type === 'new_moment' || data.type === 'new_note';
+
       const message: any = {
         token: fcmToken,
         data: {
-          ...data,
-          // Convert all values to strings (FCM requirement)
-          ...Object.keys(data).reduce((acc, key) => {
-            acc[key] = String(data[key]);
-            return acc;
-          }, {} as Record<string, string>),
+          ...stringData,
+          // Include notification info in data for native service to build notification
+          notificationTitle: notification?.title || '',
+          notificationBody: notification?.body || '',
         },
         android: {
           priority: 'high' as const,
-          notification: notification ? {
-            title: notification.title,
-            body: notification.body,
-            sound: 'default',
-            channelId: 'moments',
-            icon: 'ic_notification',
-            color: '#FF6B9D',
-            tag: 'moment',
-            clickAction: 'FLUTTER_NOTIFICATION_CLICK',
-          } : undefined,
+          // Only add notification for non-background types (user is online)
+          ...(notification && !isBackgroundType ? {
+            notification: {
+              title: notification.title,
+              body: notification.body,
+              sound: 'default',
+              channelId: 'moments',
+              icon: 'ic_notification',
+              color: '#FF6B9D',
+            },
+          } : {}),
         },
       };
 
-      // Add notification for display
-      if (notification) {
+      // For non-background types, also add top-level notification
+      if (notification && !isBackgroundType) {
         message.notification = {
           title: notification.title,
           body: notification.body,
@@ -85,7 +94,7 @@ class FCMService {
       }
 
       const response = await admin.messaging().send(message);
-      console.log('✅ FCM notification sent:', response);
+      console.log('✅ FCM notification sent:', response, isBackgroundType ? '(DATA-ONLY for background)' : '(with notification)');
       return true;
     } catch (error) {
       console.error('❌ FCM send error:', error);

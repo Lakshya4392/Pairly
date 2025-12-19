@@ -156,6 +156,12 @@ dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
 
+    // Firebase Messaging - direct dependency for native FCM service
+    implementation("com.google.firebase:firebase-messaging:24.0.0")
+    
+    // Kotlin Coroutines - for background work in native FCM service
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+
     def isGifEnabled = (findProperty('expo.gif.enabled') ?: "") == "true";
     def isWebpEnabled = (findProperty('expo.webp.enabled') ?: "") == "true";
     def isWebpAnimatedEnabled = (findProperty('expo.webp.animated') ?: "") == "true";
