@@ -3,6 +3,7 @@ import { clerkClient } from '@clerk/clerk-sdk-node';
 import jwt, { SignOptions } from 'jsonwebtoken';
 import { prisma } from '../index';
 import { ApiResponse, UserResponse } from '../types';
+import { log } from '../utils/logger';
 
 // JWT Secret - MUST match the secret in auth.ts middleware
 const JWT_SECRET: string = process.env.JWT_SECRET || 'dev-only-insecure-key';
@@ -46,7 +47,7 @@ export const authenticateWithGoogle = async (
       // Get user from Clerk using the subject (user ID) from token
       clerkUser = await clerkClient.users.getUser(decoded.sub);
     } catch (clerkError: any) {
-      console.error('Clerk verification error:', clerkError);
+      log.error('Clerk verification error', clerkError);
 
       // If token is expired, provide more helpful error
       if (clerkError.reason === 'token-expired') {
@@ -140,7 +141,7 @@ export const authenticateWithGoogle = async (
       },
     } as ApiResponse);
   } catch (error) {
-    console.error('Authentication error:', error);
+    log.error('Authentication error', error);
     res.status(500).json({
       success: false,
       error: 'Authentication failed',

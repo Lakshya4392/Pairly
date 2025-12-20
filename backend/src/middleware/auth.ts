@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../index';
+import { log } from '../utils/logger';
 
 // JWT Secret - MUST be set in production
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -66,20 +67,20 @@ export const authenticate = async (
     } catch (jwtError: any) {
       // Better error logging
       if (jwtError.name === 'TokenExpiredError') {
-        console.warn('⚠️ JWT token expired, user needs to re-authenticate');
+        log.warn('JWT token expired, user needs to re-authenticate');
         res.status(401).json({
           error: 'Token expired',
           code: 'TOKEN_EXPIRED',
           message: 'Please login again'
         });
       } else {
-        console.error('JWT verification error:', jwtError);
+        log.error('JWT verification error', jwtError);
         res.status(401).json({ error: 'Invalid token' });
       }
       return;
     }
   } catch (error) {
-    console.error('Authentication error:', error);
+    log.error('Authentication error', error);
     res.status(500).json({ error: 'Authentication failed' });
   }
 };

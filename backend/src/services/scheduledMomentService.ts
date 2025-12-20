@@ -215,10 +215,16 @@ export class ScheduledMomentService {
         },
       });
 
-      // Get partner ID
+      // Get partner ID and info
       const partnerId = message.pair.user1Id === message.senderId
         ? message.pair.user2Id
         : message.pair.user1Id;
+
+      // Get partner's FCM token
+      const partner = await prisma.user.findUnique({
+        where: { id: partnerId },
+        select: { fcmToken: true, displayName: true },
+      });
 
       // Send via Socket.IO
       const { io } = await import('../index');
@@ -228,6 +234,26 @@ export class ScheduledMomentService {
         senderName: message.sender.displayName,
         createdAt: message.createdAt.toISOString(),
       });
+
+      // ⚡ Send FCM notification for background delivery
+      if (partner?.fcmToken) {
+        try {
+          const FCMService = (await import('./FCMService')).default;
+          await FCMService.sendNotification(partner.fcmToken, {
+            type: 'timelock_unlocked',
+            title: '🔓 Time-Lock Message Unlocked!',
+            body: `${message.sender.displayName} sent you a message from the past 💕`,
+            content: message.content.length > 50
+              ? message.content.substring(0, 50) + '...'
+              : message.content,
+            senderName: message.sender.displayName,
+            messageId: message.id,
+          });
+          console.log(`📲 [FCM] Time-lock notification sent to ${partner.displayName}`);
+        } catch (fcmError) {
+          console.log('⚠️ Time-lock FCM notification failed:', fcmError);
+        }
+      }
 
       console.log(`✅ Time-lock message ${message.id} delivered to ${partnerId}`);
     } catch (error) {

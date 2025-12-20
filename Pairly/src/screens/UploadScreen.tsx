@@ -450,14 +450,35 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
 
   const loadPartnerInfo = async () => {
     try {
+      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+
+      // ⚡ FAST: Load cached partner info first (instant display)
+      try {
+        const cachedPartner = await AsyncStorage.getItem('partner_info');
+        if (cachedPartner) {
+          const partner = JSON.parse(cachedPartner);
+          setPartnerName(partner.displayName);
+          setIsPartnerConnected(true);
+          console.log('⚡ [PARTNER] Loaded from cache:', partner.displayName);
+        }
+      } catch (cacheError) {
+        console.log('⚠️ [PARTNER] No cache, fetching fresh');
+      }
+
+      // Fetch fresh partner info
       const partner = await PairingService.getPartner();
       if (partner) {
         setPartnerName(partner.displayName);
         setIsPartnerConnected(true);
+        // Cache for next time
+        await AsyncStorage.setItem('partner_info', JSON.stringify(partner));
+        console.log('✅ [PARTNER] Loaded and cached:', partner.displayName);
       } else {
         // If no partner, show solo mode
         setPartnerName('Solo Mode');
         setIsPartnerConnected(false);
+        // Clear cache
+        await AsyncStorage.removeItem('partner_info');
       }
     } catch (error) {
       console.error('Error loading partner:', error);
@@ -560,16 +581,50 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
 
 
   /**
-   * ⚡ Load latest 4 photos for recent moments
+   * ⚡ Load latest 4 photos for recent moments (Cloudinary URLs - fast!)
    */
   const loadRecentPhotos = async () => {
     try {
-      // ⚡ SIMPLE: No local photo storage - just show empty for now
-      // In simple MVP, photos are not stored locally
-      setRecentPhotos([]);
-      console.log('✅ Simple MVP - no local photos to load');
+      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+      const CACHE_KEY = '@pairly_recent_photos';
+
+      // ⚡ FAST: Load cached photos first (prevents flicker)
+      try {
+        const cached = await AsyncStorage.getItem(CACHE_KEY);
+        if (cached) {
+          const cachedPhotos = JSON.parse(cached);
+          if (cachedPhotos.length > 0) {
+            setRecentPhotos(cachedPhotos);
+            console.log('⚡ [RECENT] Loaded from cache');
+          }
+        }
+      } catch (cacheError) {
+        // Ignore cache errors
+      }
+
+      // Fetch fresh data from backend
+      const ApiClient = (await import('../utils/apiClient')).default;
+      const response = await ApiClient.get('/moments/all') as any;
+
+      if (response.success && response.data?.moments) {
+        // Get last 4 photo URLs directly (Cloudinary URLs - fast!)
+        const recentUrls = response.data.moments
+          .slice(0, 4)
+          .map((m: any) => m.photoUrl)
+          .filter((url: string) => url); // Filter out null/undefined
+
+        // Only update if we have new photos (prevents flicker)
+        if (recentUrls.length > 0) {
+          setRecentPhotos(recentUrls);
+          // Cache for next time
+          await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(recentUrls));
+          console.log(`✅ [RECENT] Loaded ${recentUrls.length} photos`);
+        }
+      }
+      // Don't set empty if API fails - keep cached data
     } catch (error) {
       console.error('Error loading recent photos:', error);
+      // Keep existing photos on error (no flicker)
     }
   };
 
@@ -687,7 +742,7 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
           // Schedule the moment
           const result = await MomentService.schedulePhoto({
             photo: { uri: selectedPhotoUri },
-            scheduledTime: scheduledTime ? scheduledTime.getTime() : Date.now(),
+            scheduledTime: scheduledTime, // Pass Date object directly
             caption: note
           });
 

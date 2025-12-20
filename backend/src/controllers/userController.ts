@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { prisma } from '../index';
 import { ApiResponse } from '../types';
 import FCMService from '../services/FCMService';
+import { log } from '../utils/logger';
 
 /**
  * Get user's premium status
@@ -67,7 +68,7 @@ export const getPremiumStatus = async (
       },
     } as ApiResponse);
   } catch (error) {
-    console.error('Error getting premium status:', error);
+    log.error('Error getting premium status', error);
     res.status(500).json({
       success: false,
       error: 'Failed to get premium status',
@@ -134,7 +135,7 @@ export const updatePremiumStatus = async (
       },
     } as ApiResponse);
   } catch (error) {
-    console.error('Error updating premium status:', error);
+    log.error('Error updating premium status', error);
     res.status(500).json({
       success: false,
       error: 'Failed to update premium status',
@@ -173,7 +174,7 @@ export const updateFCMToken = async (
     }
 
     if (!user) {
-      console.log(`⚠️ User not found for identifier: ${userIdentifier}`);
+      log.warn('User not found for FCM token update', { identifier: userIdentifier.substring(0, 8) + '...' });
       res.status(404).json({
         success: false,
         error: 'User not found',
@@ -197,14 +198,14 @@ export const updateFCMToken = async (
       data: { fcmToken },
     });
 
-    console.log(`✅ FCM token updated for user ${user.displayName} (${user.id})`);
+    log.info('FCM token updated', { userId: user.id.substring(0, 8) + '...' });
 
     res.json({
       success: true,
       message: 'FCM token updated successfully',
     } as ApiResponse);
   } catch (error) {
-    console.error('Error updating FCM token:', error);
+    log.error('Error updating FCM token', error);
     res.status(500).json({
       success: false,
       error: 'Failed to update FCM token',

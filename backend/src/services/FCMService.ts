@@ -1,4 +1,5 @@
 import admin from 'firebase-admin';
+import { log } from '../utils/logger';
 
 class FCMService {
   private initialized = false;
@@ -16,7 +17,7 @@ class FCMService {
       const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
 
       if (!serviceAccount) {
-        console.log('⚠️ Firebase service account not configured');
+        log.warn('Firebase service account not configured');
         return;
       }
 
@@ -25,9 +26,9 @@ class FCMService {
       });
 
       this.initialized = true;
-      console.log('✅ Firebase Admin initialized');
+      log.info('Firebase Admin initialized');
     } catch (error) {
-      console.error('❌ Firebase Admin initialization error:', error);
+      log.error('Firebase Admin initialization error', error);
     }
   }
 
@@ -46,7 +47,7 @@ class FCMService {
     }
   ): Promise<boolean> {
     if (!this.initialized) {
-      console.log('⚠️ FCM not initialized, skipping notification');
+      log.warn('FCM not initialized, skipping notification');
       return false;
     }
 
@@ -94,10 +95,16 @@ class FCMService {
       }
 
       const response = await admin.messaging().send(message);
-      console.log('✅ FCM notification sent:', response, isBackgroundType ? '(DATA-ONLY for background)' : '(with notification)');
+      // ⚡ SECURE: Log success without exposing FCM token
+      log.info('FCM notification sent', {
+        type: data.type,
+        isBackgroundType,
+        responseId: response.substring(0, 20) + '...'
+      });
       return true;
     } catch (error) {
-      console.error('❌ FCM send error:', error);
+      // ⚡ SECURE: Log error without exposing FCM token
+      log.error('FCM send error', error, { type: data.type });
       return false;
     }
   }

@@ -103,6 +103,10 @@ import { securityHeaders, sanitizeRequest } from './middleware/security';
 app.use(securityHeaders);
 app.use(sanitizeRequest);
 
+// 🔒 SECURE REQUEST LOGGING - Logs all API requests with sanitized data
+import { requestLogger, errorLogger } from './middleware/requestLogger';
+app.use(requestLogger);
+
 // Serve static files from uploads directory (Exempt from Rate Limiting)
 import path from 'path';
 app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
@@ -506,6 +510,21 @@ cron.schedule('*/10 * * * *', async () => {
 });
 
 console.log('⏰ Cron: Keep-Alive ping (every 10 minutes)');
+
+// ⏰ CRON JOB 4: Process Scheduled Moments & Time-Locks (every minute)
+cron.schedule('* * * * *', async () => {
+  try {
+    console.log('⏰ [CRON] Processing scheduled moments and time-locks...');
+    const result = await ScheduledMomentService.processScheduledMoments();
+    if (result.delivered > 0) {
+      console.log(`✅ [CRON] Delivered ${result.delivered} scheduled items`);
+    }
+  } catch (error) {
+    console.error('❌ Error in scheduled moments cron:', error);
+  }
+});
+
+console.log('⏰ Cron: Scheduled Moments & Time-Locks (every minute)');
 
 // Start server
 const PORT = process.env.PORT || 3000;

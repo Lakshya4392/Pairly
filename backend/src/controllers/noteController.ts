@@ -90,6 +90,21 @@ export const sendSharedNote = async (req: AuthRequest, res: Response): Promise<v
       createdAt: note.createdAt.toISOString(),
     });
 
+    // ⚡ Send FCM notification for background delivery
+    try {
+      if (partner.fcmToken) {
+        const FCMService = (await import('../services/FCMService')).default;
+        await FCMService.sendSharedNoteNotification(
+          partner.fcmToken,
+          note.content.length > 50 ? note.content.substring(0, 50) + '...' : note.content,
+          user.displayName
+        );
+        console.log(`📲 [FCM] Note notification sent to ${partner.displayName}`);
+      }
+    } catch (fcmError) {
+      console.log('⚠️ Note FCM notification failed:', fcmError);
+    }
+
     console.log(`📝 Note sent from ${user.displayName} to ${partner.displayName}`);
 
     res.json({
