@@ -105,8 +105,8 @@ export const addReaction = async (req: AuthRequest, res: Response): Promise<void
                         reactorName: reactor.displayName,
                     },
                     {
-                        title: `${reactor.displayName} reacted ${emoji}`,
-                        body: 'to your moment 💕',
+                        title: `${reactor.displayName} loved your moment! ${emoji}`,
+                        body: 'Tap to see your memories together 💕',
                     }
                 );
                 console.log(`📲 [FCM] Reaction notification sent to ${partner.displayName}`);

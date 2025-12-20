@@ -41,7 +41,7 @@ export class ScheduledMomentService {
   static async getMomentsReadyForDelivery() {
     try {
       const now = new Date();
-      
+
       const moments = await prisma.moment.findMany({
         where: {
           isScheduled: true,
@@ -89,7 +89,7 @@ export class ScheduledMomentService {
   static async getExpiredMoments() {
     try {
       const now = new Date();
-      
+
       const moments = await prisma.moment.findMany({
         where: {
           expiresAt: {
@@ -114,7 +114,7 @@ export class ScheduledMomentService {
   static async deleteExpiredMoments() {
     try {
       const expiredMoments = await this.getExpiredMoments();
-      
+
       if (expiredMoments.length === 0) {
         return { deleted: 0 };
       }
@@ -144,7 +144,7 @@ export class ScheduledMomentService {
 
       // Get moments ready for delivery
       const readyMoments = await this.getMomentsReadyForDelivery();
-      
+
       console.log(`📬 Found ${readyMoments.length} moments ready for delivery`);
 
       // Deliver each moment
@@ -159,7 +159,7 @@ export class ScheduledMomentService {
       await this.deleteExpiredMoments();
 
       console.log('✅ Scheduled moments processed');
-      
+
       return {
         delivered: readyMoments.length,
       };
@@ -175,7 +175,7 @@ export class ScheduledMomentService {
   static async processTimeLockMessages() {
     try {
       const now = new Date();
-      
+
       const messages = await prisma.timeLockMessage.findMany({
         where: {
           unlockDate: {
@@ -216,8 +216,8 @@ export class ScheduledMomentService {
       });
 
       // Get partner ID
-      const partnerId = message.pair.user1Id === message.senderId 
-        ? message.pair.user2Id 
+      const partnerId = message.pair.user1Id === message.senderId
+        ? message.pair.user2Id
         : message.pair.user1Id;
 
       // Send via Socket.IO
@@ -240,18 +240,58 @@ export class ScheduledMomentService {
    */
   private static async deliverMoment(moment: any) {
     try {
-      console.log(`📤 Delivering moment ${moment.id}`);
+      console.log(`📤 Delivering scheduled moment ${moment.id}`);
 
-      // Mark as delivered
+      // Mark as delivered first
       await this.markAsDelivered(moment.id);
 
-      // TODO: Send push notification to partner
-      // TODO: Update widget
-      // TODO: Emit Socket.IO event
+      // Convert photo to base64 for API
+      const photoBase64 = moment.photoData.toString('base64');
 
-      console.log(`✅ Moment ${moment.id} delivered`);
+      // Get partner info
+      const partnerId = moment.pair.user1Id === moment.uploaderId
+        ? moment.pair.user2Id
+        : moment.pair.user1Id;
+
+      const partner = await prisma.user.findUnique({
+        where: { id: partnerId },
+        select: { fcmToken: true, clerkId: true, displayName: true },
+      });
+
+      if (!partner) {
+        console.error(`❌ Partner not found for scheduled moment ${moment.id}`);
+        return;
+      }
+
+      // Construct photo URL (prefer Cloudinary if available)
+      const photoUrl = moment.photoUrl || `https://pairly-60qj.onrender.com/uploads/${moment.id}.jpg`;
+
+      // Send Socket.IO notification
+      const { io } = await import('../index');
+      io.to(partner.clerkId).emit('moment_available', {
+        momentId: moment.id,
+        timestamp: new Date().toISOString(),
+        partnerName: moment.uploader.displayName,
+        photoUrl: photoUrl,
+        isScheduled: true,
+      });
+      console.log(`📡 [SOCKET] Scheduled moment sent to ${partner.displayName}`);
+
+      // Send FCM push notification
+      if (partner.fcmToken) {
+        const FCMService = (await import('./FCMService')).default;
+        await FCMService.sendNewPhotoNotification(
+          partner.fcmToken,
+          photoUrl,
+          moment.uploader.displayName,
+          moment.id
+        );
+        console.log(`📲 [FCM] Scheduled moment notification sent to ${partner.displayName}`);
+      }
+
+      console.log(`✅ Scheduled moment ${moment.id} delivered successfully`);
     } catch (error) {
-      console.error(`❌ Error delivering moment ${moment.id}:`, error);
+      console.error(`❌ Error delivering scheduled moment ${moment.id}:`, error);
     }
   }
 

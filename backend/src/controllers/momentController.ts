@@ -146,32 +146,10 @@ export const uploadMoment = async (req: AuthRequest, res: Response): Promise<voi
       return;
     }
 
-    // Delete previous moment for this pair (ephemeral nature)
-    const deletedMoments = await prisma.moment.findMany({
-      where: { pairId: pair.id },
-      select: { cloudinaryId: true },
-    });
-
-    // Delete from Cloudinary if configured
-    if (deletedMoments.length > 0 && CloudinaryService.isConfigured()) {
-      for (const m of deletedMoments) {
-        if (m.cloudinaryId) {
-          try {
-            await CloudinaryService.deleteImage(m.cloudinaryId);
-          } catch (cloudError) {
-            console.log('⚠️ Cloudinary cleanup failed (non-critical):', cloudError);
-          }
-        }
-      }
-    }
-
-    const deletedCount = await prisma.moment.deleteMany({
-      where: { pairId: pair.id },
-    });
-
-    if (deletedCount.count > 0) {
-      console.log(`🗑️ [UPLOAD] Deleted ${deletedCount.count} old moment(s) for pair`);
-    }
+    // ⚡ PRESERVE ALL MEMORIES: Don't delete old moments
+    // Old behavior was "ephemeral" - deleting previous moments
+    // New behavior keeps all moments for memories gallery
+    console.log(`📸 [UPLOAD] Keeping existing moments for memories gallery`);
 
     // ☁️ Upload to Cloudinary for fast widget access
     let cloudinaryUrl: string | null = null;
