@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Ultra Simple Pairly Widget - NO CUSTOM DRAWABLES -->
+<!-- Pairly Widget with Reaction Button -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_container"
     android:layout_width="match_parent"
@@ -37,6 +37,22 @@
         android:textColor="#FFFFFF"
         android:textSize="14sp"
         android:textStyle="bold" />
+    
+    <!-- Single Reaction Button (bottom right) -->
+    <TextView
+        android:id="@+id/react_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="12dp"
+        android:layout_marginBottom="8dp"
+        android:text="💕"
+        android:textSize="20sp"
+        android:background="#80000000"
+        android:paddingHorizontal="10dp"
+        android:paddingVertical="4dp"
+        android:clickable="true"
+        android:focusable="true" />
 
     <!-- Hidden timestamp -->
     <TextView

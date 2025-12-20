@@ -89,7 +89,7 @@ class PairlyWidget : AppWidgetProvider() {
          * Called by PairlyMessagingService when FCM message received in background.
          * This enables instant widget updates even when app is killed.
          */
-        fun updateWithPhoto(context: Context, bitmap: Bitmap, senderName: String) {
+        fun updateWithPhoto(context: Context, bitmap: Bitmap, senderName: String, momentId: String? = null) {
             try {
                 println("📱 [Widget] Updating with photo from: $senderName")
                 
@@ -102,6 +102,12 @@ class PairlyWidget : AppWidgetProvider() {
                     return
                 }
                 
+                // Save momentId for reactions
+                if (momentId != null) {
+                    val prefs = context.getSharedPreferences("pairly_prefs", Context.MODE_PRIVATE)
+                    prefs.edit().putString("current_moment_id", momentId).apply()
+                }
+                
                 for (appWidgetId in appWidgetIds) {
                     val views = RemoteViews(context.packageName, R.layout.pairly_widget_simple)
                     
@@ -110,7 +116,7 @@ class PairlyWidget : AppWidgetProvider() {
                     views.setTextViewText(R.id.widget_sender_name, "From $senderName 💝")
                     views.setTextViewText(R.id.widget_timestamp, "Just now")
                     
-                    // Click handler
+                    // Click handler for main widget
                     val intent = Intent(context, MainActivity::class.java)
                     intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
                     val pendingIntent = PendingIntent.getActivity(
@@ -119,12 +125,45 @@ class PairlyWidget : AppWidgetProvider() {
                     )
                     views.setOnClickPendingIntent(R.id.widget_container, pendingIntent)
                     
+                    // Set up reaction buttons
+                    setupReactionButtons(context, views, appWidgetId)
+                    
                     appWidgetManager.updateAppWidget(appWidgetId, views)
                 }
                 
                 println("✅ [Widget] Updated ${appWidgetIds.size} widgets with new photo")
             } catch (e: Exception) {
                 println("❌ [Widget] updateWithPhoto error: ${e.message}")
+            }
+        }
+        
+        /**
+         * Set up single reaction button that opens picker
+         */
+        private fun setupReactionButtons(context: Context, views: RemoteViews, appWidgetId: Int) {
+            try {
+                val prefs = context.getSharedPreferences("pairly_prefs", Context.MODE_PRIVATE)
+                val momentId = prefs.getString("current_moment_id", null) ?: return
+                
+                // Single reaction button opens picker activity
+                val intent = Intent(context, ReactionPickerActivity::class.java).apply {
+                    putExtra(ReactionPickerActivity.EXTRA_MOMENT_ID, momentId)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                }
+                
+                val pendingIntent = PendingIntent.getActivity(
+                    context,
+                    appWidgetId + 1000, // Unique request code for reaction button
+                    intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+                
+                views.setOnClickPendingIntent(R.id.react_button, pendingIntent)
+                
+                println("✅ [Widget] Reaction button set up for moment: $momentId")
+            } catch (e: Exception) {
+                println("⚠️ [Widget] Failed to set up reaction button: ${e.message}")
             }
         }
     }

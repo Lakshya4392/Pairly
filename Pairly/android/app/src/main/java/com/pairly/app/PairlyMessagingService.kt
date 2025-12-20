@@ -93,7 +93,8 @@ class PairlyMessagingService : FirebaseMessagingService() {
                             PairlyWidget.updateWithPhoto(
                                 applicationContext,
                                 bitmap,
-                                partnerName
+                                partnerName,
+                                momentId  // Pass momentId for reactions
                             )
                             Log.d(TAG, "✅ Widget updated with new photo")
                         }

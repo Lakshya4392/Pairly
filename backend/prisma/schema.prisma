@@ -85,7 +85,9 @@ model Moment {
   id            String    @id @default(cuid())
   pairId        String
   uploaderId    String
-  photoData     Bytes     // BYTEA - stores compressed image
+  photoData     Bytes     // BYTEA - stores compressed image (fallback)
+  photoUrl      String?   // Cloudinary URL for fast widget access
+  cloudinaryId  String?   // Cloudinary public ID for deletion
   note          String?   // Optional note/message with moment
   uploadedAt    DateTime  @default(now())
   
@@ -97,9 +99,24 @@ model Moment {
   
   pair          Pair      @relation(fields: [pairId], references: [id], onDelete: Cascade)
   uploader      User      @relation("Uploader", fields: [uploaderId], references: [id])
+  reactions     MomentReaction[]
   
   @@index([pairId, uploadedAt])
   @@index([isScheduled, scheduledFor])
+}
+
+// Widget Reactions - Quick emoji reactions from widget
+model MomentReaction {
+  id        String   @id @default(cuid())
+  momentId  String
+  userId    String
+  emoji     String   // ❤️, 😍, 😂, 😮, 👏
+  createdAt DateTime @default(now())
+  
+  moment    Moment   @relation(fields: [momentId], references: [id], onDelete: Cascade)
+  
+  @@unique([momentId, userId]) // One reaction per user per moment
+  @@index([momentId])
 }
 
 // Pending Moments - Server-side queue for offline users

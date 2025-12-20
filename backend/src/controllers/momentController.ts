@@ -3,6 +3,7 @@ import sharp from 'sharp';
 import { prisma, io } from '../index';
 import { AuthRequest } from '../middleware/auth';
 import { ApiResponse, MomentResponse } from '../types';
+import CloudinaryService from '../services/CloudinaryService';
 
 /**
  * Upload photo moment
@@ -146,6 +147,24 @@ export const uploadMoment = async (req: AuthRequest, res: Response): Promise<voi
     }
 
     // Delete previous moment for this pair (ephemeral nature)
+    const deletedMoments = await prisma.moment.findMany({
+      where: { pairId: pair.id },
+      select: { cloudinaryId: true },
+    });
+
+    // Delete from Cloudinary if configured
+    if (deletedMoments.length > 0 && CloudinaryService.isConfigured()) {
+      for (const m of deletedMoments) {
+        if (m.cloudinaryId) {
+          try {
+            await CloudinaryService.deleteImage(m.cloudinaryId);
+          } catch (cloudError) {
+            console.log('⚠️ Cloudinary cleanup failed (non-critical):', cloudError);
+          }
+        }
+      }
+    }
+
     const deletedCount = await prisma.moment.deleteMany({
       where: { pairId: pair.id },
     });
@@ -154,12 +173,35 @@ export const uploadMoment = async (req: AuthRequest, res: Response): Promise<voi
       console.log(`🗑️ [UPLOAD] Deleted ${deletedCount.count} old moment(s) for pair`);
     }
 
+    // ☁️ Upload to Cloudinary for fast widget access
+    let cloudinaryUrl: string | null = null;
+    let cloudinaryId: string | null = null;
+
+    if (CloudinaryService.isConfigured()) {
+      try {
+        const uploadResult = await CloudinaryService.uploadImage(photoBuffer, {
+          folder: 'pairly/moments',
+          publicId: `moment_${pair.id}_${Date.now()}`,
+        });
+
+        if (uploadResult) {
+          cloudinaryUrl = uploadResult.url;
+          cloudinaryId = uploadResult.publicId;
+          console.log(`☁️ [UPLOAD] Cloudinary upload successful: ${cloudinaryUrl}`);
+        }
+      } catch (cloudError) {
+        console.log('⚠️ Cloudinary upload failed, using local fallback:', cloudError);
+      }
+    }
+
     // Create new moment
     const moment = await prisma.moment.create({
       data: {
         pairId: pair.id,
         uploaderId: userId,
         photoData: Buffer.from(photoBuffer),
+        photoUrl: cloudinaryUrl,
+        cloudinaryId: cloudinaryId,
       },
     });
 
@@ -218,11 +260,14 @@ export const uploadMoment = async (req: AuthRequest, res: Response): Promise<voi
     });
 
     // ⚡ SIMPLE MVP: Emit lightweight notification (NO photo data)
+    // Prefer Cloudinary URL (CDN) over local URL for faster widget loading
+    const finalPhotoUrl = cloudinaryUrl || photoUrl;
+
     const notificationPayload = {
       momentId: moment.id,
       timestamp: moment.uploadedAt.toISOString(),
       partnerName: user.displayName,
-      photoUrl: photoUrl, // Send URL for socket clients too
+      photoUrl: finalPhotoUrl, // Cloudinary URL if available, else local
     };
 
     io.to(partnerId).emit('moment_available', notificationPayload);

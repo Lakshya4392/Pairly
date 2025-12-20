@@ -75,5 +75,18 @@
         <action android:name="com.google.firebase.MESSAGING_EVENT"/>
       </intent-filter>
     </service>
+    
+    <!-- Reaction Service for widget emoji reactions -->
+    <service
+        android:name=".widget.ReactionService"
+        android:exported="false"/>
+    
+    <!-- Reaction Picker Activity (transparent popup) -->
+    <activity
+        android:name=".widget.ReactionPickerActivity"
+        android:theme="@android:style/Theme.Translucent.NoTitleBar"
+        android:excludeFromRecents="true"
+        android:taskAffinity=""
+        android:exported="false"/>
   </application>
 </manifest>

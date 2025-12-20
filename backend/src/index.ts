@@ -7,12 +7,14 @@ import { PrismaClient } from '@prisma/client';
 import cron from 'node-cron';
 import ScheduledMomentService from './services/scheduledMomentService';
 import FCMService from './services/FCMService';
+import CloudinaryService from './services/CloudinaryService';
 
 // Load environment variables
 dotenv.config();
 
-// Initialize FCM
+// Initialize Services
 FCMService.initialize();
+CloudinaryService.initialize();
 
 // Initialize Express app
 const app = express();

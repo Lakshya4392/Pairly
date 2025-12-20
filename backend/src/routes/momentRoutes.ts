@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
 import { upload } from '../middleware/upload';
 import { uploadMoment, getLatestMoment, getAllMoments } from '../controllers/momentController';
+import { addReaction, getReactions } from '../controllers/reactionController';
 
 const router = Router();
 
@@ -16,5 +17,11 @@ router.get('/latest', getLatestMoment);
 
 // GET /moments/all - Get all moments for memories screen
 router.get('/all', getAllMoments);
+
+// POST /moments/:id/react - Add reaction to moment (from widget)
+router.post('/:id/react', addReaction);
+
+// GET /moments/:id/reactions - Get all reactions for a moment
+router.get('/:id/reactions', getReactions);
 
 export default router;

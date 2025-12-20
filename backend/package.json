@@ -21,6 +21,7 @@
     "@clerk/clerk-sdk-node": "^4.13.23",
     "@prisma/client": "^6.19.0",
     "@types/node-cron": "^3.0.11",
+    "cloudinary": "^2.8.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
