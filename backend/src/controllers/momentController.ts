@@ -151,6 +151,14 @@ export const uploadMoment = async (req: AuthRequest, res: Response): Promise<voi
     // New behavior keeps all moments for memories gallery
     console.log(`📸 [UPLOAD] Keeping existing moments for memories gallery`);
 
+    // ⏰ CHECK FOR SCHEDULED UPLOAD
+    const isScheduled = req.body.isScheduled === 'true' || req.body.isScheduled === true;
+    const scheduledFor = req.body.scheduledFor ? new Date(req.body.scheduledFor) : null;
+
+    if (isScheduled && scheduledFor) {
+      console.log(`⏰ [UPLOAD] This is a SCHEDULED moment for: ${scheduledFor.toISOString()}`);
+    }
+
     // ☁️ Upload to Cloudinary for fast widget access
     let cloudinaryUrl: string | null = null;
     let cloudinaryId: string | null = null;
@@ -172,7 +180,7 @@ export const uploadMoment = async (req: AuthRequest, res: Response): Promise<voi
       }
     }
 
-    // Create new moment
+    // Create new moment (with optional scheduling)
     const moment = await prisma.moment.create({
       data: {
         pairId: pair.id,
@@ -180,6 +188,8 @@ export const uploadMoment = async (req: AuthRequest, res: Response): Promise<voi
         photoData: Buffer.from(photoBuffer),
         photoUrl: cloudinaryUrl,
         cloudinaryId: cloudinaryId,
+        isScheduled: isScheduled,
+        scheduledFor: scheduledFor,
       },
     });
 
@@ -237,60 +247,68 @@ export const uploadMoment = async (req: AuthRequest, res: Response): Promise<voi
       select: { fcmToken: true, clerkId: true },
     });
 
-    // ⚡ SIMPLE MVP: Emit lightweight notification (NO photo data)
-    // Prefer Cloudinary URL (CDN) over local URL for faster widget loading
-    const finalPhotoUrl = cloudinaryUrl || photoUrl;
+    // ⏰ SKIP NOTIFICATIONS FOR SCHEDULED MOMENTS - they deliver via cron
+    if (isScheduled && scheduledFor) {
+      console.log(`⏰ [UPLOAD] Scheduled moment - skipping immediate notification`);
+      console.log(`   📅 Will be delivered at: ${scheduledFor.toISOString()}`);
+    } else {
+      // ⚡ IMMEDIATE MOMENT: Send notifications now
+      // Prefer Cloudinary URL (CDN) over local URL for faster widget loading
+      const finalPhotoUrl = cloudinaryUrl || photoUrl;
 
-    const notificationPayload = {
-      momentId: moment.id,
-      timestamp: moment.uploadedAt.toISOString(),
-      partnerName: user.displayName,
-      photoUrl: finalPhotoUrl, // Cloudinary URL if available, else local
-    };
+      const notificationPayload = {
+        momentId: moment.id,
+        timestamp: moment.uploadedAt.toISOString(),
+        partnerName: user.displayName,
+        photoUrl: finalPhotoUrl, // Cloudinary URL if available, else local
+      };
 
-    io.to(partnerId).emit('moment_available', notificationPayload);
-    console.log(`🔔 [SOCKET] Emitted 'moment_available' to partner (payload: ${JSON.stringify(notificationPayload).length} bytes)`);
+      io.to(partnerId).emit('moment_available', notificationPayload);
+      console.log(`🔔 [SOCKET] Emitted 'moment_available' to partner (payload: ${JSON.stringify(notificationPayload).length} bytes)`);
 
-    // Send delivery confirmation to sender
-    io.to(userId).emit('moment_sent_confirmation', {
-      momentId: moment.id,
-      sentAt: moment.uploadedAt.toISOString(),
-      partnerName: pair.user1Id === userId ? pair.user2.displayName : pair.user1.displayName,
-      deliveryMethod: 'socket',
-    });
-    console.log(`✅ [SOCKET] Sent confirmation to sender`);
+      // Send delivery confirmation to sender
+      io.to(userId).emit('moment_sent_confirmation', {
+        momentId: moment.id,
+        sentAt: moment.uploadedAt.toISOString(),
+        partnerName: pair.user1Id === userId ? pair.user2.displayName : pair.user1.displayName,
+        deliveryMethod: 'socket',
+      });
+      console.log(`✅ [SOCKET] Sent confirmation to sender`);
+    }
 
-    // Send FCM notification for instant widget update (even if app is closed)
-    try {
-      if (partner?.fcmToken) {
-        console.log(`📲 [FCM] Sending push notification to partner...`);
-        const FCMService = (await import('../services/FCMService')).default;
-        // ⚡ MODIFIED: Send URL instead of Base64
-        const fcmSent = await FCMService.sendNewPhotoNotification(
-          partner.fcmToken,
-          photoUrl,
-          user.displayName || 'Your Partner',
-          moment.id
-        );
+    // Send FCM notification for instant widget update (only for immediate moments)
+    if (!isScheduled) {
+      try {
+        if (partner?.fcmToken) {
+          console.log(`📲 [FCM] Sending push notification to partner...`);
+          const FCMService = (await import('../services/FCMService')).default;
+          // ⚡ MODIFIED: Send URL instead of Base64
+          const fcmSent = await FCMService.sendNewPhotoNotification(
+            partner.fcmToken,
+            photoUrl,
+            user.displayName || 'Your Partner',
+            moment.id
+          );
 
-        if (fcmSent) {
-          console.log('✅ [FCM] Push notification sent successfully');
+          if (fcmSent) {
+            console.log('✅ [FCM] Push notification sent successfully');
 
-          // Send FCM delivery confirmation to sender
-          io.to(userId).emit('moment_delivered', {
-            momentId: moment.id,
-            deliveredAt: new Date().toISOString(),
-            deliveryMethod: 'fcm',
-          });
-          console.log('✅ [FCM] Delivery confirmation sent to sender');
+            // Send FCM delivery confirmation to sender
+            io.to(userId).emit('moment_delivered', {
+              momentId: moment.id,
+              deliveredAt: new Date().toISOString(),
+              deliveryMethod: 'fcm',
+            });
+            console.log('✅ [FCM] Delivery confirmation sent to sender');
+          } else {
+            console.log('⚠️ [FCM] Push notification failed to send');
+          }
         } else {
-          console.log('⚠️ [FCM] Push notification failed to send');
+          console.log('⚠️ [FCM] Partner has no FCM token registered - skipping push notification');
         }
-      } else {
-        console.log('⚠️ [FCM] Partner has no FCM token registered - skipping push notification');
+      } catch (fcmError) {
+        console.log('⚠️ [FCM] Push notification error (non-critical):', fcmError);
       }
-    } catch (fcmError) {
-      console.log('⚠️ [FCM] Push notification error (non-critical):', fcmError);
     }
 
     // Return response
@@ -319,7 +337,7 @@ export const uploadMoment = async (req: AuthRequest, res: Response): Promise<voi
 
 /**
  * Get all moments for memories screen
- * ⚡ SIMPLE: Returns all moments with metadata for gallery
+ * ⚡ FAST: Returns Cloudinary URLs instead of base64
  */
 export const getAllMoments = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -350,8 +368,16 @@ export const getAllMoments = async (req: AuthRequest, res: Response): Promise<vo
     }
 
     // Get all moments for this pair (ordered by newest first)
+    // ⚡ PERFORMANCE: Select only needed fields, skip photoData for list view
     const moments = await prisma.moment.findMany({
-      where: { pairId: pair.id },
+      where: {
+        pairId: pair.id,
+        // Only show delivered moments (skip scheduled ones)
+        OR: [
+          { isScheduled: false },
+          { isScheduled: true, deliveredAt: { not: null } },
+        ],
+      },
       orderBy: { uploadedAt: 'desc' },
       include: {
         uploader: true,
@@ -371,15 +397,22 @@ export const getAllMoments = async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
-    // Convert moments to response format
+    // ⚡ FAST: Return Cloudinary URLs instead of base64
     const momentsData = moments.map(moment => {
-      const photoBase64 = Buffer.from(moment.photoData).toString('base64');
       const partner = moment.uploaderId === pair.user1Id ? pair.user1 : pair.user2;
       const isFromMe = moment.uploaderId === userId;
 
+      // Prefer Cloudinary URL (fast CDN), fallback to generated URL
+      const host = req.get('host') || '';
+      const isRender = host.includes('onrender.com');
+      const protocol = isRender ? 'https' : req.protocol;
+      const baseUrl = process.env.API_URL || `${protocol}://${host}`;
+      const fallbackUrl = `${baseUrl}/uploads/${moment.id}.jpg`;
+
       return {
         id: moment.id,
-        photo: photoBase64,
+        // ⚡ URL instead of base64 - much faster!
+        photoUrl: moment.photoUrl || fallbackUrl,
         sender: isFromMe ? 'me' : 'partner',
         senderName: moment.uploader.displayName,
         partnerName: partner.displayName,
@@ -388,11 +421,7 @@ export const getAllMoments = async (req: AuthRequest, res: Response): Promise<vo
       };
     });
 
-    const totalSizeKB = momentsData.reduce((total, moment) => total + (moment.photo.length / 1024), 0);
-
-    console.log(`✅ [GET ALL] Found ${moments.length} moments:`);
-    console.log(`   📏 Total size: ${totalSizeKB.toFixed(2)} KB`);
-    console.log(`   📱 Requested by: ${isApp ? 'APP' : 'WIDGET'}`);
+    console.log(`✅ [GET ALL] Found ${moments.length} moments (using URLs, fast!)`);
 
     res.json({
       success: true,

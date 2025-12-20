@@ -11,6 +11,7 @@ import {
   Modal,
   RefreshControl,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ScreenLock } from '../components/ScreenLock';
@@ -21,12 +22,14 @@ import { spacing, borderRadius, layout } from '../theme/spacingIOS';
 import { shadows } from '../theme/shadowsIOS';
 import ApiClient from '../utils/apiClient';
 
+const GALLERY_CACHE_KEY = '@pairly_gallery_cache';
+
 const { width } = Dimensions.get('window');
 const imageSize = (width - spacing.xl * 3) / 2;
 
 interface Photo {
   id: string;
-  photo: string; // base64 image data
+  photoUrl: string; // Cloudinary URL for fast loading
   sender: 'me' | 'partner';
   senderName: string;
   partnerName: string;
@@ -73,24 +76,24 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
     // Listen for photo events from RealtimeService
     const setupEventListeners = async () => {
       const RealtimeService = (await import('../services/RealtimeService')).default;
-      
+
       const handlePhotoSaved = () => {
         console.log('🔔 [GALLERY] Photo saved event - refreshing...');
         loadPhotos();
       };
-      
+
       const handlePhotoReceived = () => {
         console.log('🔔 [GALLERY] Photo received event - refreshing...');
         loadPhotos();
       };
-      
+
       RealtimeService.on('moment_available', handlePhotoSaved);
-      
+
       return () => {
         RealtimeService.off('moment_available', handlePhotoSaved);
       };
     };
-    
+
     const cleanupPromise = setupEventListeners();
 
     return () => {
@@ -103,7 +106,7 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
     try {
       const MemoriesLockService = (await import('../services/MemoriesLockService')).default;
       const locked = await MemoriesLockService.isLocked();
-      
+
       if (locked) {
         console.log('🔒 Memories are locked - showing unlock screen');
         setShowMemoriesLock(true);
@@ -130,37 +133,51 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
   const loadPhotos = async () => {
     try {
       setLoading(true);
-      console.log('🔄 [GALLERY] Loading all moments from backend...');
-      
-      // ⚡ SIMPLE: Fetch all moments from backend API
+      console.log('🔄 [GALLERY] Loading moments...');
+
+      // ⚡ FAST: Load cached data first (instant display)
+      try {
+        const cached = await AsyncStorage.getItem(GALLERY_CACHE_KEY);
+        if (cached) {
+          const cachedPhotos = JSON.parse(cached);
+          setPhotos(isPremium ? cachedPhotos : cachedPhotos.slice(0, 10));
+          console.log(`⚡ [GALLERY] Loaded ${cachedPhotos.length} from cache`);
+          setLoading(false);
+        }
+      } catch (cacheError) {
+        console.log('⚠️ [GALLERY] Cache read failed, loading fresh');
+      }
+
+      // Fetch fresh data from backend
       const response = await ApiClient.get('/moments/all') as any;
-      
+
       if (response.success && response.data?.moments) {
         const moments = response.data.moments;
-        console.log(`📊 [GALLERY] Found ${moments.length} moments`);
-        
+        console.log(`📱 [GALLERY] Found ${moments.length} moments (URLs, fast!)`);
+
         // Convert API response to Photo format
         const loadedPhotos: Photo[] = moments.map((moment: any) => ({
           id: moment.id,
-          photo: moment.photo, // Keep base64 for now
+          photoUrl: moment.photoUrl, // ⚡ URL instead of base64!
           sender: moment.sender,
           senderName: moment.senderName,
           partnerName: moment.partnerName,
           timestamp: moment.timestamp,
           uploadedAt: moment.uploadedAt,
         }));
-        
+
         // Count by sender
         const myPhotos = loadedPhotos.filter(p => p.sender === 'me').length;
         const partnerPhotos = loadedPhotos.filter(p => p.sender === 'partner').length;
-        
         console.log(`✅ [GALLERY] Loaded: ${myPhotos} from me, ${partnerPhotos} from partner`);
 
-        // Limit for free users (show only last 10 photos)
+        // Limit for free users
         const availablePhotos = isPremium ? loadedPhotos : loadedPhotos.slice(0, 10);
-        
         setPhotos(availablePhotos);
-        console.log(`✅ [GALLERY] Displaying ${availablePhotos.length} photos`);
+
+        // ⚡ CACHE: Save for next instant load
+        await AsyncStorage.setItem(GALLERY_CACHE_KEY, JSON.stringify(loadedPhotos));
+        console.log(`💾 [GALLERY] Cached ${loadedPhotos.length} photos`);
       } else {
         console.log('📭 [GALLERY] No moments found');
         setPhotos([]);
@@ -168,8 +185,7 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
 
     } catch (error) {
       console.error('❌ [GALLERY] Error loading photos:', error);
-      // Fallback to empty array
-      setPhotos([]);
+      // Keep cached data if available
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -186,7 +202,7 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
     const now = new Date();
     const diffTime = Math.abs(now.getTime() - date.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
+
     if (diffDays === 1) return 'Today';
     if (diffDays === 2) return 'Yesterday';
     if (diffDays <= 7) return `${diffDays - 1} days ago`;
@@ -202,8 +218,8 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
       onPress={() => setSelectedPhoto(photo)}
       activeOpacity={0.8}
     >
-      <Image 
-        source={{ uri: `data:image/jpeg;base64,${photo.photo}` }} 
+      <Image
+        source={{ uri: photo.photoUrl }}
         style={styles.photoImage}
         resizeMode="cover"
       />
@@ -212,10 +228,10 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
           styles.senderIndicator,
           photo.sender === 'me' ? styles.myPhoto : styles.partnerPhoto
         ]}>
-          <Ionicons 
-            name={photo.sender === 'me' ? 'person' : 'heart'} 
-            size={12} 
-            color="white" 
+          <Ionicons
+            name={photo.sender === 'me' ? 'person' : 'heart'}
+            size={12}
+            color="white"
           />
         </View>
       </View>
@@ -229,7 +245,7 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
       activeOpacity={0.8}
     >
       <View style={styles.timelineLeft}>
-        <Image source={{ uri: `data:image/jpeg;base64,${photo.photo}` }} style={styles.timelineImage} />
+        <Image source={{ uri: photo.photoUrl }} style={styles.timelineImage} />
       </View>
       <View style={styles.timelineRight}>
         <Text style={styles.timelineDate}>{formatDate(photo.timestamp)}</Text>
@@ -245,33 +261,33 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="white" />
-      
+
       {/* Memories Lock Modal */}
       <MemoriesLockModal
         visible={showMemoriesLock}
         onUnlock={handleMemoriesUnlock}
         onCancel={onBack}
       />
-      
+
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={onBack} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        
+
         <Text style={styles.headerTitle}>
           Memories ({photos.length}{!isPremium && photos.length >= 10 ? '/10' : ''})
         </Text>
-        
+
         <View style={styles.headerActions}>
           <TouchableOpacity
             style={styles.viewToggle}
             onPress={() => setViewMode(viewMode === 'grid' ? 'timeline' : 'grid')}
           >
-            <Ionicons 
-              name={viewMode === 'grid' ? 'list' : 'grid'} 
-              size={20} 
-              color={colors.textTertiary} 
+            <Ionicons
+              name={viewMode === 'grid' ? 'list' : 'grid'}
+              size={20}
+              color={colors.textTertiary}
             />
           </TouchableOpacity>
         </View>
@@ -292,8 +308,8 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
         </View>
       )}
 
-      <ScrollView 
-        style={styles.scrollView} 
+      <ScrollView
+        style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -338,7 +354,7 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
                 {photos.map((photo, index) => (
                   <PhotoItem key={photo.id} photo={photo} index={index} />
                 ))}
-                
+
                 {/* Premium Placeholder */}
                 {!isPremium && (
                   <View style={[styles.premiumPlaceholder, { width: imageSize, height: imageSize }]}>
@@ -374,7 +390,7 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
             <View style={styles.modalContent}>
               {selectedPhoto && (
                 <>
-                  <Image source={{ uri: `data:image/jpeg;base64,${selectedPhoto.photo}` }} style={styles.modalImage} />
+                  <Image source={{ uri: selectedPhoto.photoUrl }} style={styles.modalImage} />
                   <View style={styles.modalInfo}>
                     <Text style={styles.modalDate}>
                       {formatDate(selectedPhoto.timestamp)}
@@ -387,7 +403,7 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
               )}
             </View>
           </TouchableOpacity>
-          
+
           <TouchableOpacity
             style={styles.closeButton}
             onPress={() => setSelectedPhoto(null)}
@@ -405,7 +421,7 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  
+
   // Header
   header: {
     flexDirection: 'row',

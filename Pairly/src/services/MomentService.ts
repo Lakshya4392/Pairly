@@ -133,10 +133,73 @@ class SimpleMomentService {
     }
   }
 
-  async schedulePhoto(params: { photo: any, scheduledTime: number, caption?: string }): Promise<any> {
-    console.log('⏰ [SCHEDULE] Scheduling photo (stub)', params.scheduledTime);
-    // For now, just treat as immediate upload or implement real scheduling later
-    return this.uploadPhoto(params.photo as Photo, params.caption);
+  /**
+   * ⏰ SCHEDULED UPLOAD: Photo saves to DB, delivers at scheduled time
+   */
+  async schedulePhoto(params: { photo: any, scheduledTime: Date, caption?: string }): Promise<UploadResult> {
+    try {
+      console.log('⏰ [SCHEDULE] Scheduling photo for:', params.scheduledTime);
+
+      // 1. Compress photo
+      const compressed = await ImageManipulator.manipulateAsync(
+        params.photo.uri,
+        [{ resize: { width: 1080 } }],
+        { compress: 0.8, format: SaveFormat.JPEG }
+      );
+
+      console.log('✅ [SCHEDULE] Photo compressed');
+
+      // 2. Create FormData with schedule info
+      const formData = new FormData();
+      formData.append('photo', {
+        uri: compressed.uri,
+        type: 'image/jpeg',
+        name: 'scheduled_moment.jpg',
+      } as any);
+
+      if (params.caption) {
+        formData.append('caption', params.caption);
+      }
+
+      // KEY: Send scheduled time to backend
+      formData.append('scheduledFor', params.scheduledTime.toISOString());
+      formData.append('isScheduled', 'true');
+
+      console.log('📤 [SCHEDULE] Uploading scheduled moment...');
+
+      // 3. Upload to backend
+      const token = await AsyncStorage.getItem('auth_token');
+      const uploadUrl = API_CONFIG.baseUrl + '/moments/upload';
+
+      const response = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      const responseData = await response.json();
+
+      if (!response.ok || !responseData.success) {
+        throw new Error(responseData.error || 'Schedule failed');
+      }
+
+      console.log('✅ [SCHEDULE] Moment scheduled for:', params.scheduledTime);
+      console.log('   📸 Moment ID:', responseData.data.moment.id);
+
+      return {
+        success: true,
+        momentId: responseData.data.moment.id,
+      };
+
+    } catch (error: any) {
+      console.error('❌ [SCHEDULE] Failed:', error.message);
+      return {
+        success: false,
+        error: error.message || 'Schedule failed',
+      };
+    }
   }
 
   /**
