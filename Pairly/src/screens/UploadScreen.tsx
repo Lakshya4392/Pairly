@@ -739,11 +739,12 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
         const MomentService = (await import('../services/MomentService')).default;
 
         if (scheduledTime && duration) {
-          // Schedule the moment
+          // Schedule the moment with expiry
           const result = await MomentService.schedulePhoto({
             photo: { uri: selectedPhotoUri },
             scheduledTime: scheduledTime, // Pass Date object directly
-            caption: note
+            caption: note,
+            expiresIn: duration, // 🔥 Photo expires after this many hours
           });
 
           if (result.success) {

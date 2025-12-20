@@ -113,7 +113,7 @@ class PairlyWidget : AppWidgetProvider() {
                     
                     // Set photo
                     views.setImageViewBitmap(R.id.widget_image, bitmap)
-                    views.setTextViewText(R.id.widget_sender_name, "From $senderName 💝")
+                    views.setTextViewText(R.id.widget_sender_name, "$senderName 💝")
                     views.setTextViewText(R.id.widget_timestamp, "Just now")
                     
                     // Click handler for main widget
@@ -223,7 +223,7 @@ class PairlyWidget : AppWidgetProvider() {
                     val views = RemoteViews(context.packageName, R.layout.pairly_widget_simple)
                     
                     // Use current layout IDs
-                    views.setTextViewText(R.id.widget_sender_name, "From Partner 💝")
+                    views.setTextViewText(R.id.widget_sender_name, "Partner 💝")
                     views.setTextViewText(R.id.widget_timestamp, "Just now")
                     views.setImageViewBitmap(R.id.widget_image, bitmap)
                     

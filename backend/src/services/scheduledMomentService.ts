@@ -108,32 +108,8 @@ export class ScheduledMomentService {
     }
   }
 
-  /**
-   * Delete expired moments
-   */
-  static async deleteExpiredMoments() {
-    try {
-      const expiredMoments = await this.getExpiredMoments();
-
-      if (expiredMoments.length === 0) {
-        return { deleted: 0 };
-      }
-
-      const result = await prisma.moment.deleteMany({
-        where: {
-          id: {
-            in: expiredMoments.map(m => m.id),
-          },
-        },
-      });
-
-      console.log(`✅ Deleted ${result.count} expired moments`);
-      return result;
-    } catch (error) {
-      console.error('❌ Error deleting expired moments:', error);
-      throw error;
-    }
-  }
+  // Note: deleteExpiredMoments is defined at the end of this class with enhanced functionality
+  // (Cloudinary deletion + FCM notification)
 
   /**
    * Process scheduled moments (run periodically)
@@ -373,6 +349,92 @@ export class ScheduledMomentService {
     } catch (error) {
       console.error('❌ Error cancelling scheduled moment:', error);
       throw error;
+    }
+  }
+
+  /**
+   * 🔥 Delete expired moments (photos with expiresAt <= now)
+   */
+  static async deleteExpiredMoments() {
+    try {
+      const now = new Date();
+
+      // Find expired moments
+      const expiredMoments = await prisma.moment.findMany({
+        where: {
+          AND: [
+            { expiresAt: { not: null } },
+            { expiresAt: { lte: now } },
+          ],
+        },
+        include: {
+          pair: {
+            include: {
+              user1: true,
+              user2: true,
+            },
+          },
+          uploader: true,
+        },
+      });
+
+      if (expiredMoments.length === 0) {
+        return;
+      }
+
+      console.log(`🔥 Found ${expiredMoments.length} expired moments to delete`);
+
+      for (const moment of expiredMoments) {
+        try {
+          // Delete from Cloudinary if it has a cloudinaryId
+          if (moment.cloudinaryId) {
+            try {
+              const CloudinaryService = (await import('./CloudinaryService')).default;
+              await CloudinaryService.deleteImage(moment.cloudinaryId);
+              console.log(`☁️ Deleted from Cloudinary: ${moment.cloudinaryId}`);
+            } catch (cloudError) {
+              console.log('⚠️ Cloudinary delete failed:', cloudError);
+            }
+          }
+
+          // Get partner to notify
+          const partnerId = moment.pair.user1Id === moment.uploaderId
+            ? moment.pair.user2Id
+            : moment.pair.user1Id;
+          const partner = moment.pair.user1Id === moment.uploaderId
+            ? moment.pair.user2
+            : moment.pair.user1;
+
+          // Delete from database
+          await prisma.moment.delete({
+            where: { id: moment.id },
+          });
+
+          console.log(`🗑️ Deleted expired moment: ${moment.id.substring(0, 8)}...`);
+
+          // Send FCM notification to partner
+          if (partner.fcmToken) {
+            try {
+              const FCMService = (await import('./FCMService')).default;
+              await FCMService.sendNotification(partner.fcmToken, {
+                type: 'moment_expired',
+                title: '📸 Photo Expired',
+                body: `A photo from ${moment.uploader.displayName} has expired`,
+                momentId: moment.id,
+              });
+              console.log(`📲 Sent expiry notification to ${partner.displayName}`);
+            } catch (fcmError) {
+              console.log('⚠️ Expiry FCM failed:', fcmError);
+            }
+          }
+        } catch (deleteError) {
+          console.error(`❌ Error deleting moment ${moment.id}:`, deleteError);
+        }
+      }
+
+      console.log(`✅ Deleted ${expiredMoments.length} expired moments`);
+    } catch (error) {
+      console.error('❌ Error processing expired moments:', error);
     }
   }
 }

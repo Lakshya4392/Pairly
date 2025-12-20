@@ -136,7 +136,7 @@ class SimpleMomentService {
   /**
    * ⏰ SCHEDULED UPLOAD: Photo saves to DB, delivers at scheduled time
    */
-  async schedulePhoto(params: { photo: any, scheduledTime: Date, caption?: string }): Promise<UploadResult> {
+  async schedulePhoto(params: { photo: any, scheduledTime: Date, caption?: string, expiresIn?: number }): Promise<UploadResult> {
     try {
       console.log('⏰ [SCHEDULE] Scheduling photo for:', params.scheduledTime);
 
@@ -164,6 +164,12 @@ class SimpleMomentService {
       // KEY: Send scheduled time to backend
       formData.append('scheduledFor', params.scheduledTime.toISOString());
       formData.append('isScheduled', 'true');
+
+      // 🔥 PHOTO EXPIRY: Send expiry duration in hours
+      if (params.expiresIn && params.expiresIn > 0) {
+        formData.append('expiresIn', params.expiresIn.toString());
+        console.log(`🔥 [SCHEDULE] Photo expires in ${params.expiresIn} hours`);
+      }
 
       console.log('📤 [SCHEDULE] Uploading scheduled moment...');
 

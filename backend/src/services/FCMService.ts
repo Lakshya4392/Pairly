@@ -58,9 +58,9 @@ class FCMService {
         return acc;
       }, {} as Record<string, string>);
 
-      // For new_moment type, send DATA-ONLY message for background delivery
-      // Native service will receive this even when app is killed
-      const isBackgroundType = data.type === 'new_moment' || data.type === 'new_note';
+      // DATA-ONLY for background widget refresh (no visible notification, app handles it)
+      // Regular notification for things user should see immediately (notes, time-locks)
+      const isBackgroundType = data.type === 'new_moment'; // Only photos for widget
 
       const message: any = {
         token: fcmToken,
@@ -180,18 +180,25 @@ class FCMService {
   }
 
   /**
-   * Send shared note notification
+   * Send shared note notification (shows as visible notification)
    */
   async sendSharedNoteNotification(
     fcmToken: string,
     content: string,
     senderName: string
   ): Promise<boolean> {
-    return this.sendNotification(fcmToken, {
-      type: 'shared_note',
-      content,
-      senderName,
-    });
+    return this.sendNotification(
+      fcmToken,
+      {
+        type: 'shared_note',
+        content,
+        senderName,
+      },
+      {
+        title: `💌 Note from ${senderName}`,
+        body: content,
+      }
+    );
   }
 }
 

@@ -159,6 +159,15 @@ export const uploadMoment = async (req: AuthRequest, res: Response): Promise<voi
       console.log(`⏰ [UPLOAD] This is a SCHEDULED moment for: ${scheduledFor.toISOString()}`);
     }
 
+    // 🔥 PHOTO EXPIRY - Calculate expiresAt based on expiresIn hours
+    const expiresInHours = req.body.expiresIn ? parseInt(req.body.expiresIn) : null;
+    let expiresAt: Date | null = null;
+
+    if (expiresInHours && expiresInHours > 0) {
+      expiresAt = new Date(Date.now() + expiresInHours * 60 * 60 * 1000);
+      console.log(`🔥 [UPLOAD] Photo expires in ${expiresInHours}h at: ${expiresAt.toISOString()}`);
+    }
+
     // ☁️ Upload to Cloudinary for fast widget access
     let cloudinaryUrl: string | null = null;
     let cloudinaryId: string | null = null;
@@ -180,7 +189,7 @@ export const uploadMoment = async (req: AuthRequest, res: Response): Promise<voi
       }
     }
 
-    // Create new moment (with optional scheduling)
+    // Create new moment (with optional scheduling and expiry)
     const moment = await prisma.moment.create({
       data: {
         pairId: pair.id,
@@ -190,6 +199,7 @@ export const uploadMoment = async (req: AuthRequest, res: Response): Promise<voi
         cloudinaryId: cloudinaryId,
         isScheduled: isScheduled,
         scheduledFor: scheduledFor,
+        expiresAt: expiresAt, // 🔥 Photo expiry time
       },
     });
 
