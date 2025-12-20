@@ -41,6 +41,13 @@ model User {
   soundEnabled         Boolean @default(true)
   vibrationEnabled     Boolean @default(true)
   
+  // FCM Reminders (server-side cron)
+  goodMorningEnabled   Boolean @default(false)
+  goodMorningTime      String  @default("08:00") // HH:MM format
+  goodNightEnabled     Boolean @default(false)
+  goodNightTime        String  @default("22:00") // HH:MM format
+  timezone             String  @default("Asia/Kolkata")
+  
   // FCM Push Notifications
   fcmToken      String?   // Firebase Cloud Messaging token
   
