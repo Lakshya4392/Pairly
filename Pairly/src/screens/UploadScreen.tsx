@@ -28,6 +28,7 @@ import PairingService from '../services/PairingService';
 import PremiumService from '../services/PremiumService';
 import SharedNotesService from '../services/SharedNotesService';
 import TimeLockService from '../services/TimeLockService';
+import PingService from '../services/PingService';
 import { useAuth } from '@clerk/clerk-expo';
 
 interface UploadScreenProps {
@@ -446,6 +447,37 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
     }
   };
 
+  // Handle Thinking Ping
+  const handleSendPing = async () => {
+    try {
+      if (!isPartnerConnected) {
+        setAlertMessage('Please connect with your partner first 💕');
+        setShowErrorAlert(true);
+        return;
+      }
+
+      // Haptic feedback
+      const { Vibration } = await import('react-native');
+      Vibration.vibrate([0, 50, 50, 50]);
+
+      const result = await PingService.sendPing();
+
+      if (result.success) {
+        setAlertMessage(`Sent! ${partnerName} will feel your love 💕`);
+        setShowSuccessAlert(true);
+      } else if (result.remaining === 0) {
+        setAlertMessage('Daily limit reached! Upgrade to Premium for unlimited 💎');
+        setShowErrorAlert(true);
+      } else {
+        setAlertMessage(result.error || 'Failed to send ping');
+        setShowErrorAlert(true);
+      }
+    } catch (error) {
+      console.error('Error sending ping:', error);
+      setAlertMessage('Failed to send ping. Please try again.');
+      setShowErrorAlert(true);
+    }
+  };
 
 
   const loadPartnerInfo = async () => {
@@ -1032,6 +1064,17 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
                   <Ionicons name="time" size={18} color="#9B59B6" />
                 </View>
                 <Text style={styles.quickActionText}>Time-Lock</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.quickActionButton}
+                onPress={handleSendPing}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.quickActionIcon, { backgroundColor: '#FFF3E0' }]}>
+                  <Ionicons name="heart" size={18} color="#FF9800" />
+                </View>
+                <Text style={styles.quickActionText}>Thinking💭</Text>
               </TouchableOpacity>
             </View>
           )}

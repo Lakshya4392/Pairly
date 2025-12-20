@@ -36,6 +36,10 @@ model User {
   dailyMomentsCount  Int       @default(0)
   lastMomentDate     DateTime? // Reset counter daily
   
+  // Thinking Ping (daily limit: 20 free, unlimited premium)
+  dailyPingCount     Int       @default(0)
+  lastPingDate       DateTime?
+  
   // Settings
   notificationsEnabled Boolean @default(true)
   soundEnabled         Boolean @default(true)

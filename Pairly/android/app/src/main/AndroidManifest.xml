@@ -67,6 +67,20 @@
                  android:resource="@xml/pairly_widget_info"/>
     </receiver>
     
+    <!-- Polaroid Widget (Premium Style) -->
+    <receiver android:name=".widget.PairlyPolaroidWidget" 
+              android:exported="true" 
+              android:label="Pairly Polaroid"
+              android:enabled="true">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+        <action android:name="com.pairly.app.widget.POLAROID_REFRESH"/>
+        <action android:name="com.pairly.app.widget.POLAROID_REACT"/>
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" 
+                 android:resource="@xml/pairly_widget_polaroid_info"/>
+    </receiver>
+    
     <!-- Native FCM Service for background widget updates -->
     <service
         android:name=".PairlyMessagingService"

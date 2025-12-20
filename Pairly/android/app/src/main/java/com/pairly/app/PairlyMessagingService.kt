@@ -13,6 +13,7 @@ import androidx.core.app.NotificationCompat
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import com.pairly.app.widget.PairlyWidget
+import com.pairly.app.widget.PairlyPolaroidWidget
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -60,6 +61,10 @@ class PairlyMessagingService : FirebaseMessagingService() {
                 Log.d(TAG, "📸 New photo notification - handling in native")
                 handleNewMoment(data) // Same handling
             }
+            "thinking_ping" -> {
+                Log.d(TAG, "💭 Thinking ping received!")
+                handleThinkingPing(data)
+            }
             else -> {
                 Log.d(TAG, "⚠️ Unknown message type: ${data["type"]}")
                 // Let React Native handle other types when app is open
@@ -96,7 +101,13 @@ class PairlyMessagingService : FirebaseMessagingService() {
                                 partnerName,
                                 momentId  // Pass momentId for reactions
                             )
-                            Log.d(TAG, "✅ Widget updated with new photo")
+                            // Also update Polaroid widget
+                            PairlyPolaroidWidget.updateWithPhoto(
+                                applicationContext,
+                                bitmap,
+                                momentId
+                            )
+                            Log.d(TAG, "✅ Both widgets updated with new photo")
                         }
                     } else {
                         Log.e(TAG, "❌ Failed to download photo")
@@ -196,6 +207,58 @@ class PairlyMessagingService : FirebaseMessagingService() {
         } catch (e: Exception) {
             Log.e(TAG, "❌ Error showing notification: ${e.message}", e)
         }
+    }
+
+    /**
+     * Handle thinking ping - vibrate and show notification
+     */
+    private fun handleThinkingPing(data: Map<String, String>) {
+        val senderName = data["senderName"] ?: "Your partner"
+        
+        Log.d(TAG, "💭 Thinking ping from: $senderName")
+        
+        // Vibrate phone with romantic pattern
+        try {
+            val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as android.os.Vibrator
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator.vibrate(android.os.VibrationEffect.createWaveform(
+                    longArrayOf(0, 200, 100, 200, 100, 300), // tap-tap-long
+                    -1
+                ))
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(longArrayOf(0, 200, 100, 200, 100, 300), -1)
+            }
+            Log.d(TAG, "📳 Vibration triggered")
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Vibration error: ${e.message}")
+        }
+        
+        // Show notification
+        val intent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        
+        val pendingIntent = PendingIntent.getActivity(
+            this, System.currentTimeMillis().toInt(), intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentTitle("💭 Thinking of You")
+            .setContentText("$senderName is thinking of you right now 💕")
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setVibrate(longArrayOf(0, 200, 100, 200))
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+            .setColor(0xFFFF6B9D.toInt())
+            .build()
+        
+        val notificationManager = getSystemService(NotificationManager::class.java)
+        notificationManager.notify(System.currentTimeMillis().toInt(), notification)
+        
+        Log.d(TAG, "✅ Thinking ping notification shown")
     }
 
     /**
