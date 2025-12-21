@@ -91,6 +91,23 @@ class NotificationService {
         lightColor: '#FF6B9D',
         showBadge: false,
       });
+
+      // Romantic channel for Thinking Pings (Long Version)
+      await Notifications.setNotificationChannelAsync('thinking_long', {
+        name: 'Thinking of You (Long)',
+        importance: Notifications.AndroidImportance.HIGH,
+        vibrationPattern: [
+          0, 100, 100, 400, // Beat 1
+          400, 100, 100, 400, // Beat 2
+          400, 100, 100, 400, // Beat 3
+          400, 100, 100, 400, // Beat 4
+          400, 100, 100, 400  // Beat 5
+        ],
+        lightColor: '#FF6B9D',
+        sound: null, // Silent (Focus on Vibration)
+        enableVibrate: true,
+        showBadge: true,
+      });
     }
 
     console.log('✅ Notification permissions granted');

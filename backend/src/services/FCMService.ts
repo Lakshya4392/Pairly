@@ -79,7 +79,7 @@ class FCMService {
               title: notification.title,
               body: notification.body,
               sound: 'default',
-              channelId: 'moments',
+              channelId: data.type === 'thinking_ping' ? 'thinking_long' : 'moments',
               icon: 'ic_notification',
               color: '#FF6B9D',
             },
