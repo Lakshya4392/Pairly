@@ -5,10 +5,8 @@ import {
   StyleSheet,
   Modal,
   TouchableOpacity,
-  TextInput,
   Animated,
   Vibration,
-  Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -31,39 +29,35 @@ export const MemoriesLockModal: React.FC<MemoriesLockModalProps> = ({
 }) => {
   const { colors } = useTheme();
   const styles = React.useMemo(() => createStyles(colors), [colors]);
-  
+
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricType, setBiometricType] = useState('Biometric');
   const [useBiometric, setUseBiometric] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
   const shakeAnimation = useRef(new Animated.Value(0)).current;
-  const inputRef = useRef<TextInput>(null);
 
   useEffect(() => {
     if (visible) {
       checkBiometric();
       setPin('');
       setError('');
-      
-      // Focus input after a short delay to ensure modal is fully rendered
-      setTimeout(() => {
-        inputRef.current?.focus();
-      }, 300);
+      setIsVerifying(false);
     }
   }, [visible]);
 
   const checkBiometric = async () => {
     const available = await MemoriesLockService.isBiometricAvailable();
     setBiometricAvailable(available);
-    
+
     if (available) {
       const type = await MemoriesLockService.getBiometricType();
       setBiometricType(type);
-      
+
       const settings = await MemoriesLockService.getSettings();
       setUseBiometric(settings.useBiometric);
-      
+
       // Auto-trigger biometric if enabled
       if (settings.useBiometric) {
         setTimeout(() => {
@@ -84,24 +78,21 @@ export const MemoriesLockModal: React.FC<MemoriesLockModalProps> = ({
     }
   };
 
-  const handleVerifyPIN = async () => {
-    if (pin.length < 4) {
-      setError('Enter your PIN');
-      return;
-    }
+  const handleVerifyPIN = async (currentPin: string) => {
+    if (currentPin.length < 4 || isVerifying) return;
 
-    const isValid = await MemoriesLockService.verifyPIN(pin);
-    
+    setIsVerifying(true);
+    const isValid = await MemoriesLockService.verifyPIN(currentPin);
+
     if (isValid) {
       setPin('');
       setError('');
-      Keyboard.dismiss();
       onUnlock();
     } else {
       setError('Incorrect PIN');
       setPin('');
       Vibration.vibrate(400);
-      
+
       // Shake animation
       Animated.sequence([
         Animated.timing(shakeAnimation, { toValue: 10, duration: 50, useNativeDriver: true }),
@@ -109,17 +100,30 @@ export const MemoriesLockModal: React.FC<MemoriesLockModalProps> = ({
         Animated.timing(shakeAnimation, { toValue: 10, duration: 50, useNativeDriver: true }),
         Animated.timing(shakeAnimation, { toValue: 0, duration: 50, useNativeDriver: true }),
       ]).start();
-      
-      // Re-focus input after error
-      setTimeout(() => {
-        inputRef.current?.focus();
-      }, 200);
+    }
+    setIsVerifying(false);
+  };
+
+  const handleKeyPress = (key: string) => {
+    if (isVerifying) return;
+
+    setError('');
+    if (key === 'delete') {
+      setPin(prev => prev.slice(0, -1));
+    } else if (pin.length < 4) {
+      const newPin = pin + key;
+      setPin(newPin);
+
+      // Auto-verify when PIN is 4 digits
+      if (newPin.length === 4) {
+        setTimeout(() => handleVerifyPIN(newPin), 100);
+      }
     }
   };
 
   const renderPinDots = () => {
     const dots = [];
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 4; i++) {
       const filled = i < pin.length;
       dots.push(
         <View
@@ -135,6 +139,42 @@ export const MemoriesLockModal: React.FC<MemoriesLockModalProps> = ({
     return dots;
   };
 
+  const renderKeypad = () => {
+    const keys = [
+      ['1', '2', '3'],
+      ['4', '5', '6'],
+      ['7', '8', '9'],
+      ['', '0', 'delete'],
+    ];
+
+    return (
+      <View style={styles.keypad}>
+        {keys.map((row, rowIndex) => (
+          <View key={rowIndex} style={styles.keypadRow}>
+            {row.map((key, keyIndex) => (
+              <TouchableOpacity
+                key={keyIndex}
+                style={[
+                  styles.keypadKey,
+                  key === '' && styles.keypadKeyEmpty,
+                ]}
+                onPress={() => key && handleKeyPress(key)}
+                activeOpacity={0.6}
+                disabled={key === '' || isVerifying}
+              >
+                {key === 'delete' ? (
+                  <Ionicons name="backspace-outline" size={28} color={colors.text} />
+                ) : (
+                  <Text style={styles.keypadKeyText}>{key}</Text>
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        ))}
+      </View>
+    );
+  };
+
   return (
     <Modal
       visible={visible}
@@ -142,29 +182,9 @@ export const MemoriesLockModal: React.FC<MemoriesLockModalProps> = ({
       animationType="fade"
       onRequestClose={onCancel}
       statusBarTranslucent
-      onShow={() => {
-        // Force focus when modal shows
-        setTimeout(() => {
-          inputRef.current?.focus();
-        }, 100);
-      }}
     >
-      <TouchableOpacity 
-        style={styles.overlay}
-        activeOpacity={1}
-        onPress={() => {
-          // Re-focus input when overlay is tapped
-          inputRef.current?.focus();
-        }}
-      >
-        <TouchableOpacity 
-          style={styles.container}
-          activeOpacity={1}
-          onPress={() => {
-            // Prevent closing when content is tapped
-            inputRef.current?.focus();
-          }}
-        >
+      <View style={styles.overlay}>
+        <View style={styles.container}>
           <Animated.View
             style={[
               styles.content,
@@ -193,35 +213,12 @@ export const MemoriesLockModal: React.FC<MemoriesLockModalProps> = ({
               {error ? (
                 <Text style={styles.errorText}>{error}</Text>
               ) : (
-                <Text style={styles.helperText}>Enter 4-6 digit PIN</Text>
+                <Text style={styles.helperText}>Enter 4 digit PIN</Text>
               )}
             </View>
 
-            {/* Hidden Input - Only for keyboard */}
-            <TextInput
-              ref={inputRef}
-              style={styles.hiddenInput}
-              value={pin}
-              onChangeText={(text) => {
-                const cleaned = text.replace(/[^0-9]/g, '');
-                setPin(cleaned);
-                setError('');
-                if (cleaned.length >= 4 && cleaned.length <= 6) {
-                  // Auto-verify when PIN is complete
-                  setTimeout(() => {
-                    handleVerifyPIN();
-                  }, 200);
-                }
-              }}
-              keyboardType="number-pad"
-              maxLength={6}
-              autoFocus={true}
-              caretHidden={true}
-              contextMenuHidden={true}
-              selectTextOnFocus={false}
-              showSoftInputOnFocus={true}
-              editable={true}
-            />
+            {/* Number Keypad */}
+            {renderKeypad()}
 
             {/* Biometric Button */}
             {biometricAvailable && useBiometric && (
@@ -250,8 +247,8 @@ export const MemoriesLockModal: React.FC<MemoriesLockModalProps> = ({
               </TouchableOpacity>
             )}
           </Animated.View>
-        </TouchableOpacity>
-      </TouchableOpacity>
+        </View>
+      </View>
     </Modal>
   );
 };
@@ -262,16 +259,16 @@ const createStyles = (colors: typeof defaultColors) =>
       flex: 1,
       justifyContent: 'center',
       alignItems: 'center',
-      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      backgroundColor: 'rgba(0, 0, 0, 0.8)',
     },
     container: {
-      width: '100%',
-      paddingHorizontal: spacing.xxl,
+      width: '90%',
+      maxWidth: 360,
     },
     content: {
       backgroundColor: colors.surface,
       borderRadius: borderRadius.xxl,
-      padding: spacing.xxxl,
+      padding: spacing.xl,
       ...shadows.xl,
       borderWidth: 1,
       borderColor: colors.border,
@@ -280,47 +277,47 @@ const createStyles = (colors: typeof defaultColors) =>
     // Header
     header: {
       alignItems: 'center',
-      marginBottom: spacing.xxxl,
-    },
-    iconContainer: {
       marginBottom: spacing.xl,
     },
+    iconContainer: {
+      marginBottom: spacing.lg,
+    },
     iconGradient: {
-      width: 80,
-      height: 80,
-      borderRadius: 24,
+      width: 72,
+      height: 72,
+      borderRadius: 20,
       justifyContent: 'center',
       alignItems: 'center',
       ...shadows.lg,
     },
     title: {
       fontFamily: 'Inter-Bold',
-      fontSize: 24,
+      fontSize: 22,
       color: colors.text,
-      marginBottom: spacing.sm,
+      marginBottom: spacing.xs,
       textAlign: 'center',
     },
     subtitle: {
-      fontSize: 15,
+      fontSize: 14,
       color: colors.textSecondary,
       textAlign: 'center',
-      lineHeight: 22,
+      lineHeight: 20,
     },
 
     // PIN
     pinContainer: {
       alignItems: 'center',
-      marginBottom: spacing.xxxl,
+      marginBottom: spacing.xl,
     },
     pinDots: {
       flexDirection: 'row',
-      gap: spacing.lg,
-      marginBottom: spacing.lg,
+      gap: spacing.md,
+      marginBottom: spacing.md,
     },
     pinDot: {
-      width: 16,
-      height: 16,
-      borderRadius: 8,
+      width: 14,
+      height: 14,
+      borderRadius: 7,
       backgroundColor: colors.backgroundSecondary,
       borderWidth: 2,
       borderColor: colors.border,
@@ -344,11 +341,32 @@ const createStyles = (colors: typeof defaultColors) =>
       textAlign: 'center',
       fontFamily: 'Inter-Medium',
     },
-    hiddenInput: {
-      position: 'absolute',
-      width: 1,
-      height: 1,
-      opacity: 0,
+
+    // Keypad
+    keypad: {
+      marginBottom: spacing.lg,
+    },
+    keypadRow: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      marginBottom: spacing.sm,
+    },
+    keypadKey: {
+      width: 70,
+      height: 56,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: colors.backgroundSecondary,
+      borderRadius: borderRadius.lg,
+      marginHorizontal: spacing.xs,
+    },
+    keypadKeyEmpty: {
+      backgroundColor: 'transparent',
+    },
+    keypadKeyText: {
+      fontFamily: 'Inter-SemiBold',
+      fontSize: 26,
+      color: colors.text,
     },
 
     // Biometric Button
@@ -356,22 +374,22 @@ const createStyles = (colors: typeof defaultColors) =>
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      gap: spacing.md,
-      paddingVertical: spacing.lg,
-      paddingHorizontal: spacing.xxl,
+      gap: spacing.sm,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.xl,
       backgroundColor: colors.backgroundSecondary,
       borderRadius: borderRadius.lg,
-      marginBottom: spacing.lg,
+      marginBottom: spacing.md,
     },
     biometricText: {
-      fontSize: 16,
+      fontSize: 15,
       color: colors.primary,
       fontFamily: 'Inter-SemiBold',
     },
 
     // Cancel Button
     cancelButton: {
-      paddingVertical: spacing.md,
+      paddingVertical: spacing.sm,
       alignItems: 'center',
     },
     cancelText: {

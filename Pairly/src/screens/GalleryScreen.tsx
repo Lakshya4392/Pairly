@@ -308,9 +308,22 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
         </View>
       )}
 
+      {/* Blur overlay when locked */}
+      {needsUnlock && (
+        <View style={styles.lockedOverlay}>
+          <View style={styles.lockedContent}>
+            <Ionicons name="lock-closed" size={60} color={colors.primary} />
+            <Text style={styles.lockedTitle}>Memories Locked</Text>
+            <Text style={styles.lockedSubtitle}>Enter your PIN to view</Text>
+          </View>
+        </View>
+      )}
+
       <ScrollView
-        style={styles.scrollView}
+        style={[styles.scrollView, needsUnlock && styles.blurredContent]}
         showsVerticalScrollIndicator={false}
+        scrollEnabled={!needsUnlock}
+        pointerEvents={needsUnlock ? 'none' : 'auto'}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -464,6 +477,35 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     fontSize: 14,
     color: 'white',
     fontFamily: 'Inter-Medium',
+  },
+
+  // Locked Overlay
+  lockedOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 100,
+  },
+  lockedContent: {
+    alignItems: 'center',
+    padding: spacing.xxxl,
+  },
+  lockedTitle: {
+    fontFamily: 'Inter-Bold',
+    fontSize: 22,
+    color: colors.text,
+    marginTop: spacing.lg,
+    marginBottom: spacing.sm,
+  },
+  lockedSubtitle: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 15,
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
+  blurredContent: {
+    opacity: 0.3,
   },
 
   scrollView: {
