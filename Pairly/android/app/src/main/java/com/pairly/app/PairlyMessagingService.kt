@@ -217,19 +217,27 @@ class PairlyMessagingService : FirebaseMessagingService() {
         
         Log.d(TAG, "💭 Thinking ping from: $senderName")
         
-        // Vibrate phone with romantic pattern
+        // Vibrate phone with romantic heartbeat pattern (~5 seconds)
+        // Pattern: beat-beat pause beat-beat pause beat-beat pause beat-beat
         try {
             val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as android.os.Vibrator
+            // Long romantic vibration sequence: 0ms wait, then heartbeat pattern
+            val heartbeatPattern = longArrayOf(
+                0,    // Start immediately
+                150, 100, 150, 400,   // First heartbeat (thump-thump pause)
+                150, 100, 150, 400,   // Second heartbeat
+                150, 100, 150, 400,   // Third heartbeat
+                150, 100, 150, 400,   // Fourth heartbeat
+                150, 100, 150, 0      // Fifth heartbeat (finale)
+            )
+            
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrator.vibrate(android.os.VibrationEffect.createWaveform(
-                    longArrayOf(0, 200, 100, 200, 100, 300), // tap-tap-long
-                    -1
-                ))
+                vibrator.vibrate(android.os.VibrationEffect.createWaveform(heartbeatPattern, -1))
             } else {
                 @Suppress("DEPRECATION")
-                vibrator.vibrate(longArrayOf(0, 200, 100, 200, 100, 300), -1)
+                vibrator.vibrate(heartbeatPattern, -1)
             }
-            Log.d(TAG, "📳 Vibration triggered")
+            Log.d(TAG, "📳 Heartbeat vibration triggered (5 seconds)")
         } catch (e: Exception) {
             Log.e(TAG, "❌ Vibration error: ${e.message}")
         }
@@ -249,7 +257,8 @@ class PairlyMessagingService : FirebaseMessagingService() {
             .setContentTitle("💭 Thinking of You")
             .setContentText("$senderName is thinking of you right now 💕")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setVibrate(longArrayOf(0, 200, 100, 200))
+            .setVibrate(null) // Don't vibrate again (we already did heartbeat)
+            .setSound(android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION))
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
             .setColor(0xFFFF6B9D.toInt())

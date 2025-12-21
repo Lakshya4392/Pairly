@@ -8,12 +8,12 @@ Notifications.setNotificationHandler({
   handleNotification: async (notification) => {
     // Check notification type
     const type = notification.request.content.data?.type;
-    
+
     // Partner activity notifications should have sound
-    const shouldPlaySound = type?.toString().includes('partner') || 
-                           type === 'good_morning' || 
-                           type === 'good_night';
-    
+    const shouldPlaySound = type?.toString().includes('partner') ||
+      type === 'good_morning' ||
+      type === 'good_night';
+
     return {
       shouldShowBanner: true,
       shouldShowList: true,
@@ -124,12 +124,48 @@ class NotificationService {
   }
 
   /**
-   * Save reminder settings
+   * Save reminder settings (local + sync to backend for FCM reminders)
    */
   static async saveReminderSettings(settings: ReminderSettings): Promise<void> {
     try {
+      // Save locally
       await AsyncStorage.setItem(this.STORAGE_KEY, JSON.stringify(settings));
-      console.log('✅ Reminder settings saved');
+      console.log('✅ Reminder settings saved locally');
+
+      // Sync goodMorning/goodNight to backend (for FCM-based server reminders)
+      try {
+        const { API_CONFIG } = await import('../config/api.config');
+        const token = await AsyncStorage.getItem('auth_token');
+
+        if (token) {
+          const response = await fetch(`${API_CONFIG.baseUrl}/reminders/settings`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              goodMorning: {
+                enabled: settings.goodMorning.enabled,
+                time: settings.goodMorning.time,
+              },
+              goodNight: {
+                enabled: settings.goodNight.enabled,
+                time: settings.goodNight.time,
+              },
+            }),
+          });
+
+          if (response.ok) {
+            console.log('✅ Reminder settings synced to backend');
+          } else {
+            console.warn('⚠️ Failed to sync reminder settings to backend');
+          }
+        }
+      } catch (syncError) {
+        console.warn('⚠️ Could not sync to backend:', syncError);
+        // Local save succeeded, backend sync failed - that's ok
+      }
     } catch (error) {
       console.error('Error saving reminder settings:', error);
     }
@@ -174,7 +210,7 @@ class NotificationService {
 
       this.notificationIds.set('dailyMoment', id);
       console.log(`✅ Daily moment reminder scheduled for ${hour}:${minute.toString().padStart(2, '0')} daily`);
-      
+
       // Verify scheduling
       const scheduled = await Notifications.getAllScheduledNotificationsAsync();
       const thisNotif = scheduled.find(n => n.identifier === id);
@@ -221,7 +257,7 @@ class NotificationService {
 
       this.notificationIds.set('goodMorning', id);
       console.log(`✅ Good morning reminder scheduled for ${hour}:${minute.toString().padStart(2, '0')} daily`);
-      
+
       // Verify scheduling
       const scheduled = await Notifications.getAllScheduledNotificationsAsync();
       const thisNotif = scheduled.find(n => n.identifier === id);
@@ -268,7 +304,7 @@ class NotificationService {
 
       this.notificationIds.set('goodNight', id);
       console.log(`✅ Good night reminder scheduled for ${hour}:${minute.toString().padStart(2, '0')} daily`);
-      
+
       // Verify scheduling
       const scheduled = await Notifications.getAllScheduledNotificationsAsync();
       const thisNotif = scheduled.find(n => n.identifier === id);
@@ -293,7 +329,7 @@ class NotificationService {
       // Schedule 1 week before
       const oneWeekBefore = new Date(anniversaryDate);
       oneWeekBefore.setDate(oneWeekBefore.getDate() - 7);
-      
+
       if (oneWeekBefore > now) {
         await Notifications.scheduleNotificationAsync({
           content: {
@@ -310,7 +346,7 @@ class NotificationService {
       // Schedule 1 day before
       const oneDayBefore = new Date(anniversaryDate);
       oneDayBefore.setDate(oneDayBefore.getDate() - 1);
-      
+
       if (oneDayBefore > now) {
         await Notifications.scheduleNotificationAsync({
           content: {
@@ -521,17 +557,17 @@ class NotificationService {
   static async getScheduledRemindersSummary(): Promise<string> {
     try {
       const scheduled = await Notifications.getAllScheduledNotificationsAsync();
-      
+
       if (scheduled.length === 0) {
         return 'No scheduled notifications';
       }
 
       let summary = `📅 Scheduled Notifications (${scheduled.length}):\n`;
-      
+
       for (const notif of scheduled) {
         const trigger = notif.trigger as any;
         const type = notif.content.data?.type || 'unknown';
-        
+
         if (trigger.type === 'daily') {
           const hour = trigger.hour.toString().padStart(2, '0');
           const minute = trigger.minute.toString().padStart(2, '0');
@@ -541,7 +577,7 @@ class NotificationService {
           summary += `  • ${type}: ${date.toLocaleString()}\n`;
         }
       }
-      
+
       return summary;
     } catch (error) {
       return 'Error getting scheduled notifications';
@@ -559,11 +595,11 @@ class NotificationService {
   }> {
     try {
       const scheduled = await Notifications.getAllScheduledNotificationsAsync();
-      
+
       const hasGoodMorning = scheduled.some(n => n.content.data?.type === 'good_morning');
       const hasGoodNight = scheduled.some(n => n.content.data?.type === 'good_night');
       const hasDailyMoment = scheduled.some(n => n.content.data?.type === 'daily_moment');
-      
+
       return {
         goodMorning: hasGoodMorning,
         goodNight: hasGoodNight,
@@ -588,7 +624,7 @@ class NotificationService {
     try {
       let title = '';
       let body = '';
-      
+
       switch (type) {
         case 'good_morning':
           title = '☀️ Good Morning!';
@@ -603,7 +639,7 @@ class NotificationService {
           body = 'This is a test daily moment notification';
           break;
       }
-      
+
       await Notifications.scheduleNotificationAsync({
         content: {
           title,
@@ -613,7 +649,7 @@ class NotificationService {
         },
         trigger: null, // Send immediately
       });
-      
+
       console.log(`✅ Test notification sent: ${type}`);
     } catch (error) {
       console.error('Error sending test notification:', error);
