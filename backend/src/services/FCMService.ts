@@ -112,6 +112,7 @@ class FCMService {
 
   /**
    * ⚡ IMPROVED: Send new photo notification with URL for background download
+   * Premium romantic messages that vary
    */
   async sendNewPhotoNotification(
     fcmToken: string,
@@ -119,6 +120,18 @@ class FCMService {
     partnerName: string,
     momentId: string
   ): Promise<boolean> {
+    // Romantic message variations
+    const romanticMessages = [
+      { title: `💕 ${partnerName} is thinking of you`, body: 'A special moment just for you ✨' },
+      { title: `📸 New moment from ${partnerName}`, body: 'Someone special captured this for you 💗' },
+      { title: `💝 ${partnerName} shared a memory`, body: 'Tap to see what they sent you 💫' },
+      { title: `✨ ${partnerName} sent you love`, body: 'A beautiful moment is waiting for you 🌹' },
+      { title: `💖 Hey! ${partnerName} misses you`, body: 'Check out this special moment 💕' },
+    ];
+
+    // Pick random message
+    const message = romanticMessages[Math.floor(Math.random() * romanticMessages.length)];
+
     return this.sendNotification(
       fcmToken,
       {
@@ -128,15 +141,12 @@ class FCMService {
         momentId,
         timestamp: Date.now().toString(),
       },
-      {
-        title: `💕 New Moment from ${partnerName}`,
-        body: 'Tap to view your special moment together',
-      }
+      message
     );
   }
 
   /**
-   * ⚡ NEW: Send note notification
+   * ⚡ PREMIUM: Send note notification with romantic variations
    */
   async sendNoteNotification(
     fcmToken: string,
@@ -149,6 +159,18 @@ class FCMService {
       ? noteContent.substring(0, 50) + '...'
       : noteContent;
 
+    // Romantic note messages
+    const romanticMessages = [
+      { title: `💌 Love note from ${senderName}`, body: preview },
+      { title: `✨ ${senderName} sent you a secret`, body: `"${preview}"` },
+      { title: `💕 A sweet message from ${senderName}`, body: preview },
+      { title: `📝 ${senderName} wrote you something`, body: `"${preview}"` },
+      { title: `💗 Hey! ${senderName} has words for you`, body: preview },
+    ];
+
+    // Pick random message
+    const message = romanticMessages[Math.floor(Math.random() * romanticMessages.length)];
+
     return this.sendNotification(
       fcmToken,
       {
@@ -158,10 +180,7 @@ class FCMService {
         noteId,
         timestamp: Date.now().toString(),
       },
-      {
-        title: `💌 New Note from ${senderName}`,
-        body: preview,
-      }
+      message
     );
   }
 

@@ -62,6 +62,16 @@ class ReminderService {
                         continue; // No pair, skip
                     }
 
+                    // Romantic Good Morning messages
+                    const morningMessages = [
+                        { title: '☀️ Rise and Shine!', body: `Send ${partnerName} a sweet good morning 💕` },
+                        { title: `🌅 ${partnerName} is waiting!`, body: 'Start their day with your love ✨' },
+                        { title: '💕 Good Morning, Sunshine!', body: `Make ${partnerName} smile today 🌻` },
+                        { title: '🌸 Time to spread love!', body: `Say good morning to ${partnerName} 💗` },
+                        { title: `☕ Hey! ${partnerName} needs you`, body: 'A morning moment would mean the world 💝' },
+                    ];
+                    const message = morningMessages[Math.floor(Math.random() * morningMessages.length)];
+
                     // Send FCM
                     await FCMService.sendNotification(
                         user.fcmToken!,
@@ -69,10 +79,7 @@ class ReminderService {
                             type: 'good_morning',
                             partnerName,
                         },
-                        {
-                            title: '☀️ Good Morning!',
-                            body: `Say good morning to ${partnerName} 💕`,
-                        }
+                        message
                     );
 
                     log.info('Good morning reminder sent', { userId: user.id.substring(0, 8) + '...' });
@@ -123,6 +130,16 @@ class ReminderService {
                         continue; // No pair, skip
                     }
 
+                    // Romantic Good Night messages
+                    const nightMessages = [
+                        { title: '🌙 Sweet Dreams Await!', body: `Send ${partnerName} a goodnight kiss 💋` },
+                        { title: `🌟 ${partnerName} is thinking of you`, body: 'End their day with love 💕' },
+                        { title: '💤 Time for sweet dreams!', body: `Wish ${partnerName} goodnight ✨` },
+                        { title: '🌙 Before you sleep...', body: `Make ${partnerName} feel loved tonight 💗` },
+                        { title: `😴 ${partnerName} needs a goodnight hug`, body: 'Send a special moment 💝' },
+                    ];
+                    const message = nightMessages[Math.floor(Math.random() * nightMessages.length)];
+
                     // Send FCM
                     await FCMService.sendNotification(
                         user.fcmToken!,
@@ -130,10 +147,7 @@ class ReminderService {
                             type: 'good_night',
                             partnerName,
                         },
-                        {
-                            title: '🌙 Good Night!',
-                            body: `Send a goodnight moment to ${partnerName} 💕`,
-                        }
+                        message
                     );
 
                     log.info('Good night reminder sent', { userId: user.id.substring(0, 8) + '...' });

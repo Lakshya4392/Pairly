@@ -468,20 +468,8 @@ io.on('connection', (socket) => {
 // Export io for use in other modules
 export { io };
 
-// ⏰ CRON JOB 1: Process scheduled moments (every 5 minutes)
-cron.schedule('*/5 * * * *', async () => {
-  try {
-    const result = await ScheduledMomentService.processScheduledMoments();
-    // Only log if something was processed
-    if (result && result.delivered > 0) {
-      console.log(`✅ Processed ${result.delivered} scheduled moments`);
-    }
-  } catch (error) {
-    console.error('❌ Error in scheduled moments cron:', error);
-  }
-});
-
-console.log('⏰ Cron: Scheduled moments (every 5 minutes)');
+// NOTE: Scheduled moments are processed in the 1-minute cron below (line 518)
+// Removed duplicate 5-minute cron to prevent multiple FCM sends
 
 // ⏰ CRON JOB 2: Cleanup expired pending moments (every hour)
 // Disabled until database migration - will enable in production

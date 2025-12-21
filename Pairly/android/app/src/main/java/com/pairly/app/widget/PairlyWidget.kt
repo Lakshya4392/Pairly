@@ -227,7 +227,7 @@ class PairlyWidget : AppWidgetProvider() {
                     views.setTextViewText(R.id.widget_timestamp, "Just now")
                     views.setImageViewBitmap(R.id.widget_image, bitmap)
                     
-                    // Click handler
+                    // Click handler for main widget
                     val intent = Intent(context, MainActivity::class.java)
                     intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
                     val pendingIntent = PendingIntent.getActivity(
@@ -235,6 +235,29 @@ class PairlyWidget : AppWidgetProvider() {
                         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                     )
                     views.setOnClickPendingIntent(R.id.widget_container, pendingIntent)
+                    
+                    // Set up reaction button
+                    try {
+                        val prefs = context.getSharedPreferences("pairly_prefs", Context.MODE_PRIVATE)
+                        val momentId = prefs.getString("current_moment_id", null)
+                        if (momentId != null) {
+                            val reactIntent = Intent(context, ReactionPickerActivity::class.java).apply {
+                                putExtra(ReactionPickerActivity.EXTRA_MOMENT_ID, momentId)
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                            }
+                            val reactPendingIntent = PendingIntent.getActivity(
+                                context,
+                                appWidgetId + 1000,
+                                reactIntent,
+                                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                            )
+                            views.setOnClickPendingIntent(R.id.react_button, reactPendingIntent)
+                            println("✅ [Widget] Reaction button set up in onPostExecute")
+                        }
+                    } catch (e: Exception) {
+                        println("⚠️ [Widget] Reaction button setup failed: ${e.message}")
+                    }
                     
                     appWidgetManager.updateAppWidget(appWidgetId, views)
                 } catch (e: Exception) {
