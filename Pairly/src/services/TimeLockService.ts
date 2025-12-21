@@ -80,7 +80,7 @@ class TimeLockService {
       console.log('✅ Time-lock message created');
       return {
         success: true,
-        message: data.message,
+        message: data.data?.message,
       };
     } catch (error) {
       console.error('Error creating time-lock:', error);
@@ -120,7 +120,7 @@ class TimeLockService {
 
       return {
         success: true,
-        messages: data.messages || [],
+        messages: data.data?.messages || [],
       };
     } catch (error) {
       console.error('Error fetching time-lock messages:', error);
@@ -172,7 +172,7 @@ class TimeLockService {
   static getTimeRemaining(unlockDate: Date): string {
     const now = new Date();
     const diffMs = unlockDate.getTime() - now.getTime();
-    
+
     if (diffMs <= 0) return 'Unlocked';
 
     const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));

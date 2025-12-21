@@ -32,6 +32,8 @@ class PairlyMessagingService : FirebaseMessagingService() {
         private const val TAG = "PairlyMessaging"
         private const val CHANNEL_ID = "moments"
         private const val CHANNEL_NAME = "Moments"
+        private const val PING_CHANNEL_ID = "thinking_ping"
+        private const val PING_CHANNEL_NAME = "Thinking of You"
     }
 
     override fun onCreate() {
@@ -216,30 +218,49 @@ class PairlyMessagingService : FirebaseMessagingService() {
         val senderName = data["senderName"] ?: "Your partner"
         
         Log.d(TAG, "💭 Thinking ping from: $senderName")
+        Log.d(TAG, "📱 Starting custom vibration...")
         
         // Vibrate phone with romantic heartbeat pattern (~5 seconds)
         // Pattern: beat-beat pause beat-beat pause beat-beat pause beat-beat
         try {
-            val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as android.os.Vibrator
-            // Long romantic vibration sequence: 0ms wait, then heartbeat pattern
+            // Long romantic vibration sequence
             val heartbeatPattern = longArrayOf(
                 0,    // Start immediately
-                150, 100, 150, 400,   // First heartbeat (thump-thump pause)
-                150, 100, 150, 400,   // Second heartbeat
-                150, 100, 150, 400,   // Third heartbeat
-                150, 100, 150, 400,   // Fourth heartbeat
-                150, 100, 150, 0      // Fifth heartbeat (finale)
+                200, 150, 200, 500,   // First heartbeat (stronger, longer)
+                200, 150, 200, 500,   // Second heartbeat
+                200, 150, 200, 500,   // Third heartbeat
+                200, 150, 200, 500,   // Fourth heartbeat
+                300, 200, 300, 0      // Fifth heartbeat (finale - stronger)
             )
             
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrator.vibrate(android.os.VibrationEffect.createWaveform(heartbeatPattern, -1))
+            // Get vibrator - use VibratorManager for Android 12+
+            val vibrator: android.os.Vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val vibratorManager = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as android.os.VibratorManager
+                vibratorManager.defaultVibrator
             } else {
                 @Suppress("DEPRECATION")
-                vibrator.vibrate(heartbeatPattern, -1)
+                getSystemService(Context.VIBRATOR_SERVICE) as android.os.Vibrator
             }
-            Log.d(TAG, "📳 Heartbeat vibration triggered (5 seconds)")
+            
+            Log.d(TAG, "📳 Vibrator obtained, hasVibrator: ${vibrator.hasVibrator()}")
+            
+            if (vibrator.hasVibrator()) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    val effect = android.os.VibrationEffect.createWaveform(heartbeatPattern, -1)
+                    vibrator.vibrate(effect)
+                    Log.d(TAG, "✅ VibrationEffect.createWaveform executed!")
+                } else {
+                    @Suppress("DEPRECATION")
+                    vibrator.vibrate(heartbeatPattern, -1)
+                    Log.d(TAG, "✅ Legacy vibrate() executed!")
+                }
+                Log.d(TAG, "💓 Heartbeat vibration triggered (5 seconds)")
+            } else {
+                Log.w(TAG, "⚠️ Device has no vibrator!")
+            }
         } catch (e: Exception) {
             Log.e(TAG, "❌ Vibration error: ${e.message}")
+            e.printStackTrace()
         }
         
         // Show notification
@@ -252,12 +273,14 @@ class PairlyMessagingService : FirebaseMessagingService() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         
-        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+        // Use PING_CHANNEL_ID - this channel has NO vibration
+        // so our custom heartbeat vibration above works
+        val notification = NotificationCompat.Builder(this, PING_CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle("💭 Thinking of You")
             .setContentText("$senderName is thinking of you right now 💕")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setVibrate(null) // Don't vibrate again (we already did heartbeat)
+            .setVibrate(longArrayOf(0)) // Empty vibration for this channel
             .setSound(android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION))
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
@@ -271,10 +294,11 @@ class PairlyMessagingService : FirebaseMessagingService() {
     }
 
     /**
-     * Create notification channel (required for Android 8+)
+     * Create notification channels (required for Android 8+)
      */
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // Main moments channel - with vibration
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 CHANNEL_NAME,
@@ -285,9 +309,22 @@ class PairlyMessagingService : FirebaseMessagingService() {
                 enableVibration(true)
             }
 
+            // Ping channel - NO vibration (we do custom heartbeat)
+            val pingChannel = NotificationChannel(
+                PING_CHANNEL_ID,
+                PING_CHANNEL_NAME,
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Thinking of You ping notifications"
+                enableLights(true)
+                enableVibration(false) // IMPORTANT: No channel vibration
+                vibrationPattern = longArrayOf(0) // Empty pattern
+            }
+
             val notificationManager = getSystemService(NotificationManager::class.java)
             notificationManager.createNotificationChannel(channel)
-            Log.d(TAG, "✅ Notification channel created")
+            notificationManager.createNotificationChannel(pingChannel)
+            Log.d(TAG, "✅ Notification channels created (moments + ping)")
         }
     }
 

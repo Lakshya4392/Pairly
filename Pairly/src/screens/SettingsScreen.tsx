@@ -435,22 +435,22 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const confirmSignOut = async () => {
     try {
       console.log('🔄 Starting sign out process...');
-      
+
       // 1. Clear premium status
       const PremiumService = (await import('../services/PremiumService')).default;
       await PremiumService.clearPremiumStatus();
-      
+
       // 2. Clear all app data
       const AuthService = (await import('../services/AuthService')).default;
       await AuthService.signOut();
-      
+
       // 3. Disconnect socket
       const RealtimeService = (await import('../services/RealtimeService')).default;
       RealtimeService.disconnect();
-      
+
       // 4. Clear Clerk session
       await signOut();
-      
+
       console.log('✅ Signed out successfully');
       // Navigator will automatically redirect to auth screen
     } catch (error) {
@@ -913,22 +913,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               onValueChange={handleToggleMemoriesLock}
               trackColor={{ false: colors.border, true: colors.primaryLight }}
               thumbColor={memoriesLockEnabled ? colors.primary : colors.textTertiary}
-              disabled={!isPremium}
-            />
-          }
-        />
-        <SettingItem
-          icon="lock-closed"
-          title="App Lock"
-          subtitle="Protect entire app with PIN or fingerprint"
-          isPremiumFeature={!isPremium}
-          onPress={() => !isPremium && handlePremiumFeature('App Lock')}
-          rightElement={
-            <Switch
-              value={appLockEnabled}
-              onValueChange={handleToggleAppLock}
-              trackColor={{ false: colors.border, true: colors.primaryLight }}
-              thumbColor={appLockEnabled ? colors.primary : colors.textTertiary}
               disabled={!isPremium}
             />
           }
