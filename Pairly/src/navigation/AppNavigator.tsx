@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Alert, Platform, AppState, NativeModules } from 'react-native';
+import { View, StyleSheet, Alert, Platform, AppState, NativeModules, BackHandler } from 'react-native';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system';
@@ -558,6 +558,47 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
       subscription.remove();
     };
   }, [isSignedIn, user]);
+
+  // Handle Hardware Back Button
+  useEffect(() => {
+    const onBackPress = () => {
+      switch (currentScreen) {
+        case 'settings':
+        case 'gallery':
+        case 'premium':
+        case 'socketTest':
+          setCurrentScreen('upload'); // Go back to Home
+          return true; // Prevent default behavior (Exit)
+
+        case 'managePremium':
+        case 'inviteFriend':
+          setCurrentScreen('settings'); // Go back to Settings
+          return true;
+
+        case 'pairingConnection':
+          handleCancelConnection();
+          return true;
+
+        case 'upload':
+        case 'auth':
+        case 'onboarding':
+        case 'splash':
+        case 'pairing':
+          // Root screens - allow default behavior (Exit App or Minimize)
+          return false;
+
+        default:
+          return false;
+      }
+    };
+
+    const backHandler = BackHandler.addEventListener(
+      'hardwareBackPress',
+      onBackPress
+    );
+
+    return () => backHandler.remove();
+  }, [currentScreen]);
 
   // --- Render ---
 

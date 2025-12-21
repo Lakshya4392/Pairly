@@ -166,45 +166,84 @@ export const PairingScreen: React.FC<PairingScreenProps> = ({ onPairingComplete,
 
   const renderChooseMode = () => (
     <View style={styles.content}>
+      {/* Premium Background Atmosphere */}
+      <View style={styles.blobContainer}>
+        <LinearGradient
+          colors={['rgba(255, 107, 157, 0.12)', 'rgba(255, 107, 157, 0)']}
+          style={styles.blobTopRight}
+          start={{ x: 0.8, y: 0.2 }}
+          end={{ x: 0, y: 1 }}
+        />
+        <LinearGradient
+          colors={['rgba(168, 85, 247, 0.12)', 'rgba(168, 85, 247, 0)']}
+          style={styles.blobBottomLeft}
+          start={{ x: 0.2, y: 0.8 }}
+          end={{ x: 1, y: 0 }}
+        />
+        <LinearGradient
+          colors={['rgba(14, 165, 233, 0.08)', 'rgba(14, 165, 233, 0)']}
+          style={styles.blobCenter}
+          start={{ x: 0.5, y: 0.5 }}
+          end={{ x: 1, y: 1 }}
+        />
+      </View>
+
+      {/* Premium Hero Header with Glowing Heart */}
       <View style={styles.header}>
         <View style={styles.iconContainer}>
-          <LinearGradient
-            colors={[colors.primary, colors.secondary]}
-            style={styles.iconGradient}
-          >
-            <Ionicons name="people" size={32} color="white" />
-          </LinearGradient>
+          <View style={styles.iconOuterRing}>
+            <LinearGradient
+              colors={['#FF6B9D', '#EC4899', '#A855F7']}
+              style={styles.iconGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <Ionicons name="heart" size={42} color="white" />
+            </LinearGradient>
+          </View>
         </View>
-        <Text style={styles.title}>Connect with Your Person</Text>
+        <Text style={styles.title}>Connect with{'\n'}Your Person</Text>
         <Text style={styles.subtitle}>
-          Choose how you'd like to pair with your partner
+          Start your shared journey together
         </Text>
       </View>
 
+      {/* Beautiful Premium Option Cards - Vertical Stack */}
       <View style={styles.optionsContainer}>
-        <Animated.View style={{ transform: [{ scale: generateCardScale }] }}>
+        {/* Generate Code Card - Blue Pastel */}
+        <Animated.View style={{ transform: [{ scale: generateCardScale }], width: '100%' }}>
           <TouchableOpacity
-            style={styles.optionCard}
             onPress={handleGenerateCode}
-            activeOpacity={1}
+            activeOpacity={0.9}
             disabled={loading}
           >
-            <View style={styles.optionIconContainer}>
-              <Ionicons name="add-circle" size={24} color={colors.primary} />
-            </View>
-            <View style={styles.optionContent}>
-              <Text style={styles.optionTitle}>Generate Code</Text>
-              <Text style={styles.optionDescription}>
-                Create an invite code to share with your partner
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
+            <LinearGradient
+              colors={['#E0F2FE', '#BAE6FD', '#E0F2FE']}
+              style={styles.optionCardGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <View style={styles.optionCardInner}>
+                <View style={[styles.optionIconCircle, { backgroundColor: '#0EA5E9' }]}>
+                  <Ionicons name="add" size={28} color="white" />
+                </View>
+                <View style={styles.optionTextContainer}>
+                  <Text style={styles.optionTitle}>Generate Code</Text>
+                  <Text style={styles.optionDescription}>
+                    Create your unique invite code
+                  </Text>
+                </View>
+                <View style={styles.optionArrow}>
+                  <Ionicons name="chevron-forward" size={20} color="#0EA5E9" />
+                </View>
+              </View>
+            </LinearGradient>
           </TouchableOpacity>
         </Animated.View>
 
-        <Animated.View style={{ transform: [{ scale: joinCardScale }] }}>
+        {/* Enter Code Card - Pink Pastel */}
+        <Animated.View style={{ transform: [{ scale: joinCardScale }], width: '100%' }}>
           <TouchableOpacity
-            style={styles.optionCard}
             onPress={() => {
               Animated.sequence([
                 Animated.timing(joinCardScale, {
@@ -219,33 +258,41 @@ export const PairingScreen: React.FC<PairingScreenProps> = ({ onPairingComplete,
               ]).start();
               setTimeout(() => setMode('join'), 100);
             }}
-            activeOpacity={1}
+            activeOpacity={0.9}
           >
-            <View style={styles.optionIconContainer}>
-              <Ionicons name="enter" size={24} color={colors.secondary} />
-            </View>
-            <View style={styles.optionContent}>
-              <Text style={styles.optionTitle}>Enter Code</Text>
-              <Text style={styles.optionDescription}>
-                Join using your partner's invite code
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
+            <LinearGradient
+              colors={['#FCE7F3', '#FBCFE8', '#FCE7F3']}
+              style={styles.optionCardGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <View style={styles.optionCardInner}>
+                <View style={[styles.optionIconCircle, { backgroundColor: '#EC4899' }]}>
+                  <Ionicons name="link" size={28} color="white" />
+                </View>
+                <View style={styles.optionTextContainer}>
+                  <Text style={styles.optionTitle}>Enter Code</Text>
+                  <Text style={styles.optionDescription}>
+                    Join with partner's invite code
+                  </Text>
+                </View>
+                <View style={styles.optionArrow}>
+                  <Ionicons name="chevron-forward" size={20} color="#EC4899" />
+                </View>
+              </View>
+            </LinearGradient>
           </TouchableOpacity>
         </Animated.View>
       </View>
 
       {onSkipPairing && (
-        <View style={styles.skipContainer}>
-          <Text style={styles.skipText}>Want to explore the app first?</Text>
-          <TouchableOpacity
-            style={styles.skipButton}
-            onPress={onSkipPairing}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.skipButtonText}>Skip for now</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+          style={styles.skipButton}
+          onPress={onSkipPairing}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.skipButtonText}>Skip for now</Text>
+        </TouchableOpacity>
       )}
     </View>
   );
@@ -385,7 +432,7 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     backgroundColor: colors.background,
   },
 
-  // Content
+  // Content - Vertically Centered with Decorations
   content: {
     flex: 1,
     justifyContent: 'center',
@@ -393,128 +440,217 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     maxWidth: layout.maxContentWidth,
     alignSelf: 'center',
     width: '100%',
+    paddingBottom: spacing.xxxl,
+    position: 'relative',
+  },
+
+  // Decorative Blobs
+  blobContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: -1,
+    overflow: 'hidden',
+  },
+  blobTopRight: {
+    position: 'absolute',
+    top: -100,
+    right: -100,
+    width: 450,
+    height: 450,
+    borderRadius: 225,
+    opacity: 0.6,
+  },
+  blobBottomLeft: {
+    position: 'absolute',
+    bottom: -50,
+    left: -100,
+    width: 400,
+    height: 400,
+    borderRadius: 200,
+    opacity: 0.6,
+  },
+  blobCenter: {
+    position: 'absolute',
+    top: '30%',
+    left: '20%',
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    opacity: 0.4,
   },
 
   // Header
   header: {
     alignItems: 'center',
-    marginBottom: spacing.huge,
-  },
-  iconContainer: {
     marginBottom: spacing.xxl,
   },
+  iconContainer: {
+    marginBottom: spacing.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconOuterRing: {
+    padding: 6,
+    borderRadius: 32,
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.8)',
+    shadowColor: '#EC4899',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 8,
+  },
   iconGradient: {
-    width: 100,
-    height: 100,
-    borderRadius: 28,
+    width: 88, // Increased size
+    height: 88,
+    borderRadius: 26,
     justifyContent: 'center',
     alignItems: 'center',
-    ...shadows.xl,
   },
   successIconContainer: {
-    width: 80,
-    height: 80,
-    backgroundColor: colors.successLight,
-    borderRadius: 20,
+    width: 64,
+    height: 64,
+    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
   },
   joinIconContainer: {
-    width: 80,
-    height: 80,
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: 20,
+    width: 64,
+    height: 64,
+    backgroundColor: 'rgba(236, 72, 153, 0.08)',
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
   },
   title: {
-    fontFamily: 'Inter-SemiBold',
-    fontSize: 24,
+    fontFamily: 'Inter-Bold',
+    fontSize: 28,
     color: colors.text,
-    marginBottom: spacing.md,
+    marginBottom: spacing.xs,
     textAlign: 'center',
+    lineHeight: 36,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 15,
     color: colors.textSecondary,
     textAlign: 'center',
-    lineHeight: 24,
+    lineHeight: 22,
+    maxWidth: '80%',
   },
 
-  // Options Container
+  // Options Container - Vertical Stack
   optionsContainer: {
+    flexDirection: 'column', // Vertical layout
     gap: spacing.lg,
-    marginBottom: spacing.huge,
+    marginBottom: spacing.xxl,
+    width: '100%',
   },
-  optionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
+  // Premium Gradient Card
+  optionCardGradient: {
     borderRadius: borderRadius.xl,
-    padding: spacing.xxl,
-    borderWidth: 0,
-    ...shadows.md,
+    padding: spacing.lg,
+    minHeight: 100, // Reduced height for horizontal content flow
   },
-  optionIconContainer: {
-    width: 48,
-    height: 48,
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: borderRadius.md,
+  optionCardInner: {
+    flexDirection: 'row', // Horizontal content flow inside vertical card
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    gap: spacing.md,
+    width: '100%',
+  },
+  optionIconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: spacing.lg,
   },
-  optionContent: {
+  // Text Container for Vertical Layout
+  optionTextContainer: {
     flex: 1,
+    alignItems: 'flex-start', // Left align text
   },
   optionTitle: {
     fontFamily: 'Inter-SemiBold',
     fontSize: 18,
     color: colors.text,
-    marginBottom: spacing.xs,
+    textAlign: 'left',
+    marginBottom: 2,
   },
   optionDescription: {
-    fontSize: 14,
+    fontSize: 13,
     color: colors.textSecondary,
-    lineHeight: 20,
+    textAlign: 'left',
+    lineHeight: 18,
+  },
+  optionArrow: {
+    backgroundColor: 'rgba(255,255,255,0.5)',
+    borderRadius: 20,
+    padding: 8,
+  },
+  // Keep old styles for backward compatibility
+  optionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  optionIconContainer: {
+    width: 44,
+    height: 44,
+    backgroundColor: 'rgba(255, 107, 157, 0.08)',
+    borderRadius: borderRadius.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: spacing.md,
+  },
+  optionContent: {
+    flex: 1,
   },
 
-  // Code Display
+  // Code Display - Soft Pastel
   codeContainer: {
     alignItems: 'center',
-    marginBottom: spacing.xxxl,
+    marginBottom: spacing.xxl,
   },
   codeDisplay: {
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: '#FFF5F7',
     borderRadius: borderRadius.lg,
-    paddingVertical: spacing.xxl,
-    paddingHorizontal: spacing.xxxl,
-    marginBottom: spacing.xxl,
-    borderWidth: 2,
-    borderColor: colors.primary,
-    borderStyle: 'dashed',
+    paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.xxl,
+    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 157, 0.2)',
   },
   codeText: {
-    fontSize: 28,
-    lineHeight: 36,
+    fontSize: 26,
+    lineHeight: 32,
     color: colors.primary,
-    letterSpacing: 8,
-    fontFamily: 'monospace',
+    letterSpacing: 6,
+    fontFamily: 'Inter-Bold',
   },
   copyButton: {
-    borderRadius: borderRadius.md,
-    ...shadows.md,
+    borderRadius: borderRadius.full,
   },
   copyButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.xxl,
-    paddingVertical: spacing.lg,
-    borderRadius: borderRadius.md,
-    gap: spacing.md,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.full,
+    gap: spacing.sm,
   },
   copyButtonText: {
-    fontFamily: 'Inter-SemiBold', fontSize: 16,
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 15,
     color: 'white',
   },
 
@@ -523,100 +659,91 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: spacing.sm,
-    marginBottom: spacing.xxxl,
+    gap: spacing.xs,
+    marginBottom: spacing.xxl,
   },
   expiryText: {
-    fontSize: 14,
+    fontSize: 13,
     color: colors.textTertiary,
   },
 
-  // Join Input
+  // Join Input - Clean Minimal
   joinInputContainer: {
-    marginBottom: spacing.xxxl,
+    marginBottom: spacing.xxl,
   },
   codeInputWrapper: {
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: '#FFF5F7',
     borderRadius: borderRadius.lg,
-    borderWidth: 2,
-    borderColor: colors.border,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 157, 0.2)',
     paddingVertical: spacing.lg,
-    paddingHorizontal: spacing.xxl,
-    marginBottom: spacing.md,
+    paddingHorizontal: spacing.xl,
+    marginBottom: spacing.sm,
   },
   codeInput: {
-    fontSize: 24,
+    fontSize: 22,
     color: colors.text,
     textAlign: 'center',
-    letterSpacing: 8,
-    fontFamily: 'monospace',
+    letterSpacing: 6,
+    fontFamily: 'Inter-Bold',
   },
   inputHelper: {
-    fontSize: 14,
+    fontSize: 13,
     color: colors.textTertiary,
     textAlign: 'center',
   },
 
-  // Connect Button
+  // Connect Button - Rounded Soft
   connectButton: {
-    borderRadius: borderRadius.md,
-    marginBottom: spacing.xxxl,
-    ...shadows.md,
+    borderRadius: borderRadius.full,
+    marginBottom: spacing.xxl,
   },
   connectButtonDisabled: {
-    ...shadows.none,
+    opacity: 0.6,
   },
   connectButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: spacing.lg,
-    borderRadius: borderRadius.md,
-    gap: spacing.md,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.full,
+    gap: spacing.sm,
   },
   connectButtonText: {
-    fontFamily: 'Inter-SemiBold', fontSize: 16,
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 15,
     color: 'white',
   },
 
-  // Back Button
+  // Back Button - Subtle
   backButtonContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: spacing.sm,
-    paddingVertical: spacing.lg,
+    gap: spacing.xs,
+    paddingVertical: spacing.md,
   },
   backButtonText: {
-    fontSize: 16,
+    fontSize: 14,
     color: colors.textTertiary,
   },
 
-  // Skip Section
+  // Skip Section - Centered and Bottom
   skipContainer: {
     alignItems: 'center',
-    marginTop: spacing.huge,
-    paddingTop: spacing.xxl,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  skipText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginBottom: spacing.lg,
-    textAlign: 'center',
+    marginTop: spacing.sm,
+    width: '100%',
   },
   skipButton: {
-    paddingHorizontal: spacing.xxl,
-    paddingVertical: spacing.lg,
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.full,
+    alignItems: 'center',
+    alignSelf: 'center',
   },
   skipButtonText: {
-    fontSize: 16,
-    color: colors.textSecondary,
+    fontSize: 14,
+    color: colors.textTertiary,
     fontFamily: 'Inter-Medium',
   },
 });

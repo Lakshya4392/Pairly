@@ -498,17 +498,17 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     backgroundColor: colors.background,
   },
 
-  // Header
+  // Header - Minimal
   header: {
     paddingHorizontal: layout.screenPaddingHorizontal,
-    paddingTop: spacing.massive,
-    paddingBottom: spacing.xl,
+    paddingTop: spacing.huge,
+    paddingBottom: spacing.lg,
   },
   cancelButton: {
-    width: 44,
-    height: 44,
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: borderRadius.md,
+    width: 40,
+    height: 40,
+    backgroundColor: 'rgba(0, 0, 0, 0.04)',
+    borderRadius: borderRadius.full,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -521,46 +521,49 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     alignItems: 'center',
   },
 
-  // Title
+  // Title - Smaller, Softer
   title: {
-    fontFamily: 'Inter-Bold', fontSize: 28, lineHeight: 36,
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 24,
     color: colors.text,
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
     textAlign: 'center',
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 14,
     color: colors.textSecondary,
     textAlign: 'center',
-    marginBottom: spacing.xxxl,
-    lineHeight: 24,
+    marginBottom: spacing.xxl,
+    lineHeight: 20,
   },
 
-  // Code Display
+  // Code Display - Soft Pastel
   codeContainer: {
-    marginBottom: spacing.xxxl,
+    marginBottom: spacing.xxl,
   },
   codeBox: {
-    backgroundColor: colors.primaryPastel,
-    borderRadius: borderRadius.xl,
-    paddingVertical: spacing.xl,
-    paddingHorizontal: spacing.xxxl,
-    borderWidth: 2,
-    borderColor: colors.primary,
-    borderStyle: 'dashed',
+    backgroundColor: '#FFF5F7',
+    borderRadius: borderRadius.lg,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.xxl,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 157, 0.2)',
     alignItems: 'center',
   },
   codeLabel: {
-    fontFamily: 'Inter-SemiBold', fontSize: 14,
+    fontFamily: 'Inter-Medium',
+    fontSize: 12,
     color: colors.primary,
-    marginBottom: spacing.sm,
+    marginBottom: spacing.xs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   codeText: {
-    fontSize: 28,
-    lineHeight: 36,
+    fontSize: 24,
+    lineHeight: 30,
     color: colors.primary,
-    letterSpacing: 8,
-    fontFamily: 'monospace',
+    letterSpacing: 6,
+    fontFamily: 'Inter-Bold',
   },
 
   // Animation Container
@@ -569,22 +572,21 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     width: '100%',
-    marginBottom: spacing.xxxl,
-    paddingHorizontal: spacing.xl,
+    marginBottom: spacing.xxl,
+    paddingHorizontal: spacing.lg,
   },
 
-  // User Icons
+  // User Icons - Smaller, Softer
   userContainer: {
     alignItems: 'center',
-    gap: spacing.md,
+    gap: spacing.sm,
   },
   userIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     justifyContent: 'center',
     alignItems: 'center',
-    ...shadows.lg,
   },
   userIconLeft: {
     backgroundColor: colors.primary,
@@ -593,23 +595,24 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     backgroundColor: colors.secondary,
   },
   userIconWaiting: {
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: 'rgba(0, 0, 0, 0.04)',
   },
   userLabel: {
-    fontFamily: 'Inter-SemiBold', fontSize: 14,
+    fontFamily: 'Inter-Medium',
+    fontSize: 13,
     color: colors.text,
   },
   userLabelWaiting: {
     color: colors.textTertiary,
   },
 
-  // Connection Line
+  // Connection Line - Thinner
   connectionLineContainer: {
     flex: 1,
-    height: 4,
-    marginHorizontal: spacing.lg,
+    height: 2,
+    marginHorizontal: spacing.md,
     backgroundColor: colors.border,
-    borderRadius: 2,
+    borderRadius: 1,
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
@@ -617,45 +620,46 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
   connectionLine: {
     position: 'absolute',
     left: 0,
-    height: 4,
+    height: 2,
     backgroundColor: colors.primary,
-    borderRadius: 2,
+    borderRadius: 1,
   },
   searchingDots: {
     justifyContent: 'center',
     alignItems: 'center',
   },
   searchIcon: {
-    width: 40,
-    height: 40,
-    backgroundColor: colors.primaryPastel,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    backgroundColor: '#FFF5F7',
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
   },
   heartIcon: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
     backgroundColor: colors.surface,
-    borderRadius: 20,
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
-    ...shadows.md,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
 
-  // Status
+  // Status - Clean Minimal
   statusContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-    backgroundColor: colors.backgroundSecondary,
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.lg,
+    gap: spacing.xs,
+    backgroundColor: 'rgba(0, 0, 0, 0.03)',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
     borderRadius: borderRadius.full,
-    marginBottom: spacing.xxxl,
+    marginBottom: spacing.xxl,
   },
   statusText: {
-    fontSize: 14,
+    fontSize: 13,
     color: colors.textTertiary,
     fontFamily: 'Inter-Medium',
   },
@@ -666,24 +670,23 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     color: colors.error,
   },
 
-  // Home Button
+  // Home Button - Soft Rounded
   homeButton: {
     width: '100%',
     borderRadius: borderRadius.full,
     overflow: 'hidden',
-    ...shadows.lg,
   },
   homeButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: spacing.xl,
-    gap: spacing.md,
+    paddingVertical: spacing.lg,
+    gap: spacing.sm,
   },
   homeButtonText: {
-    fontFamily: 'Inter-SemiBold', fontSize: 18,
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 16,
     color: 'white',
   },
-
 
 });

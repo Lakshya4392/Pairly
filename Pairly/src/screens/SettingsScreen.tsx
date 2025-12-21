@@ -639,41 +639,41 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       .slice(0, 2);
 
     if (isPremium) {
-      // Premium Profile Card - Beautiful gradient design
+      // Premium Profile Card - Soft pastel gradient like UploadScreen
       return (
         <View style={styles.profileCardPremium}>
           <LinearGradient
-            colors={[colors.secondary, colors.secondaryLight]}
+            colors={['#FFF5F7', '#FFEEF3', '#FFF5F7']}
             style={styles.premiumProfileGradient}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
           >
             <View style={styles.premiumContent}>
               <View style={styles.premiumAvatarContainer}>
-                <View style={styles.premiumAvatar}>
+                <View style={[styles.premiumAvatar, { backgroundColor: colors.primary }]}>
                   <Text style={styles.premiumAvatarText}>{initials || 'U'}</Text>
                 </View>
                 <View style={styles.premiumBadgeGlow}>
-                  <Ionicons name="diamond" size={16} color="white" />
+                  <Ionicons name="diamond" size={12} color="#EC4899" />
                 </View>
               </View>
               <View style={styles.premiumInfo}>
                 <View style={styles.premiumNameRow}>
-                  <Text style={styles.premiumName} numberOfLines={1}>{userName}</Text>
-                  <View style={styles.premiumChip}>
+                  <Text style={[styles.premiumName, { color: colors.text }]} numberOfLines={1}>{userName}</Text>
+                  <View style={[styles.premiumChip, { backgroundColor: colors.primary }]}>
                     <Ionicons name="diamond" size={10} color="white" />
                     <Text style={styles.premiumChipText}>PRO</Text>
                   </View>
                 </View>
-                <Text style={styles.premiumEmail} numberOfLines={1} ellipsizeMode="tail">
+                <Text style={[styles.premiumEmail, { color: colors.textSecondary }]} numberOfLines={1} ellipsizeMode="tail">
                   {userEmail}
                 </Text>
               </View>
               <TouchableOpacity
-                style={styles.premiumEditButton}
+                style={[styles.premiumEditButton, { backgroundColor: 'rgba(236, 72, 153, 0.1)' }]}
                 onPress={() => setShowProfileEditor(true)}
               >
-                <Ionicons name="create-outline" size={20} color="white" />
+                <Ionicons name="create-outline" size={18} color="#EC4899" />
               </TouchableOpacity>
             </View>
           </LinearGradient>
@@ -752,6 +752,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         <View style={styles.section}>
           <ProfileCard />
         </View>
+
+
 
         <SectionHeader title="PREMIUM" />
         <View style={styles.section}>
@@ -1213,72 +1215,72 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: layout.screenPaddingHorizontal,
     paddingTop: spacing.huge,
-    paddingBottom: spacing.lg,
+    paddingBottom: spacing.md,
   },
   backButton: {
-    padding: spacing.md,
+    padding: spacing.sm,
+    marginLeft: -spacing.sm,
   },
   headerTitle: {
-    fontFamily: 'Inter-SemiBold', fontSize: 20,
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 18,
     color: colors.text,
   },
   headerRight: {
-    width: 40,
+    width: 32,
   },
 
-  // Premium Banner
+  // Premium Banner - Minimal
   premiumBanner: {
     marginHorizontal: layout.screenPaddingHorizontal,
-    marginBottom: spacing.xl,
-    borderRadius: borderRadius.xxl,
+    marginBottom: spacing.lg,
+    borderRadius: borderRadius.xl,
     overflow: 'hidden',
-    ...shadows.lg,
-    elevation: 8,
   },
   premiumGradient: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: spacing.xl,
-    paddingHorizontal: spacing.xl,
-    gap: spacing.lg,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    gap: spacing.md,
   },
   premiumTextContainer: {
     flex: 1,
   },
   premiumBannerTitle: {
-    fontFamily: 'Inter-Bold', fontSize: 17,
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 15,
     color: '#FFFFFF',
-    marginBottom: 4,
-    letterSpacing: 0.3,
+    marginBottom: 2,
   },
   premiumBannerSubtitle: {
-    fontFamily: 'Inter-Medium', fontSize: 14,
-    color: '#FFFFFF',
-    letterSpacing: 0.2,
+    fontFamily: 'Inter-Regular',
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.8)',
   },
 
-  // Tabs
+  // Tabs - Minimal Horizontal
   tabsContainer: {
     flexDirection: 'row',
     paddingHorizontal: layout.screenPaddingHorizontal,
-    marginBottom: spacing.xxl,
-    gap: spacing.lg,
+    marginBottom: spacing.lg,
+    gap: spacing.xs,
   },
   tab: {
     flex: 1,
     flexDirection: 'column',
     alignItems: 'center',
-    paddingVertical: spacing.lg,
-    paddingHorizontal: spacing.sm,
-    backgroundColor: colors.backgroundTertiary,
-    borderRadius: borderRadius.lg,
-    gap: spacing.xs,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xs,
+    borderRadius: borderRadius.md,
+    gap: 4,
   },
   activeTab: {
-    backgroundColor: colors.backgroundTertiary,
+    backgroundColor: 'rgba(255, 107, 157, 0.08)',
   },
   tabLabel: {
-    fontFamily: 'Inter-Medium', fontSize: 11,
+    fontFamily: 'Inter-Medium',
+    fontSize: 10,
     color: colors.textTertiary,
   },
   activeTabLabel: {
@@ -1293,72 +1295,72 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     paddingBottom: spacing.xxxl,
   },
 
-  // Section
+  // Section - Clean Minimal
   sectionHeader: {
-    fontFamily: 'Inter-SemiBold', fontSize: 13,
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 12,
     color: colors.textTertiary,
     textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    marginTop: spacing.xxl,
-    marginBottom: spacing.lg,
-    paddingHorizontal: spacing.sm,
+    letterSpacing: 0.5,
+    marginTop: spacing.lg,
+    marginBottom: spacing.md,
   },
   section: {
     backgroundColor: colors.surface,
-    borderRadius: borderRadius.xl,
+    borderRadius: borderRadius.lg,
     overflow: 'hidden',
-    marginBottom: spacing.xl,
-    ...shadows.md,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
 
-  // Premium Profile Card
+  // Premium Profile Card - Soft Pastel Gradient
   profileCardPremium: {
-    borderRadius: borderRadius.xxl,
+    borderRadius: borderRadius.xl,
     overflow: 'hidden',
-    marginBottom: spacing.xl,
-    ...shadows.lg,
+    marginBottom: spacing.lg,
   },
   premiumProfileGradient: {
-    padding: spacing.xxxl,
+    padding: spacing.xl,
   },
   premiumContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.lg,
+    gap: spacing.md,
   },
   premiumAvatarContainer: {
     position: 'relative',
   },
   premiumAvatar: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 3,
-    borderColor: 'rgba(255, 255, 255, 0.5)',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.6)',
   },
   premiumAvatarText: {
-    fontFamily: 'Inter-Bold', fontSize: 28, lineHeight: 36,
+    fontFamily: 'Inter-Bold',
+    fontSize: 22,
     color: 'white',
   },
   premiumBadgeGlow: {
     position: 'absolute',
-    bottom: -4,
-    right: -4,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    bottom: -2,
+    right: -2,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'white',
     justifyContent: 'center',
     alignItems: 'center',
-    ...shadows.lg,
   },
   premiumInfo: {
     flex: 1,
     justifyContent: 'center',
-    minWidth: 0, // Important for text ellipsis
+    minWidth: 0,
   },
   premiumNameRow: {
     flexDirection: 'row',
@@ -1401,36 +1403,38 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     alignItems: 'center',
   },
 
-  // Regular Profile Card
+  // Regular Profile Card - Clean Minimal
   profileCardRegular: {
     backgroundColor: colors.surface,
-    borderRadius: borderRadius.xl,
+    borderRadius: borderRadius.lg,
     overflow: 'hidden',
-    marginBottom: spacing.lg,
-    ...shadows.sm,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   regularContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: spacing.xl,
-    gap: spacing.lg,
+    padding: spacing.lg,
+    gap: spacing.md,
   },
   regularAvatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     backgroundColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },
   regularAvatarText: {
-    fontFamily: 'Inter-SemiBold', fontSize: 20, lineHeight: 28,
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 18,
     color: 'white',
   },
   regularInfo: {
     flex: 1,
     justifyContent: 'center',
-    minWidth: 0, // Important for text ellipsis
+    minWidth: 0,
   },
   regularName: {
     fontFamily: 'Inter-SemiBold', fontSize: 18,

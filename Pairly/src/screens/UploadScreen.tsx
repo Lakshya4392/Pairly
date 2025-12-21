@@ -82,6 +82,8 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
   const [isPartnerOnline, setIsPartnerOnline] = useState(false);
   const [partnerLastSeen, setPartnerLastSeen] = useState<Date | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  // Streak state - Calculated from connection date
+  const [streakDays, setStreakDays] = useState(1);
 
   // Get user name from Clerk
   const userName = user?.firstName || user?.username || 'User';
@@ -458,7 +460,7 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
 
       // Haptic feedback
       const { Vibration } = await import('react-native');
-      Vibration.vibrate([0, 50, 50, 50]);
+      Vibration.vibrate([0, 250, 100, 250]); // Stronger Heartbeat
 
       const result = await PingService.sendPing();
 
@@ -497,13 +499,27 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
         console.log('⚠️ [PARTNER] No cache, fetching fresh');
       }
 
-      // Fetch fresh partner info
-      const partner = await PairingService.getPartner();
+      // Fetch fresh pair info
+      const pair = await PairingService.getPair();
+      const partner = pair?.partner;
+
       if (partner) {
         setPartnerName(partner.displayName);
         setIsPartnerConnected(true);
         // Cache for next time
         await AsyncStorage.setItem('partner_info', JSON.stringify(partner));
+
+        // Calculate Streak (Days Connected)
+        if (pair?.pairedAt) {
+          const startDate = new Date(pair.pairedAt);
+          const now = new Date();
+          const diffTime = Math.abs(now.getTime() - startDate.getTime());
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          setStreakDays(diffDays > 0 ? diffDays : 1);
+        } else {
+          setStreakDays(1);
+        }
+
         console.log('✅ [PARTNER] Loaded and cached:', partner.displayName);
       } else {
         // If no partner, show solo mode
@@ -881,103 +897,60 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="white" />
 
-      {/* Header - Compact & Modern */}
+      {/* Header */}
       <View style={styles.header}>
         {isPartnerConnected ? (
-          /* Couple Mode - Compact Cards */
-          <View style={styles.coupleContainer}>
-            <LinearGradient
-              colors={[colors.primary + '15', colors.primaryLight + '15']}
-              style={styles.coupleCard}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
+          <>
+            {/* Connected Mode - Overlapping Avatars (Clickable for Settings) */}
+            <TouchableOpacity
+              style={styles.avatarStack}
+              onPress={onNavigateToSettings}
+              activeOpacity={0.7}
             >
-              {/* User */}
-              <View style={styles.personCompact}>
-                <View style={[styles.avatarCompact, { backgroundColor: colors.primary }]}>
-                  <Text style={styles.avatarTextCompact}>{userName.charAt(0).toUpperCase()}</Text>
-                </View>
-                <Text style={styles.nameCompact} numberOfLines={1}>{userName}</Text>
+              <View style={[styles.stackedAvatar, { backgroundColor: colors.primary }]}>
+                <Text style={styles.stackedAvatarText}>{userName.charAt(0).toUpperCase()}</Text>
               </View>
-
-              {/* Heart */}
-              <Animated.View style={[styles.heartCompact, animatedHeartStyle]}>
-                <Ionicons name="heart" size={18} color="#FF6B9D" />
-              </Animated.View>
-
-              {/* Partner */}
-              <View style={styles.personCompact}>
-                <View style={[styles.avatarCompact, { backgroundColor: colors.secondary }]}>
-                  <Text style={styles.avatarTextCompact}>{partnerName.charAt(0).toUpperCase()}</Text>
-                  {isPremium && isPartnerOnline && (
-                    <View style={styles.onlineDotCompact} />
-                  )}
-                </View>
-                <Text style={styles.nameCompact} numberOfLines={1}>{partnerName}</Text>
+              <View style={[styles.stackedAvatar, styles.stackedAvatarSecond, { backgroundColor: colors.secondary }]}>
+                <Text style={styles.stackedAvatarText}>{partnerName.charAt(0).toUpperCase()}</Text>
               </View>
-            </LinearGradient>
-          </View>
+            </TouchableOpacity>
+
+            {/* Streak Badge */}
+            <View style={styles.streakBadge}>
+              <Ionicons name="heart" size={16} color="#FF6B6B" />
+              <Text style={styles.streakText}>{streakDays} days</Text>
+            </View>
+          </>
         ) : (
-          /* Solo Mode - Compact Card */
-          <View style={styles.soloContainer}>
-            <LinearGradient
-              colors={[colors.primary + '15', colors.primaryLight + '15']}
-              style={styles.soloCardCompact}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
+          <>
+            {/* Solo Mode - User Profile + Greeting (Clickable for Settings) */}
+            <TouchableOpacity
+              style={styles.soloHeader}
+              onPress={onNavigateToSettings}
+              activeOpacity={0.7}
             >
-              <View style={[styles.avatarCompact, { backgroundColor: colors.primary }]}>
-                <Text style={styles.avatarTextCompact}>{userName.charAt(0).toUpperCase()}</Text>
+              <View style={[styles.stackedAvatar, { backgroundColor: colors.primary }]}>
+                <Text style={styles.stackedAvatarText}>{userName.charAt(0).toUpperCase()}</Text>
               </View>
-              <View style={styles.soloInfoCompact}>
-                <Text style={styles.soloGreeting}>Hey there!</Text>
-                <Text style={styles.soloNameCompact} numberOfLines={1}>{userName}</Text>
+              <View style={styles.soloGreeting}>
+                <Text style={styles.soloHey}>Hey there! 👋</Text>
+                <Text style={styles.soloName}>{userName.split(' ')[0]}</Text>
               </View>
-            </LinearGradient>
-          </View>
-        )}
+            </TouchableOpacity>
 
-        <Animated.View style={animatedSettingsStyle}>
-          <TouchableOpacity
-            style={styles.settingsButtonCompact}
-            onPress={() => {
-              // Scale + Rotate animation
-              Animated.parallel([
-                Animated.sequence([
-                  Animated.timing(settingsScale, {
-                    toValue: 0.85,
-                    duration: 100,
-                    useNativeDriver: true,
-                  }),
-                  Animated.spring(settingsScale, {
-                    toValue: 1,
-                    useNativeDriver: true,
-                  }),
-                ]),
-                Animated.sequence([
-                  Animated.timing(settingsRotate, {
-                    toValue: 90,
-                    duration: 200,
-                    useNativeDriver: true,
-                  }),
-                  Animated.timing(settingsRotate, {
-                    toValue: 0,
-                    duration: 200,
-                    useNativeDriver: true,
-                  }),
-                ]),
-              ]).start();
-              setTimeout(() => onNavigateToSettings(), 150);
-            }}
-            activeOpacity={0.7}
-          >
-            <Animated.View style={animatedSettingsIconStyle}>
-              <View style={styles.settingsIconContainer}>
-                <Ionicons name="settings-sharp" size={22} color={colors.primary} />
-              </View>
-            </Animated.View>
-          </TouchableOpacity>
-        </Animated.View>
+            {/* Connect Button for Solo */}
+            {onNavigateToPairing && (
+              <TouchableOpacity
+                style={styles.connectButton}
+                onPress={onNavigateToPairing}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="heart-outline" size={16} color="white" />
+                <Text style={styles.connectButtonText}>Connect</Text>
+              </TouchableOpacity>
+            )}
+          </>
+        )}
       </View>
 
       {/* Main Content - Centered with Pull to Refresh */}
@@ -996,173 +969,169 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
           />
         }
       >
-        {/* Hero Card with Capture Button */}
-        <View style={styles.heroCard}>
+        {/* Hero Card - Soft Gradient */}
+        <LinearGradient
+          colors={['#FFF5F7', '#FFEEF3', '#FFF5F7']}
+          style={styles.heroCard}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          {/* Top Row - Status Only */}
+          <View style={styles.heroTopRow}>
+            {/* Connected Status Badge */}
+            <View style={[
+              styles.connectedBadge,
+              !isPartnerConnected && { backgroundColor: 'rgba(156, 163, 175, 0.1)' }
+            ]}>
+              <View style={[
+                styles.connectedDot,
+                !isPartnerConnected && { backgroundColor: '#9CA3AF' }
+              ]} />
+              <Text style={[
+                styles.connectedText,
+                !isPartnerConnected && { color: '#9CA3AF' }
+              ]}>
+                {isPartnerConnected ? 'CONNECTED' : 'WAITING'}
+              </Text>
+            </View>
+          </View>
+
+          {/* Title */}
           <Text style={styles.heroTitle}>
-            {!isPartnerConnected ? 'Capture Your Moment' : `Share with ${partnerName}`}
-          </Text>
-          <Text style={styles.heroSubtitle}>
-            {!isPartnerConnected
-              ? 'Save your memories and moments'
-              : 'Create and share beautiful moments together 💕'
-            }
+            Capture{'\n'}
+            <Text style={styles.heroTitleGradient}>The Moment</Text>
           </Text>
 
-          <Animated.View style={[animatedButtonStyle, styles.captureContainer]}>
-            <TouchableOpacity
-              style={[styles.captureButton, uploading && styles.captureButtonDisabled]}
-              onPress={handleCapturePress}
-              disabled={uploading}
-              activeOpacity={0.8}
+          {/* Bottom Row - Subtitle + Button */}
+          <View style={styles.heroBottomRow}>
+            {/* Subtitle */}
+            <Text
+              style={styles.heroSubtitle}
+              numberOfLines={3}
             >
-              <LinearGradient
-                colors={uploading ? [colors.disabled, colors.disabled] as const : dynamicGradients.primary as any}
-                style={styles.captureButtonGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-              >
-                {uploading ? (
-                  <Ionicons name="cloud-upload" size={48} color="white" />
-                ) : (
-                  <Ionicons name="camera" size={48} color="white" />
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
-          </Animated.View>
+              {isPartnerConnected
+                ? `Share your world\nwith ${partnerName}`
+                : 'Save your memories'}
+            </Text>
 
-          {/* Premium Quick Actions */}
-          {isPremium && isPartnerConnected && (
-            <View style={styles.quickActions}>
+            {/* Snap & Send Button */}
+            <Animated.View style={animatedButtonStyle}>
               <TouchableOpacity
-                style={styles.quickActionButton}
+                style={[styles.snapSendButton, uploading && styles.snapSendButtonDisabled]}
+                onPress={handleCapturePress}
+                disabled={uploading}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="camera" size={18} color="white" />
+                <Text style={styles.snapSendText}>{uploading ? 'Sending...' : 'Snap & Send'}</Text>
+              </TouchableOpacity>
+            </Animated.View>
+          </View>
+        </LinearGradient>
+
+        {/* Quick Actions - 2x2 Grid */}
+        {isPremium && isPartnerConnected && (
+          <View style={styles.quickActionsSection}>
+            <Text style={styles.sectionTitle}>Quick Actions</Text>
+            <View style={styles.quickActionsGrid}>
+              {/* Dual View - Light Blue */}
+              <TouchableOpacity
+                style={[styles.quickActionCard, { backgroundColor: '#E3F2FD' }]}
                 onPress={handleOpenDualCameraModal}
                 activeOpacity={0.7}
               >
-                <View style={[styles.quickActionIcon, { backgroundColor: '#E8F5E9' }]}>
-                  <Ionicons name="camera-reverse" size={18} color="#4CAF50" />
+                <View style={styles.quickActionTopRow}>
+                  <Ionicons name="copy-outline" size={24} color="#2196F3" />
+                  <Ionicons name="arrow-forward" size={16} color="#B0BEC5" />
                 </View>
                 <Text style={styles.quickActionText}>Dual View</Text>
               </TouchableOpacity>
 
+              {/* Love Note - Light Pink */}
               <TouchableOpacity
-                style={styles.quickActionButton}
+                style={[styles.quickActionCard, { backgroundColor: '#FCE4EC' }]}
                 onPress={handleOpenNoteModal}
                 activeOpacity={0.7}
               >
-                <View style={[styles.quickActionIcon, { backgroundColor: '#FFE5EC' }]}>
-                  <Ionicons name="chatbubble-ellipses" size={18} color="#FF6B9D" />
+                <View style={styles.quickActionTopRow}>
+                  <Ionicons name="heart" size={24} color="#E91E63" />
+                  <Ionicons name="arrow-forward" size={16} color="#B0BEC5" />
                 </View>
-                <Text style={styles.quickActionText}>Send Note</Text>
+                <Text style={styles.quickActionText}>Love Note</Text>
               </TouchableOpacity>
 
+              {/* Capsule - Light Purple */}
               <TouchableOpacity
-                style={styles.quickActionButton}
+                style={[styles.quickActionCard, { backgroundColor: '#F3E5F5' }]}
                 onPress={handleOpenTimeLockModal}
                 activeOpacity={0.7}
               >
-                <View style={[styles.quickActionIcon, { backgroundColor: '#F3E5F5' }]}>
-                  <Ionicons name="time" size={18} color="#9B59B6" />
+                <View style={styles.quickActionTopRow}>
+                  <Ionicons name="time-outline" size={24} color="#9C27B0" />
+                  <Ionicons name="arrow-forward" size={16} color="#B0BEC5" />
                 </View>
-                <Text style={styles.quickActionText}>Time-Lock</Text>
+                <Text style={styles.quickActionText}>Capsule</Text>
               </TouchableOpacity>
 
+              {/* Thinking - Light Yellow */}
               <TouchableOpacity
-                style={styles.quickActionButton}
+                style={[styles.quickActionCard, { backgroundColor: '#FFF8E1' }]}
                 onPress={handleSendPing}
                 activeOpacity={0.7}
               >
-                <View style={[styles.quickActionIcon, { backgroundColor: '#FFF3E0' }]}>
-                  <Ionicons name="heart" size={18} color="#FF9800" />
+                <View style={styles.quickActionTopRow}>
+                  <Ionicons name="chatbubble-ellipses-outline" size={24} color="#FF9800" />
+                  <Ionicons name="arrow-forward" size={16} color="#B0BEC5" />
                 </View>
-                <Text style={styles.quickActionText}>Thinking💭</Text>
+                <Text style={styles.quickActionText}>Thinking</Text>
               </TouchableOpacity>
             </View>
-          )}
-        </View>
-
-        {/* Recent Moments Card - Always show for testing */}
-        <View style={styles.recentCard}>
-          <View style={styles.recentHeader}>
-            <View style={styles.recentTitleContainer}>
-              <Ionicons name="time-outline" size={20} color={colors.primary} />
-              <Text style={styles.recentTitle}>Recent Moments</Text>
-            </View>
-            {recentPhotos.length > 0 && (
-              <View style={styles.recentBadge}>
-                <Text style={styles.recentBadgeText}>{recentPhotos.length}</Text>
-              </View>
-            )}
           </View>
-          <View style={styles.recentPhotosGrid}>
+        )}
+
+        {/* Shared Memories Section */}
+        <View style={styles.sharedMemoriesSection}>
+          <View style={styles.sharedMemoriesHeader}>
+            <Text style={styles.sectionTitle}>Shared Memories</Text>
+            <TouchableOpacity
+              onPress={() => onNavigateToGallery?.()}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.seeAllLink}>See all &gt;</Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.memoriesScroll}
+          >
             {recentPhotos.length > 0 ? (
-              recentPhotos.slice(0, 4).map((photoUri, index) => (
-                <View key={index} style={styles.recentPhotoThumb}>
+              recentPhotos.slice(0, 6).map((photoUri, index) => (
+                <View key={index} style={styles.memoryThumb}>
                   {photoUri ? (
                     <Image
                       source={{ uri: photoUri }}
-                      style={styles.recentPhotoImage}
+                      style={styles.memoryImage}
                       resizeMode="cover"
                     />
                   ) : (
-                    <Ionicons name="image" size={24} color={colors.textTertiary} />
+                    <View style={styles.memoryPlaceholder}>
+                      <Ionicons name="image" size={24} color={colors.textTertiary} />
+                    </View>
                   )}
                 </View>
               ))
             ) : (
               // Placeholder when no photos
-              [0, 1, 2, 3].map((index) => (
-                <View key={index} style={styles.recentPhotoThumb}>
+              [0, 1, 2].map((index) => (
+                <View key={index} style={[styles.memoryThumb, styles.memoryPlaceholder]}>
                   <Ionicons name="image-outline" size={24} color={colors.textTertiary} />
                 </View>
               ))
             )}
-          </View>
-          <Animated.View style={animatedViewAllStyle}>
-            <TouchableOpacity
-              style={styles.viewAllContainer}
-              onPress={() => {
-                Animated.sequence([
-                  Animated.timing(viewAllScale, {
-                    toValue: 0.95,
-                    duration: 100,
-                    useNativeDriver: true,
-                  }),
-                  Animated.spring(viewAllScale, {
-                    toValue: 1,
-                    useNativeDriver: true,
-                  }),
-                ]).start();
-                setTimeout(() => onNavigateToGallery?.(), 100);
-              }}
-              activeOpacity={1}
-            >
-              <Text style={styles.viewAllText}>View All Memories</Text>
-              <Ionicons name="chevron-forward" size={16} color={colors.primary} />
-            </TouchableOpacity>
-          </Animated.View>
+          </ScrollView>
         </View>
       </ScrollView>
-
-      {/* Bottom Action Bar - Only show if not connected */}
-      {!isPartnerConnected && onNavigateToPairing && (
-        <View style={styles.bottomBar}>
-          <TouchableOpacity
-            style={styles.bottomButton}
-            onPress={onNavigateToPairing}
-            activeOpacity={0.8}
-          >
-            <LinearGradient
-              colors={dynamicGradients.secondary as any}
-              style={styles.bottomButtonGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-            >
-              <Ionicons name="people" size={20} color="white" />
-              <Text style={styles.bottomButtonText}>Connect with Partner</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
-      )}
 
       {/* Shared Note Modal */}
       <SharedNoteModal
@@ -1283,7 +1252,7 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
           />
         )}
       </Modal>
-    </View>
+    </View >
   );
 };
 
@@ -1294,14 +1263,88 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     backgroundColor: colors.background,
   },
 
-  // Header - Compact & Modern
+  // Header
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: layout.screenPaddingHorizontal,
     paddingTop: spacing.huge,
-    paddingBottom: spacing.md,
+    paddingBottom: spacing.lg,
+  },
+
+  // Overlapping Avatar Stack
+  avatarStack: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  stackedAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: 'white',
+  },
+  stackedAvatarSecond: {
+    marginLeft: -16,
+  },
+  stackedAvatarText: {
+    fontFamily: 'Inter-Bold',
+    fontSize: 16,
+    color: 'white',
+  },
+
+  // Streak Badge
+  streakBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    backgroundColor: 'white',
+    borderRadius: borderRadius.full,
+    ...shadows.sm,
+  },
+  streakText: {
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 14,
+    color: colors.text,
+  },
+
+  // Solo Mode Header
+  soloHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  soloGreeting: {
+    gap: 2,
+  },
+  soloHey: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 13,
+    color: colors.textSecondary,
+  },
+  soloName: {
+    fontFamily: 'Inter-Bold',
+    fontSize: 18,
+    color: colors.text,
+  },
+  connectButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    backgroundColor: '#FF6B9D',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.full,
+  },
+  connectButtonText: {
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 14,
+    color: 'white',
   },
 
   // Couple Mode - Compact
@@ -1380,11 +1423,7 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
   soloInfoCompact: {
     flex: 1,
   },
-  soloGreeting: {
-    fontFamily: 'Inter-Medium',
-    fontSize: 11,
-    color: colors.textSecondary,
-  },
+  // Old soloGreeting removed - using new View-compatible version above
   soloNameCompact: {
     fontFamily: 'Inter-SemiBold',
     fontSize: 15,
@@ -1451,30 +1490,140 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     paddingBottom: spacing.md,
   },
 
-  // Hero Card
+  // Hero Card - Soft Pink Gradient
   heroCard: {
     width: '100%',
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.xxl,
-    padding: spacing.xxxl,
+    borderRadius: 24,
+    padding: spacing.xl,
+    alignItems: 'flex-start',
+    marginBottom: spacing.xl,
+    overflow: 'hidden',
+  },
+  heroTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.xxl,
-    ...shadows.lg,
+    width: '100%',
+    marginBottom: spacing.xl,
+  },
+  connectedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    backgroundColor: 'rgba(20, 184, 166, 0.1)',
+    borderRadius: borderRadius.full,
+  },
+  connectedDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#14B8A6',
+  },
+  connectedText: {
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 12,
+    color: '#14B8A6',
+    letterSpacing: 0.5,
+  },
+  galleryIconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: 'rgba(156, 163, 175, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   heroTitle: {
-    fontFamily: 'Inter-SemiBold', fontSize: 20, lineHeight: 28,
+    fontFamily: 'Inter-Bold',
+    fontSize: 32,
+    lineHeight: 38,
     color: colors.text,
-    marginBottom: spacing.sm,
-    textAlign: 'center',
-    letterSpacing: 0.3,
+    textAlign: 'left',
+    marginBottom: spacing.md,
+  },
+  heroTitleGradient: {
+    color: '#A855F7',
   },
   heroSubtitle: {
-    fontSize: 15,
+    fontFamily: 'Inter-Medium', // Slightly bolder
+    fontSize: 17, // Larger text
     color: colors.textSecondary,
-    textAlign: 'center',
-    marginBottom: spacing.xxxl,
-    lineHeight: 22,
-    paddingHorizontal: spacing.sm,
+    textAlign: 'left',
+    lineHeight: 24,
+    marginBottom: spacing.xl, // Space before button
+    marginTop: spacing.xs,
+  },
+  heroBottomRow: {
+    flexDirection: 'column', // Vertical layout
+    alignItems: 'stretch',    // Full width
+    width: '100%',
+    marginTop: spacing.sm,
+  },
+  snapSendButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.md,
+    backgroundColor: '#1F1F1F',
+    paddingVertical: 18, // Taller button
+    borderRadius: 20,
+    width: '100%',
+    ...shadows.md,
+  },
+  snapSendButtonDisabled: {
+    opacity: 0.6,
+  },
+  snapSendText: {
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 15,
+    color: 'white',
+  },
+
+  // Keep old styles for backward compatibility
+  statusLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginBottom: spacing.lg,
+  },
+  statusLabelText: {
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 12,
+    color: '#FF6B9D',
+    letterSpacing: 1,
+  },
+  cameraIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#FF8FAB',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+  heroTitleHighlight: {
+    color: '#FF6B9D',
+  },
+  takePhotoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    backgroundColor: '#1F1F1F',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xxxl,
+    borderRadius: borderRadius.full,
+    minWidth: 200,
+  },
+  takePhotoButtonDisabled: {
+    opacity: 0.6,
+  },
+  takePhotoText: {
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 16,
+    color: 'white',
   },
 
   // Capture Button - Large & Prominent
@@ -1496,32 +1645,99 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     alignItems: 'center',
     borderRadius: 70,
   },
-  quickActions: {
-    flexDirection: 'row',
-    gap: spacing.md,
-    marginTop: spacing.xl,
+  // Quick Actions - 2x2 Grid
+  quickActionsSection: {
     width: '100%',
+    marginTop: spacing.xxl,
+    marginBottom: spacing.lg,
   },
-  quickActionButton: {
-    flex: 1,
+  sectionTitle: {
+    fontFamily: 'Inter-Bold',
+    fontSize: 18,
+    color: colors.text,
+    marginBottom: spacing.lg,
+  },
+  quickActionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.md,
+  },
+  quickActionCard: {
+    width: '47%',
+    borderRadius: 20,
+    padding: spacing.lg,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.xl,
+    minHeight: 110,
+    justifyContent: 'space-between',
+  },
+  quickActionIconTop: {
+    marginBottom: spacing.lg,
+  },
+  quickActionTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    width: '100%',
+    marginBottom: spacing.lg,
+  },
+  quickActionCardRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: spacing.sm,
+    marginBottom: spacing.md,
   },
   quickActionIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    ...shadows.sm,
   },
   quickActionText: {
-    fontFamily: 'Inter-Medium',
-    fontSize: 13,
-    color: colors.textSecondary,
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 14,
+    color: colors.text,
   },
 
-  // Recent Moments Card
+  // Shared Memories Section
+  sharedMemoriesSection: {
+    width: '100%',
+    marginTop: spacing.xl,
+    marginBottom: spacing.xxl,
+    paddingTop: spacing.lg,
+  },
+  sharedMemoriesHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+  seeAllLink: {
+    fontFamily: 'Inter-Medium',
+    fontSize: 14,
+    color: colors.primary,
+  },
+  memoriesScroll: {
+    gap: spacing.md,
+  },
+  memoryThumb: {
+    width: 110,
+    height: 140,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  memoryImage: {
+    width: '100%',
+    height: '100%',
+  },
+  memoryPlaceholder: {
+    backgroundColor: colors.backgroundSecondary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  // Keep old Recent Moments Card for backward compatibility
   recentCard: {
     width: '100%',
     backgroundColor: colors.surface,

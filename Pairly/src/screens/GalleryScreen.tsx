@@ -213,27 +213,21 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
     <TouchableOpacity
       style={[
         styles.photoItem,
-        { width: imageSize, height: imageSize },
+        { width: imageSize, height: imageSize * 1.2 },
       ]}
       onPress={() => setSelectedPhoto(photo)}
-      activeOpacity={0.8}
+      activeOpacity={0.9}
     >
       <Image
         source={{ uri: photo.photoUrl }}
         style={styles.photoImage}
         resizeMode="cover"
       />
-      <View style={styles.photoOverlay}>
-        <View style={[
-          styles.senderIndicator,
-          photo.sender === 'me' ? styles.myPhoto : styles.partnerPhoto
-        ]}>
-          <Ionicons
-            name={photo.sender === 'me' ? 'person' : 'heart'}
-            size={12}
-            color="white"
-          />
-        </View>
+      {/* Name Overlay at Bottom */}
+      <View style={styles.photoNameOverlay}>
+        <Text style={styles.photoNameText}>
+          {photo.sender === 'me' ? 'You' : photo.senderName || 'Partner'}
+        </Text>
       </View>
     </TouchableOpacity>
   ));
@@ -269,28 +263,21 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
         onCancel={onBack}
       />
 
-      {/* Header */}
+      {/* Pinterest-Style Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-
-        <Text style={styles.headerTitle}>
-          Memories ({photos.length}{!isPremium && photos.length >= 10 ? '/10' : ''})
-        </Text>
-
-        <View style={styles.headerActions}>
-          <TouchableOpacity
-            style={styles.viewToggle}
-            onPress={() => setViewMode(viewMode === 'grid' ? 'timeline' : 'grid')}
-          >
-            <Ionicons
-              name={viewMode === 'grid' ? 'list' : 'grid'}
-              size={20}
-              color={colors.textTertiary}
-            />
+        <View style={styles.headerTop}>
+          <TouchableOpacity onPress={onBack} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
+
         </View>
+
+        <View style={styles.headerTitles}>
+          <Text style={styles.galleryTitle}>Our Gallery</Text>
+          <Text style={styles.gallerySubtitle}>{photos.length} moments shared</Text>
+        </View>
+
+
       </View>
 
       {/* Free User Limit Banner */}
@@ -395,34 +382,34 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
         onRequestClose={() => setSelectedPhoto(null)}
       >
         <View style={styles.modalContainer}>
-          <TouchableOpacity
-            style={styles.modalOverlay}
-            onPress={() => setSelectedPhoto(null)}
-            activeOpacity={1}
-          >
-            <View style={styles.modalContent}>
-              {selectedPhoto && (
-                <>
-                  <Image source={{ uri: selectedPhoto.photoUrl }} style={styles.modalImage} />
-                  <View style={styles.modalInfo}>
-                    <Text style={styles.modalDate}>
-                      {formatDate(selectedPhoto.timestamp)}
-                    </Text>
-                    <Text style={styles.modalSender}>
-                      {selectedPhoto.sender === 'me' ? 'Sent by you' : 'Sent by your partner'}
-                    </Text>
-                  </View>
-                </>
-              )}
-            </View>
-          </TouchableOpacity>
-
+          {/* Close Button - Top Right */}
           <TouchableOpacity
             style={styles.closeButton}
             onPress={() => setSelectedPhoto(null)}
           >
-            <Ionicons name="close" size={24} color="white" />
+            <Ionicons name="close" size={28} color="white" />
           </TouchableOpacity>
+
+          {/* Full Screen Image */}
+          {selectedPhoto && (
+            <>
+              <Image
+                source={{ uri: selectedPhoto.photoUrl }}
+                style={styles.fullScreenImage}
+                resizeMode="contain"
+              />
+
+              {/* Simple Info - Bottom */}
+              <View style={styles.simpleModalInfo}>
+                <Text style={styles.simpleModalName}>
+                  {selectedPhoto.sender === 'me' ? 'You' : selectedPhoto.senderName || 'Partner'}
+                </Text>
+                <Text style={styles.simpleModalTime}>
+                  {formatDate(selectedPhoto.timestamp)}
+                </Text>
+              </View>
+            </>
+          )}
         </View>
       </Modal>
     </View>
@@ -435,17 +422,68 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     backgroundColor: colors.background,
   },
 
-  // Header
+  // Pinterest-Style Header
   header: {
+    paddingHorizontal: layout.screenPaddingHorizontal,
+    paddingTop: spacing.huge,
+    paddingBottom: spacing.md,
+    backgroundColor: colors.background,
+  },
+  headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: layout.screenPaddingHorizontal,
-    paddingTop: spacing.huge,
-    paddingBottom: spacing.xl,
   },
   backButton: {
-    padding: spacing.md,
+    padding: spacing.sm,
+    marginLeft: -spacing.sm,
+  },
+  searchButton: {
+    padding: spacing.sm,
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: borderRadius.full,
+  },
+  headerTitles: {
+    marginTop: spacing.lg,
+    marginBottom: spacing.lg,
+  },
+  galleryTitle: {
+    fontFamily: 'Inter-Bold',
+    fontSize: 28,
+    color: colors.text,
+  },
+  gallerySubtitle: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 14,
+    color: colors.primary,
+    marginTop: spacing.xs,
+  },
+  filterScroll: {
+    marginHorizontal: -layout.screenPaddingHorizontal,
+  },
+  filterScrollContent: {
+    paddingHorizontal: layout.screenPaddingHorizontal,
+    gap: spacing.sm,
+  },
+  filterTab: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: 'white',
+  },
+  filterTabActive: {
+    backgroundColor: colors.text,
+    borderColor: colors.text,
+  },
+  filterTabText: {
+    fontFamily: 'Inter-Medium',
+    fontSize: 14,
+    color: colors.text,
+  },
+  filterTabTextActive: {
+    color: 'white',
   },
   headerTitle: {
     fontFamily: 'Inter-SemiBold', fontSize: 20,
@@ -653,13 +691,108 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     letterSpacing: 0.3,
   },
 
-  // Modal
+  // Modal - Simple Full Screen
   modalContainer: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    backgroundColor: 'rgba(0, 0, 0, 0.98)',
     justifyContent: 'center',
     alignItems: 'center',
   },
+  fullScreenImage: {
+    width: '100%',
+    height: '70%',
+  },
+  simpleModalInfo: {
+    position: 'absolute',
+    bottom: 60,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    gap: 4,
+  },
+  simpleModalName: {
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 18,
+    color: 'white',
+  },
+  simpleModalTime: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.7)',
+  },
+  modalCard: {
+    width: '100%',
+    backgroundColor: '#1F1F1F',
+    borderRadius: 24,
+    overflow: 'hidden',
+  },
+  modalImage: {
+    width: '100%',
+    height: width * 0.9,
+    backgroundColor: colors.backgroundSecondary,
+  },
+  modalUserInfo: {
+    padding: spacing.lg,
+  },
+  modalUserRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  modalUserAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalAvatarText: {
+    fontFamily: 'Inter-Bold',
+    fontSize: 16,
+    color: 'white',
+  },
+  modalUserDetails: {
+    flex: 1,
+  },
+  modalUserName: {
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 16,
+    color: 'white',
+  },
+  modalDate: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.6)',
+    marginTop: 2,
+  },
+  modalCaption: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 15,
+    color: '#4FC3F7',
+    marginTop: spacing.md,
+  },
+
+  // Bottom Action Bar
+  modalActionBar: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: spacing.xxxl,
+    paddingVertical: spacing.xxl,
+    marginTop: spacing.xl,
+  },
+  modalActionButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  // Keep old modal styles for compatibility
   modalOverlay: {
     flex: 1,
     width: '100%',
@@ -670,19 +803,8 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     width: width - spacing.xxxl,
     alignItems: 'center',
   },
-  modalImage: {
-    width: '100%',
-    height: width - spacing.xxxl,
-    borderRadius: borderRadius.lg,
-    marginBottom: spacing.xl,
-  },
   modalInfo: {
     alignItems: 'center',
-  },
-  modalDate: {
-    fontFamily: 'Inter-SemiBold', fontSize: 18,
-    color: 'white',
-    marginBottom: spacing.sm,
   },
   modalSender: {
     fontSize: 14,
@@ -698,5 +820,21 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+
+  // Photo Name Overlay (Pinterest-style)
+  photoNameOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+  },
+  photoNameText: {
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 13,
+    color: 'white',
   },
 });

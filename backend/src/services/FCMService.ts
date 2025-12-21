@@ -60,8 +60,8 @@ class FCMService {
 
       // DATA-ONLY for background widget refresh (no visible notification, app handles it)
       // Regular notification for things user should see immediately (notes, time-locks)
-      // thinking_ping: data-only so our native handler can trigger custom vibration
-      const isBackgroundType = data.type === 'new_moment' || data.type === 'thinking_ping';
+      // thinking_ping: regular notification to ensure vibration via channel
+      const isBackgroundType = data.type === 'new_moment';
 
       const message: any = {
         token: fcmToken,
