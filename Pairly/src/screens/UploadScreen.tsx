@@ -1285,7 +1285,7 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 3,
-    borderColor: 'white',
+    borderColor: colors.background,
   },
   stackedAvatarSecond: {
     marginLeft: -16,
@@ -1303,7 +1303,7 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     gap: spacing.xs,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
-    backgroundColor: 'white',
+    backgroundColor: colors.surface,
     borderRadius: borderRadius.full,
     ...shadows.sm,
   },
@@ -1336,7 +1336,7 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
-    backgroundColor: '#FF6B9D',
+    backgroundColor: colors.secondary,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.lg,
     borderRadius: borderRadius.full,
@@ -1399,9 +1399,9 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: '#4CAF50',
+    backgroundColor: colors.success,
     borderWidth: 2,
-    borderColor: 'white',
+    borderColor: colors.background,
   },
 
   // Solo Mode - Compact
@@ -1566,7 +1566,7 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.md,
-    backgroundColor: '#1F1F1F',
+    backgroundColor: colors.text,
     paddingVertical: 18, // Taller button
     borderRadius: 20,
     width: '100%',
@@ -1578,7 +1578,7 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
   snapSendText: {
     fontFamily: 'Inter-SemiBold',
     fontSize: 15,
-    color: 'white',
+    color: colors.background,
   },
 
   // Keep old styles for backward compatibility
@@ -1591,27 +1591,27 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
   statusLabelText: {
     fontFamily: 'Inter-SemiBold',
     fontSize: 12,
-    color: '#FF6B9D',
+    color: colors.secondary,
     letterSpacing: 1,
   },
   cameraIconCircle: {
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#FF8FAB',
+    backgroundColor: colors.secondaryLight,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: spacing.lg,
   },
   heroTitleHighlight: {
-    color: '#FF6B9D',
+    color: colors.secondary,
   },
   takePhotoButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.sm,
-    backgroundColor: '#1F1F1F',
+    backgroundColor: colors.text,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.xxxl,
     borderRadius: borderRadius.full,
@@ -1623,7 +1623,7 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
   takePhotoText: {
     fontFamily: 'Inter-SemiBold',
     fontSize: 16,
-    color: 'white',
+    color: colors.background,
   },
 
   // Capture Button - Large & Prominent
@@ -1842,7 +1842,7 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
   },
   bottomButtonText: {
     fontFamily: 'Inter-SemiBold', fontSize: 16,
-    color: 'white',
+    color: colors.darkText,
   },
   bottomInfo: {
     flexDirection: 'row',

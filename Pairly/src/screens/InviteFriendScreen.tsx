@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,9 +9,14 @@ import {
   Alert,
   Share,
   ScrollView,
+  StatusBar,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { useUser } from '@clerk/clerk-expo';
+import { useTheme } from '../contexts/ThemeContext';
+import { colors as defaultColors } from '../theme/colorsIOS';
+import { spacing, borderRadius } from '../theme/spacingIOS';
 import axios from 'axios';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
@@ -22,6 +27,11 @@ interface InviteFriendScreenProps {
 
 export default function InviteFriendScreen({ onBack }: InviteFriendScreenProps) {
   const { user } = useUser();
+  const { colors, isDarkMode } = useTheme();
+
+  // Create styles with current theme colors
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   const [friendEmail, setFriendEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState<any>(null);
@@ -49,7 +59,6 @@ export default function InviteFriendScreen({ onBack }: InviteFriendScreenProps) 
       return;
     }
 
-    // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(friendEmail)) {
       Alert.alert('Error', 'Please enter a valid email address');
@@ -77,7 +86,7 @@ export default function InviteFriendScreen({ onBack }: InviteFriendScreenProps) 
           ]
         );
         setFriendEmail('');
-        fetchInviteStats(); // Refresh stats
+        fetchInviteStats();
       }
 
     } catch (error: any) {
@@ -100,38 +109,67 @@ export default function InviteFriendScreen({ onBack }: InviteFriendScreenProps) 
   };
 
   return (
-    <LinearGradient
-      colors={['#FF6B9D', '#C06C84', '#6C5B7B']}
-      style={styles.container}
-    >
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.headerContainer}>
-          <TouchableOpacity style={styles.backButton} onPress={onBack}>
-            <Text style={styles.backButtonText}>←</Text>
-          </TouchableOpacity>
-        </View>
-        
+    <View style={styles.container}>
+      <StatusBar
+        barStyle={isDarkMode ? "light-content" : "dark-content"}
+        backgroundColor={colors.background}
+      />
+
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>Invite Friends</Text>
-          <Text style={styles.subtitle}>
-            Get 1 month Premium for each friend who joins! 🎁
-          </Text>
+          <TouchableOpacity style={styles.backButton} onPress={onBack}>
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Invite Friends</Text>
+          <View style={{ width: 40 }} />
         </View>
+
+        {/* Hero Section */}
+        <LinearGradient
+          colors={isDarkMode
+            ? [colors.backgroundSecondary, colors.background]
+            : ['#FFF5F7', '#FFEEF3', '#FFF5F7']
+          }
+          style={styles.heroCard}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          <View style={styles.heroIconContainer}>
+            <Ionicons name="gift" size={40} color={colors.primary} />
+          </View>
+          <Text style={styles.heroTitle}>Share the Love 💕</Text>
+          <Text style={styles.heroSubtitle}>
+            Invite friends & get 1 month Premium free for each one who joins!
+          </Text>
+        </LinearGradient>
 
         {/* Stats Card */}
         {!loadingStats && stats && (
           <View style={styles.statsCard}>
-            <Text style={styles.statsTitle}>Your Invites</Text>
+            <Text style={styles.cardTitle}>Your Referral Stats</Text>
             <View style={styles.statsRow}>
               <View style={styles.statItem}>
+                <View style={[styles.statIconBg, { backgroundColor: isDarkMode ? '#312E81' : '#EEF2FF' }]}>
+                  <Ionicons name="mail-outline" size={20} color={isDarkMode ? '#A5B4FC' : '#6366F1'} />
+                </View>
                 <Text style={styles.statNumber}>{stats.totalInvited}</Text>
                 <Text style={styles.statLabel}>Invited</Text>
               </View>
               <View style={styles.statItem}>
+                <View style={[styles.statIconBg, { backgroundColor: isDarkMode ? '#064E3B' : '#ECFDF5' }]}>
+                  <Ionicons name="checkmark-circle-outline" size={20} color={colors.success} />
+                </View>
                 <Text style={styles.statNumber}>{stats.joined}</Text>
                 <Text style={styles.statLabel}>Joined</Text>
               </View>
               <View style={styles.statItem}>
+                <View style={[styles.statIconBg, { backgroundColor: isDarkMode ? '#78350F' : '#FEF3C7' }]}>
+                  <Ionicons name="star-outline" size={20} color={colors.warning} />
+                </View>
                 <Text style={styles.statNumber}>{stats.rewardsEarned}</Text>
                 <Text style={styles.statLabel}>Rewards</Text>
               </View>
@@ -139,119 +177,182 @@ export default function InviteFriendScreen({ onBack }: InviteFriendScreenProps) 
           </View>
         )}
 
-        {/* Invite Form */}
+        {/* Invite Form Card */}
         <View style={styles.formCard}>
-          <Text style={styles.formTitle}>Send Invite</Text>
-          
-          <TextInput
-            style={styles.input}
-            placeholder="Friend's email"
-            placeholderTextColor="rgba(255,255,255,0.6)"
-            value={friendEmail}
-            onChangeText={setFriendEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            editable={!loading}
-          />
+          <Text style={styles.cardTitle}>Send an Invite</Text>
+
+          <View style={styles.inputContainer}>
+            <Ionicons name="mail-outline" size={20} color={colors.textTertiary} style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Enter friend's email"
+              placeholderTextColor={colors.textTertiary}
+              value={friendEmail}
+              onChangeText={setFriendEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              editable={!loading}
+            />
+          </View>
 
           <TouchableOpacity
             style={[styles.sendButton, loading && styles.sendButtonDisabled]}
             onPress={sendInvite}
             disabled={loading}
+            activeOpacity={0.8}
           >
-            {loading ? (
-              <ActivityIndicator color="#FF6B9D" />
-            ) : (
-              <Text style={styles.sendButtonText}>Send Invite</Text>
-            )}
+            <LinearGradient
+              colors={loading ? [colors.border, colors.border] : [colors.primary, colors.secondary]}
+              style={styles.sendButtonGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <>
+                  <Ionicons name="paper-plane-outline" size={18} color="#fff" />
+                  <Text style={styles.sendButtonText}>Send Invite</Text>
+                </>
+              )}
+            </LinearGradient>
           </TouchableOpacity>
         </View>
 
-        {/* How it works */}
-        <View style={styles.infoCard}>
-          <Text style={styles.infoTitle}>How it works:</Text>
-          <Text style={styles.infoText}>
-            1. Enter your friend's email{'\n'}
-            2. They'll receive an invite link{'\n'}
-            3. When they join, you both win!{'\n'}
-            4. You get 1 month Premium free 🎉
-          </Text>
+        {/* How it Works */}
+        <View style={styles.stepsCard}>
+          <Text style={styles.cardTitle}>How It Works</Text>
+
+          <View style={styles.stepItem}>
+            <View style={styles.stepNumber}><Text style={styles.stepNumberText}>1</Text></View>
+            <View style={styles.stepContent}>
+              <Text style={styles.stepTitle}>Enter Email</Text>
+              <Text style={styles.stepDesc}>Type your friend's email address</Text>
+            </View>
+          </View>
+
+          <View style={styles.stepItem}>
+            <View style={styles.stepNumber}><Text style={styles.stepNumberText}>2</Text></View>
+            <View style={styles.stepContent}>
+              <Text style={styles.stepTitle}>They Get a Link</Text>
+              <Text style={styles.stepDesc}>We'll send them a special invite</Text>
+            </View>
+          </View>
+
+          <View style={styles.stepItem}>
+            <View style={styles.stepNumber}><Text style={styles.stepNumberText}>3</Text></View>
+            <View style={styles.stepContent}>
+              <Text style={styles.stepTitle}>You Both Win!</Text>
+              <Text style={styles.stepDesc}>Get 1 month Premium when they join 🎉</Text>
+            </View>
+          </View>
         </View>
 
         {/* Recent Invites */}
         {stats && stats.invites && stats.invites.length > 0 && (
           <View style={styles.invitesCard}>
-            <Text style={styles.invitesTitle}>Recent Invites</Text>
+            <Text style={styles.cardTitle}>Recent Invites</Text>
             {stats.invites.slice(0, 5).map((invite: any, index: number) => (
               <View key={index} style={styles.inviteItem}>
-                <Text style={styles.inviteEmail}>{invite.email}</Text>
-                <Text style={[
-                  styles.inviteStatus,
-                  invite.status === 'joined' && styles.inviteStatusJoined
+                <View style={styles.inviteInfo}>
+                  <View style={styles.inviteAvatar}>
+                    <Text style={styles.inviteAvatarText}>
+                      {invite.email?.charAt(0)?.toUpperCase() || '?'}
+                    </Text>
+                  </View>
+                  <Text style={styles.inviteEmail} numberOfLines={1}>
+                    {invite.email}
+                  </Text>
+                </View>
+                <View style={[
+                  styles.statusBadge,
+                  invite.status === 'joined' ? styles.statusBadgeSuccess : styles.statusBadgePending
                 ]}>
-                  {invite.status === 'joined' ? '✅ Joined' : '⏳ Pending'}
-                </Text>
+                  <Text style={[
+                    styles.statusText,
+                    invite.status === 'joined' ? styles.statusTextSuccess : styles.statusTextPending
+                  ]}>
+                    {invite.status === 'joined' ? 'Joined' : 'Pending'}
+                  </Text>
+                </View>
               </View>
             ))}
           </View>
         )}
+
+        <View style={{ height: 40 }} />
       </ScrollView>
-    </LinearGradient>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
+// Create styles function that accepts colors
+const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: colors.background,
   },
   scrollContent: {
-    padding: 20,
-    paddingTop: 20,
+    padding: spacing.xl,
+    paddingTop: spacing.huge,
   },
-  headerContainer: {
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
-    paddingTop: 40,
+    justifyContent: 'space-between',
+    marginBottom: spacing.xl,
   },
   backButton: {
     width: 40,
     height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    borderRadius: borderRadius.lg,
+    backgroundColor: colors.backgroundSecondary,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  backButtonText: {
-    fontSize: 24,
-    color: '#fff',
-    fontWeight: 'bold',
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
   },
-  header: {
-    marginBottom: 30,
+  heroCard: {
+    borderRadius: borderRadius.xxl,
+    padding: spacing.xxl,
+    alignItems: 'center',
+    marginBottom: spacing.lg,
   },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 10,
+  heroIconContainer: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: colors.primaryPastel,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
   },
-  subtitle: {
-    fontSize: 16,
-    color: '#fff',
-    opacity: 0.9,
+  heroTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: spacing.sm,
+  },
+  heroSubtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
   },
   statsCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 20,
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: borderRadius.xl,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
   },
-  statsTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 15,
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: spacing.lg,
   },
   statsRow: {
     flexDirection: 'row',
@@ -260,100 +361,162 @@ const styles = StyleSheet.create({
   statItem: {
     alignItems: 'center',
   },
+  statIconBg: {
+    width: 44,
+    height: 44,
+    borderRadius: borderRadius.lg,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
   statNumber: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontSize: 24,
+    fontWeight: '700',
+    color: colors.text,
   },
   statLabel: {
-    fontSize: 14,
-    color: '#fff',
-    opacity: 0.8,
-    marginTop: 5,
+    fontSize: 12,
+    color: colors.textTertiary,
+    marginTop: spacing.xs,
   },
   formCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 20,
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: borderRadius.xl,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
   },
-  formTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 15,
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  inputIcon: {
+    marginRight: spacing.sm,
   },
   input: {
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    borderRadius: 15,
-    padding: 15,
-    color: '#fff',
+    flex: 1,
+    height: 50,
     fontSize: 16,
-    marginBottom: 15,
+    color: colors.text,
   },
   sendButton: {
-    backgroundColor: '#fff',
-    borderRadius: 15,
-    padding: 15,
-    alignItems: 'center',
+    borderRadius: borderRadius.lg,
+    overflow: 'hidden',
   },
   sendButtonDisabled: {
-    opacity: 0.6,
+    opacity: 0.7,
+  },
+  sendButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.lg,
+    gap: spacing.sm,
   },
   sendButtonText: {
-    color: '#FF6B9D',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  infoCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 20,
-  },
-  infoTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
     color: '#fff',
-    marginBottom: 10,
+    fontSize: 16,
+    fontWeight: '600',
   },
-  infoText: {
+  stepsCard: {
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: borderRadius.xl,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+  },
+  stepItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: spacing.lg,
+  },
+  stepNumber: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: spacing.md,
+  },
+  stepNumberText: {
+    color: '#fff',
+    fontWeight: '700',
     fontSize: 14,
-    color: '#fff',
-    lineHeight: 22,
-    opacity: 0.9,
+  },
+  stepContent: {
+    flex: 1,
+  },
+  stepTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  stepDesc: {
+    fontSize: 13,
+    color: colors.textSecondary,
   },
   invitesCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderRadius: 20,
-    padding: 20,
-  },
-  invitesTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 15,
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: borderRadius.xl,
+    padding: spacing.lg,
   },
   inviteItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    borderBottomColor: colors.border,
+  },
+  inviteInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  inviteAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.primaryPastel,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: spacing.md,
+  },
+  inviteAvatarText: {
+    color: colors.primary,
+    fontWeight: '600',
+    fontSize: 14,
   },
   inviteEmail: {
     fontSize: 14,
-    color: '#fff',
+    color: colors.text,
     flex: 1,
   },
-  inviteStatus: {
-    fontSize: 12,
-    color: '#fff',
-    opacity: 0.7,
+  statusBadge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.full,
   },
-  inviteStatusJoined: {
-    opacity: 1,
-    fontWeight: 'bold',
+  statusBadgeSuccess: {
+    backgroundColor: colors.successLight,
+  },
+  statusBadgePending: {
+    backgroundColor: colors.warningLight,
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  statusTextSuccess: {
+    color: colors.success,
+  },
+  statusTextPending: {
+    color: colors.warning,
   },
 });

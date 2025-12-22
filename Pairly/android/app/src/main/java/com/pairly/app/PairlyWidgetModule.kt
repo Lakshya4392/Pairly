@@ -118,6 +118,11 @@ class PairlyWidgetModule(reactContext: ReactApplicationContext) : ReactContextBa
                 reactApplicationContext.sendBroadcast(intent)
                 println("🔄 Widget: Refresh broadcast sent for ${widgetIds.size} widgets")
             }
+
+            // Also refresh V3 Widgets
+            com.pairly.app.widget.PairlyV3Widget.updateAllWidgets(reactApplicationContext)
+            // Also refresh V4 Widgets
+            com.pairly.app.widget.PairlyV4Widget.updateAllWidgets(reactApplicationContext)
         } catch (e: Exception) {
             println("⚠️ Widget: refreshAllWidgets error: ${e.message}")
         }
