@@ -1,5 +1,6 @@
 import admin from 'firebase-admin';
 import { log } from '../utils/logger';
+import { decrypt, isEncrypted } from '../utils/encryption';
 
 class FCMService {
   private initialized = false;
@@ -34,6 +35,7 @@ class FCMService {
 
   /**
    * Send FCM notification to user with visible notification
+   * 🔐 SECURE: Automatically decrypts encrypted FCM tokens
    */
   async sendNotification(
     fcmToken: string,
@@ -51,6 +53,14 @@ class FCMService {
       return false;
     }
 
+    // 🔐 DECRYPT token if it's encrypted
+    const actualToken = isEncrypted(fcmToken) ? decrypt(fcmToken) : fcmToken;
+
+    if (!actualToken) {
+      log.warn('FCM token is null after decryption, skipping');
+      return false;
+    }
+
     try {
       // Convert all data values to strings (FCM requirement)
       const stringData = Object.keys(data).reduce((acc, key) => {
@@ -64,7 +74,7 @@ class FCMService {
       const isBackgroundType = data.type === 'new_moment';
 
       const message: any = {
-        token: fcmToken,
+        token: actualToken,
         data: {
           ...stringData,
           // Include notification info in data for native service to build notification

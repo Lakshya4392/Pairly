@@ -2,14 +2,17 @@ import { Response } from 'express';
 import { prisma, io } from '../index';
 import { AuthRequest } from '../middleware/auth';
 import { ApiResponse } from '../types';
+import crypto from 'crypto';
 
 /**
  * Send a shared note to partner
+ * 🔐 SECURE: Notes are NOT stored in database
+ * Just sent via Socket.IO + FCM notification (like a private message)
  */
 export const sendSharedNote = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.userId!;
-    const { content, expiresIn24h } = req.body;
+    const { content } = req.body;
 
     // Validate content
     if (!content || typeof content !== 'string' || content.trim().length === 0) {
@@ -62,61 +65,54 @@ export const sendSharedNote = async (req: AuthRequest, res: Response): Promise<v
       return;
     }
 
-    // Calculate expiry if needed
-    const expiresAt = expiresIn24h
-      ? new Date(Date.now() + 24 * 60 * 60 * 1000)
-      : null;
-
-    // Create note
-    const note = await prisma.sharedNote.create({
-      data: {
-        senderId: userId,
-        pairId: pair.id,
-        content: content.trim(),
-        expiresAt,
-      },
-    });
-
-    // Get partner ID
+    // Get partner
     const partnerId = pair.user1Id === userId ? pair.user2Id : pair.user1Id;
     const partner = pair.user1Id === userId ? pair.user2 : pair.user1;
 
-    // Send via Socket.IO to partner
+    // Generate temporary note ID (for UI reference only, not stored)
+    const tempNoteId = crypto.randomBytes(5).toString('hex');
+    const timestamp = new Date().toISOString();
+
+    // 🔐 NO DATABASE STORAGE - Just send to partner
+
+    // 1. Send via Socket.IO (for live users)
     io.to(partnerId).emit('shared_note', {
-      noteId: note.id,
-      content: note.content,
+      noteId: tempNoteId,
+      content: content.trim(),
       senderName: user.displayName,
-      expiresAt: note.expiresAt?.toISOString(),
-      createdAt: note.createdAt.toISOString(),
+      createdAt: timestamp,
+      // No expiresAt - it's instant/live only
     });
 
-    // ⚡ Send FCM notification for background delivery
+    // 2. Send FCM notification (for background/offline users)
     try {
       if (partner.fcmToken) {
         const FCMService = (await import('../services/FCMService')).default;
         await FCMService.sendSharedNoteNotification(
           partner.fcmToken,
-          note.content.length > 50 ? note.content.substring(0, 50) + '...' : note.content,
+          content.length > 50 ? content.substring(0, 50) + '...' : content.trim(),
           user.displayName
         );
         console.log(`📲 [FCM] Note notification sent to ${partner.displayName}`);
       }
     } catch (fcmError) {
       console.log('⚠️ Note FCM notification failed:', fcmError);
+      // Don't fail the request, Socket.IO might have worked
     }
 
-    console.log(`📝 Note sent from ${user.displayName} to ${partner.displayName}`);
+    console.log(`📝 Note sent from ${user.displayName} to ${partner.displayName} (not stored)`);
 
     res.json({
       success: true,
       data: {
         note: {
-          id: note.id,
-          content: note.content,
+          id: tempNoteId,
+          content: content.trim(),
           senderName: user.displayName,
-          createdAt: note.createdAt.toISOString(),
-          expiresAt: note.expiresAt?.toISOString(),
+          createdAt: timestamp,
+          stored: false, // Indicate note is not stored
         },
+        message: 'Note sent! (not stored for privacy)',
       },
     } as ApiResponse);
   } catch (error) {
@@ -129,114 +125,29 @@ export const sendSharedNote = async (req: AuthRequest, res: Response): Promise<v
 };
 
 /**
- * Get recent notes for the pair
+ * Get recent notes - DEPRECATED
+ * Notes are no longer stored, so this returns empty
  */
 export const getRecentNotes = async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const userId = req.userId!;
-    const limit = parseInt(req.query.limit as string) || 10;
-
-    // Get user's pair
-    const pair = await prisma.pair.findFirst({
-      where: {
-        OR: [{ user1Id: userId }, { user2Id: userId }],
-      },
-    });
-
-    if (!pair) {
-      res.status(404).json({
-        success: false,
-        error: 'No partner found',
-      } as ApiResponse);
-      return;
-    }
-
-    // Get recent notes
-    const notes = await prisma.sharedNote.findMany({
-      where: {
-        pairId: pair.id,
-        OR: [
-          { expiresAt: null },
-          { expiresAt: { gt: new Date() } },
-        ],
-      },
-      include: {
-        sender: true,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-      take: limit,
-    });
-
-    const formattedNotes = notes.map(note => ({
-      id: note.id,
-      content: note.content,
-      senderName: note.sender.displayName,
-      createdAt: note.createdAt.toISOString(),
-      expiresAt: note.expiresAt?.toISOString(),
-    }));
-
-    res.json({
-      success: true,
-      data: {
-        notes: formattedNotes,
-      },
-    } as ApiResponse);
-  } catch (error) {
-    console.error('Get notes error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch notes',
-    } as ApiResponse);
-  }
+  // Notes are no longer stored
+  res.json({
+    success: true,
+    data: {
+      notes: [],
+      message: 'Notes are now instant-only (not stored for privacy)',
+    },
+  } as ApiResponse);
 };
 
 /**
- * Delete a note
+ * Delete a note - DEPRECATED
+ * Notes are no longer stored, nothing to delete
  */
 export const deleteNote = async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const userId = req.userId!;
-    const { noteId } = req.params;
-
-    // Check if note exists and user is the sender
-    const note = await prisma.sharedNote.findUnique({
-      where: { id: noteId },
-    });
-
-    if (!note) {
-      res.status(404).json({
-        success: false,
-        error: 'Note not found',
-      } as ApiResponse);
-      return;
-    }
-
-    if (note.senderId !== userId) {
-      res.status(403).json({
-        success: false,
-        error: 'You can only delete your own notes',
-      } as ApiResponse);
-      return;
-    }
-
-    // Delete note
-    await prisma.sharedNote.delete({
-      where: { id: noteId },
-    });
-
-    res.json({
-      success: true,
-      data: {
-        message: 'Note deleted',
-      },
-    } as ApiResponse);
-  } catch (error) {
-    console.error('Delete note error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to delete note',
-    } as ApiResponse);
-  }
+  res.json({
+    success: true,
+    data: {
+      message: 'Notes are instant-only (not stored), nothing to delete',
+    },
+  } as ApiResponse);
 };
