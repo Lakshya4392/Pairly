@@ -1,0 +1,8 @@
+total 16
+drwxr-xr-x. 1 root root   98 Oct 23 09:36 .
+dr-xr-xr-x. 1 root root 2136 Dec 24 09:50 ..
+drwxr-xr-x. 1 root root   58 Dec 23 19:15 java-25-openjdk
+lrwxrwxrwx. 1 root root   21 Oct 23 09:36 jre -> /etc/alternatives/jre
+lrwxrwxrwx. 1 root root   24 Oct 23 09:36 jre-25 -> /etc/alternatives/jre_25
+lrwxrwxrwx. 1 root root   32 Oct 23 09:36 jre-25-openjdk -> /etc/alternatives/jre_25_openjdk
+lrwxrwxrwx. 1 root root   29 Oct 23 09:36 jre-openjdk -> /etc/alternatives/jre_openjdk

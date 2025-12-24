@@ -182,29 +182,31 @@ class PairlyWidget : AppWidgetProvider() {
                 val prefs = context.getSharedPreferences("pairly_prefs", Context.MODE_PRIVATE)
                 val authToken = prefs.getString("auth_token", null) ?: return null
                 val userId = prefs.getString("user_id", null) ?: return null
-                val savedBaseUrl = prefs.getString("backend_url", API_URL)
                 
-                // Remove trailing slash if present to avoid double slashes
-                val baseUrl = savedBaseUrl?.trimEnd('/') ?: API_URL
-
-                val url = URL("$baseUrl/moments/latest?userId=$userId")
+                // Use hardcoded URL if not in prefs, but respect prepended constants if needed
+                // The companion API_URL should be used
+                val url = URL("$API_URL/moments/latest?userId=$userId")
                 val connection = url.openConnection() as HttpURLConnection
                 connection.requestMethod = "GET"
                 connection.setRequestProperty("Authorization", "Bearer $authToken")
-                connection.setRequestProperty("Content-Type", "application/json")
                 connection.connectTimeout = 10000
                 connection.readTimeout = 10000
 
                 if (connection.responseCode == 200) {
                     val response = connection.inputStream.bufferedReader().readText()
                     
-                    // Parse JSON to get photo base64
+                    // Try to parse "photoData" (URL) first which is used for Cloudinary
+                    val photoUrlMatch = Regex("\"photoData\":\"(https://[^\"]+)\"").find(response)
+                    if (photoUrlMatch != null) {
+                       val photoUrl = photoUrlMatch.groupValues[1]
+                       return downloadAndScaleBitmap(photoUrl)
+                    }
+
+                    // Fallback to "photo" (Base64) for legacy support
                     val photoRegex = "\"photo\"\\s*:\\s*\"([^\"]+)\"".toRegex()
                     val match = photoRegex.find(response)
-                    
                     if (match != null) {
                         val base64Photo = match.groupValues[1]
-                        // Remove data:image prefix if present
                         val cleanBase64 = base64Photo.replace("data:image/[^;]+;base64,".toRegex(), "")
                         val imageBytes = Base64.decode(cleanBase64, Base64.DEFAULT)
                         return BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
@@ -216,6 +218,28 @@ class PairlyWidget : AppWidgetProvider() {
             }
             return null
         }
+
+        private fun downloadAndScaleBitmap(photoUrl: String): Bitmap? {
+            return try {
+                val url = URL(photoUrl)
+                val connection = url.openConnection() as HttpURLConnection
+                connection.connectTimeout = 10000
+                connection.readTimeout = 10000
+                
+                val bitmap = BitmapFactory.decodeStream(connection.inputStream)
+                connection.disconnect()
+                
+                // Scale if needed (Simple widget usually handles full size well, but safe to limit)
+                if (bitmap != null && (bitmap.width > 800 || bitmap.height > 800)) {
+                     val ratio = 800f / maxOf(bitmap.width, bitmap.height)
+                     return Bitmap.createScaledBitmap(bitmap, (bitmap.width * ratio).toInt(), (bitmap.height * ratio).toInt(), true)
+                }
+                return bitmap
+            } catch (e: Exception) {
+                null
+            }
+        }
+
 
         override fun onPostExecute(bitmap: Bitmap?) {
             if (bitmap != null) {
