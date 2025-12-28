@@ -266,7 +266,7 @@ export const joinWithCode = async (req: AuthRequest, res: Response): Promise<voi
     }
 
     // Update pair with user2 - TRANSACTION for safety
-    const updatedPair = await prisma.$transaction(async (tx) => {
+    const updatedPair = await prisma.$transaction(async (tx: any) => {
       // Double-check the pair still exists and is valid
       const currentPair = await tx.pair.findUnique({
         where: { id: pair.id },
@@ -544,10 +544,11 @@ export const disconnect = async (req: AuthRequest, res: Response): Promise<void>
       return;
     }
 
-    // Get partner info (need clerkId for socket room)
+    // Get partner info (need clerkId and FCM token for notifications)
+    const partnerId = pair.user1Id === userId ? pair.user2Id : pair.user1Id;
     const partner = await prisma.user.findUnique({
-      where: { id: pair.user1Id === userId ? pair.user2Id : pair.user1Id },
-      select: { clerkId: true },
+      where: { id: partnerId },
+      select: { clerkId: true, fcmToken: true, displayName: true },
     });
 
     // Delete pair (this will cascade delete moments)
@@ -561,8 +562,25 @@ export const disconnect = async (req: AuthRequest, res: Response): Promise<void>
         reason: 'Partner disconnected',
         userId: userId,
       });
-      console.log(`✅ Disconnect event sent to partner: ${partner.clerkId}`);
+      console.log(`✅ Disconnect event sent to partner via socket: ${partner.clerkId}`);
     }
+
+    // 🔥 NEW: Send FCM notification as backup (socket may fail if partner is offline)
+    if (partner?.fcmToken) {
+      try {
+        const FCMService = (await import('../services/FCMService')).default;
+        await FCMService.sendNotification(
+          partner.fcmToken,
+          { type: 'partner_disconnected', reason: 'Partner disconnected' },
+          { title: '💔 Partner Disconnected', body: 'Your partner has ended the connection' }
+        );
+        console.log(`✅ Disconnect notification sent via FCM`);
+      } catch (fcmError) {
+        console.log('⚠️ FCM disconnect notification failed (non-critical):', fcmError);
+      }
+    }
+
+    console.log(`✅ Pair deleted: ${pair.id}`);
 
     res.json({
       success: true,

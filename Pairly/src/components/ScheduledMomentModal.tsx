@@ -34,16 +34,25 @@ export const ScheduledMomentModal: React.FC<ScheduledMomentModalProps> = ({
   const [selectedTime, setSelectedTime] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
-  const [selectedDuration, setSelectedDuration] = useState(24); // hours
+  const [selectedDuration, setSelectedDuration] = useState(1); // hours (default 1 hour)
 
+  // Duration options: minutes converted to hours for backend
   const durations = [
-    { label: '1 hour', value: 1 },
-    { label: '3 hours', value: 3 },
-    { label: '6 hours', value: 6 },
-    { label: '12 hours', value: 12 },
-    { label: '18 hours', value: 18 },
-    { label: '24 hours', value: 24 },
+    { label: '10 min', value: 0.167, minutes: 10 },  // 10/60 = 0.167 hours
+    { label: '20 min', value: 0.333, minutes: 20 },  // 20/60 = 0.333 hours
+    { label: '30 min', value: 0.5, minutes: 30 },    // 30/60 = 0.5 hours
+    { label: '1 hour', value: 1, minutes: 60 },
+    { label: '3 hours', value: 3, minutes: 180 },
+    { label: '6 hours', value: 6, minutes: 360 },
+    { label: '12 hours', value: 12, minutes: 720 },
+    { label: '24 hours', value: 24, minutes: 1440 },
   ];
+
+  // Get display text for selected duration
+  const getDurationText = (value: number) => {
+    const duration = durations.find(d => d.value === value);
+    return duration?.label || `${value} hours`;
+  };
 
   const handleSchedule = () => {
     // Combine date and time
@@ -56,7 +65,7 @@ export const ScheduledMomentModal: React.FC<ScheduledMomentModalProps> = ({
     );
 
     onSchedule(scheduledDateTime, note, selectedDuration);
-    
+
     // Reset
     setNote('');
     setSelectedDate(new Date());
@@ -128,7 +137,7 @@ export const ScheduledMomentModal: React.FC<ScheduledMomentModalProps> = ({
             {/* Date Selection */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>When to Send</Text>
-              
+
               <TouchableOpacity
                 style={styles.dateTimeButton}
                 onPress={() => setShowDatePicker(true)}
@@ -154,7 +163,7 @@ export const ScheduledMomentModal: React.FC<ScheduledMomentModalProps> = ({
               <Text style={styles.sectionDescription}>
                 How long should this moment stay visible?
               </Text>
-              
+
               <View style={styles.durationGrid}>
                 {durations.map((duration) => (
                   <TouchableOpacity
@@ -182,7 +191,7 @@ export const ScheduledMomentModal: React.FC<ScheduledMomentModalProps> = ({
             <View style={styles.infoBox}>
               <Ionicons name="information-circle" size={20} color={colors.secondary} />
               <Text style={styles.infoText}>
-                Your moment will be delivered at the scheduled time and stay visible for {selectedDuration} {selectedDuration === 1 ? 'hour' : 'hours'}.
+                Your moment will be delivered at the scheduled time and stay visible for {getDurationText(selectedDuration)}. After that, it will auto-remove for privacy 🔒
               </Text>
             </View>
           </ScrollView>

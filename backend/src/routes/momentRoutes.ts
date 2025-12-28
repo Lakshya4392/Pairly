@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
 import { upload } from '../middleware/upload';
-import { uploadMoment, getLatestMoment, getAllMoments } from '../controllers/momentController';
+import { uploadMoment, getLatestMoment, getAllMoments, deleteMoment } from '../controllers/momentController';
 import { addReaction, getReactions } from '../controllers/reactionController';
 
 const router = Router();
@@ -17,6 +17,9 @@ router.get('/latest', getLatestMoment);
 
 // GET /moments/all - Get all moments for memories screen
 router.get('/all', getAllMoments);
+
+// DELETE /moments/:id - Permanently delete a moment (DB + Cloudinary)
+router.delete('/:id', deleteMoment);
 
 // POST /moments/:id/react - Add reaction to moment (from widget)
 router.post('/:id/react', addReaction);

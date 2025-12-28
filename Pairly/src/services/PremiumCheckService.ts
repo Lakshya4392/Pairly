@@ -124,6 +124,20 @@ class PremiumCheckService {
       this._cachedStatus = status;
       this._lastCheckTime = now;
 
+      // 🔥 SYNC: Update PremiumService to keep all sources in sync
+      try {
+        const PremiumService = (await import('./PremiumService')).default;
+        if (status.isPremium) {
+          const expiryDate = status.premiumExpiresAt ? new Date(status.premiumExpiresAt) : undefined;
+          await PremiumService.setPremiumStatus(true, 'monthly', expiryDate);
+        } else {
+          await PremiumService.setPremiumStatus(false);
+        }
+        console.log('✅ [Premium] PremiumService synced');
+      } catch (syncError) {
+        console.warn('⚠️ Failed to sync PremiumService:', syncError);
+      }
+
       return status;
     } catch (error) {
       console.log('⚠️ [Premium] Backend unavailable, using local cache');

@@ -1,6 +1,5 @@
 import admin from 'firebase-admin';
 import { log } from '../utils/logger';
-import { decrypt, isEncrypted } from '../utils/encryption';
 
 class FCMService {
   private initialized = false;
@@ -35,7 +34,7 @@ class FCMService {
 
   /**
    * Send FCM notification to user with visible notification
-   * 🔐 SECURE: Automatically decrypts encrypted FCM tokens
+   * ⚡ FAST: No encryption overhead
    */
   async sendNotification(
     fcmToken: string,
@@ -53,11 +52,15 @@ class FCMService {
       return false;
     }
 
-    // 🔐 DECRYPT token if it's encrypted
-    const actualToken = isEncrypted(fcmToken) ? decrypt(fcmToken) : fcmToken;
+    // ⚡ FAST: Use token directly (no decryption needed)
+    if (!fcmToken) {
+      log.warn('FCM token is null, skipping');
+      return false;
+    }
 
-    if (!actualToken) {
-      log.warn('FCM token is null after decryption, skipping');
+    // 🔒 VALIDATE: Check if token looks valid (FCM tokens are ~150+ chars)
+    if (fcmToken.length < 100) {
+      log.warn('FCM token too short, likely invalid', { length: fcmToken.length });
       return false;
     }
 
@@ -74,7 +77,7 @@ class FCMService {
       const isBackgroundType = data.type === 'new_moment';
 
       const message: any = {
-        token: actualToken,
+        token: fcmToken,
         data: {
           ...stringData,
           // Include notification info in data for native service to build notification
@@ -113,10 +116,39 @@ class FCMService {
         responseId: response.substring(0, 20) + '...'
       });
       return true;
-    } catch (error) {
+    } catch (error: any) {
+      // 🔧 HANDLE SPECIFIC FCM ERRORS
+      const errorCode = error?.code || error?.errorInfo?.code || '';
+
+      if (errorCode === 'messaging/invalid-registration-token' ||
+        errorCode === 'messaging/registration-token-not-registered') {
+        // Token is invalid/expired - clear from DB
+        log.warn('FCM token invalid/expired, clearing from DB', { errorCode });
+        await this.clearInvalidToken(fcmToken);
+        return false;
+      }
+
       // ⚡ SECURE: Log error without exposing FCM token
       log.error('FCM send error', error, { type: data.type });
       return false;
+    }
+  }
+
+  /**
+   * 🧹 Clear invalid FCM token from database
+   */
+  private async clearInvalidToken(fcmToken: string): Promise<void> {
+    try {
+      const prisma = (await import('../index')).prisma;
+      const result = await prisma.user.updateMany({
+        where: { fcmToken },
+        data: { fcmToken: null },
+      });
+      if (result.count > 0) {
+        log.info('Cleared invalid FCM token from DB', { affected: result.count });
+      }
+    } catch (error) {
+      log.error('Failed to clear invalid FCM token', error);
     }
   }
 

@@ -548,14 +548,18 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
 
       // Listen for partner disconnected events
       const handlePartnerDisconnected = async (data: any) => {
-        console.log('💔 Partner disconnected, updating UI...');
+        console.log('💔 Partner disconnected, clearing ALL pairing data...');
         setPartnerName('Your Person');
         setIsPartnerConnected(false);
 
-        // Clear local storage
-        const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
-        await AsyncStorage.removeItem('partner_info');
-        await AsyncStorage.removeItem('partner_id');
+        // 🔥 FIX: Clear ALL pairing data using PairingService
+        try {
+          const PairingService = (await import('../services/PairingService')).default;
+          await PairingService.removePair();
+          console.log('✅ All pairing data cleared');
+        } catch (clearError) {
+          console.error('Error clearing pairing data:', clearError);
+        }
 
         // Show alert
         setAlertMessage('Your partner has disconnected');
@@ -604,22 +608,12 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
       RealtimeService.on('moment_available', handleMomentAvailable);
       RealtimeService.on('new_moment', handleNewMoment);
 
-      console.log('✅ Photo receive listeners registered (3 events)');
-
-      // ⚡ NEW: Also poll for updates every 5 seconds when app is active
-      const pollInterval = setInterval(async () => {
-        try {
-          await loadRecentPhotos();
-        } catch (error) {
-          // Silent
-        }
-      }, 5000);
+      console.log('✅ Photo receive listeners registered');
 
       // Cleanup
       return () => {
         RealtimeService.off('moment_available', handleMomentAvailable);
         RealtimeService.off('new_moment', handleNewMoment);
-        clearInterval(pollInterval);
       };
     } catch (error) {
       console.error('Error setting up photo receive listener:', error);
@@ -803,11 +797,11 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
             setShowErrorAlert(true);
           }
         } else {
-          // Send immediately
+          // Send immediately with optional widget expiry
           setUploading(true);
           const result = await MomentService.uploadPhoto({
             uri: selectedPhotoUri,
-          }, note);
+          }, note, duration); // Pass duration for widget expiry
           setUploading(false);
 
           if (result.success) {

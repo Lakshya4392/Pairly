@@ -159,13 +159,17 @@ export const uploadMoment = async (req: AuthRequest, res: Response): Promise<voi
       console.log(`⏰ [UPLOAD] This is a SCHEDULED moment for: ${scheduledFor.toISOString()}`);
     }
 
-    // 🔥 PHOTO EXPIRY - Calculate expiresAt based on expiresIn hours
-    const expiresInHours = req.body.expiresIn ? parseInt(req.body.expiresIn) : null;
+    // 🔥 PHOTO EXPIRY - Calculate expiresAt based on expiresIn hours (supports fractional hours for minutes)
+    const expiresInHours = req.body.expiresIn ? parseFloat(req.body.expiresIn) : null;
     let expiresAt: Date | null = null;
 
     if (expiresInHours && expiresInHours > 0) {
       expiresAt = new Date(Date.now() + expiresInHours * 60 * 60 * 1000);
-      console.log(`🔥 [UPLOAD] Photo expires in ${expiresInHours}h at: ${expiresAt.toISOString()}`);
+      // Display in minutes if less than 1 hour
+      const displayTime = expiresInHours < 1
+        ? `${Math.round(expiresInHours * 60)} minutes`
+        : `${expiresInHours} hours`;
+      console.log(`🔥 [UPLOAD] Photo expires in ${displayTime} at: ${expiresAt.toISOString()}`);
     }
 
     // ☁️ Upload to Cloudinary for fast widget access
@@ -408,7 +412,7 @@ export const getAllMoments = async (req: AuthRequest, res: Response): Promise<vo
     }
 
     // ⚡ FAST: Return Cloudinary URLs instead of base64
-    const momentsData = moments.map(moment => {
+    const momentsData = moments.map((moment: any) => {
       const partner = moment.uploaderId === pair.user1Id ? pair.user1 : pair.user2;
       const isFromMe = moment.uploaderId === userId;
 
@@ -555,6 +559,86 @@ export const getLatestMoment = async (req: AuthRequest, res: Response): Promise<
     res.status(500).json({
       success: false,
       error: 'Failed to fetch moment',
+    } as ApiResponse);
+  }
+};
+
+/**
+ * 🗑️ Delete a moment permanently (DB + Cloudinary)
+ * Privacy feature: Allow users to delete any photo completely
+ */
+export const deleteMoment = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.userId!;
+    const { id: momentId } = req.params;
+
+    console.log(`🗑️ [DELETE] Request from userId: ${userId.substring(0, 8)}... for moment: ${momentId.substring(0, 8)}...`);
+
+    // Find the moment and verify user has permission
+    const moment = await prisma.moment.findUnique({
+      where: { id: momentId },
+      include: {
+        pair: true,
+      },
+    });
+
+    if (!moment) {
+      res.status(404).json({
+        success: false,
+        error: 'Moment not found',
+      } as ApiResponse);
+      return;
+    }
+
+    // Check if user is part of this pair
+    if (moment.pair.user1Id !== userId && moment.pair.user2Id !== userId) {
+      res.status(403).json({
+        success: false,
+        error: 'Not authorized to delete this moment',
+      } as ApiResponse);
+      return;
+    }
+
+    // Delete from Cloudinary if exists
+    if (moment.cloudinaryId) {
+      try {
+        const CloudinaryService = (await import('../services/CloudinaryService')).default;
+        await CloudinaryService.deleteImage(moment.cloudinaryId);
+        console.log(`☁️ [DELETE] Removed from Cloudinary: ${moment.cloudinaryId}`);
+      } catch (cloudError) {
+        console.log('⚠️ [DELETE] Cloudinary delete failed (continuing):', cloudError);
+      }
+    }
+
+    // Delete local file if exists
+    try {
+      const fs = await import('fs');
+      const path = await import('path');
+      const filePath = path.join(__dirname, '../../public/uploads', `${momentId}.jpg`);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+        console.log(`📁 [DELETE] Removed local file: ${momentId}.jpg`);
+      }
+    } catch (fileError) {
+      console.log('⚠️ [DELETE] Local file delete failed (continuing):', fileError);
+    }
+
+    // Delete from database
+    await prisma.moment.delete({
+      where: { id: momentId },
+    });
+
+    console.log(`✅ [DELETE] Moment permanently deleted: ${momentId.substring(0, 8)}...`);
+
+    res.json({
+      success: true,
+      message: 'Moment deleted permanently',
+    } as ApiResponse);
+  } catch (error) {
+    console.error('❌ [DELETE] Error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete moment',
     } as ApiResponse);
   }
 };

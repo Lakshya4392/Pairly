@@ -164,13 +164,18 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
       // Listen for partner disconnected event
       const handlePartnerDisconnected = async (data: any) => {
-        console.log('💔 Partner disconnected you, updating UI...');
+        console.log('💔 Partner disconnected, clearing ALL pairing data...');
         setPartnerName(null);
         setIsPartnerConnected(false);
 
-        // Clear local storage
-        await AsyncStorage.removeItem('partner_info');
-        await AsyncStorage.removeItem('partner_id');
+        // 🔥 FIX: Clear ALL pairing data using PairingService
+        try {
+          const PairingService = (await import('../services/PairingService')).default;
+          await PairingService.removePair();
+          console.log('✅ All pairing data cleared in Settings');
+        } catch (clearError) {
+          console.error('Error clearing pairing data:', clearError);
+        }
 
         setSuccessMessage('Your partner has disconnected');
         setShowSuccessAlert(true);

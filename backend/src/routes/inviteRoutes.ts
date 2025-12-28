@@ -236,10 +236,10 @@ router.get('/my-invites/:clerkId', async (req, res) => {
 
     const stats = {
       totalInvited: invites.length,
-      joined: invites.filter(i => i.status === 'joined').length,
-      pending: invites.filter(i => i.status === 'pending').length,
-      rewardsEarned: invites.filter(i => i.rewardGranted).length,
-      invites: invites.map(i => ({
+      joined: invites.filter((i: any) => i.status === 'joined').length,
+      pending: invites.filter((i: any) => i.status === 'pending').length,
+      rewardsEarned: invites.filter((i: any) => i.rewardGranted).length,
+      invites: invites.map((i: any) => ({
         email: i.email,
         status: i.status,
         invitedAt: i.invitedAt,
@@ -272,7 +272,7 @@ router.post('/verify-email', async (req, res) => {
     // Check app config for launch date (with fallback if table doesn't exist yet)
     let config: any = null;
     let isWaitlistPeriod = false;
-    
+
     try {
       // Use type assertion to bypass TS check for appConfig
       const prismaAny = prisma as any;
@@ -299,7 +299,7 @@ router.post('/verify-email', async (req, res) => {
         const daysUntilLaunch = Math.ceil(
           (new Date(config.launchDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
         );
-        
+
         return res.status(403).json({
           verified: false,
           isWaitlistPeriod: true,
@@ -326,7 +326,7 @@ router.post('/verify-email', async (req, res) => {
     if (clerkId && !invitedUser.clerkId) {
       await prisma.invitedUser.update({
         where: { id: invitedUser.id },
-        data: { 
+        data: {
           clerkId,
           joinedAt: new Date(),
           status: 'joined',
@@ -381,7 +381,7 @@ router.post('/verify-email', async (req, res) => {
       premiumDaysRemaining: premiumStatus.daysRemaining,
       referralCount: invitedUser.referralCount,
       isWaitlistUser: true,
-      message: premiumStatus.isPremium 
+      message: premiumStatus.isPremium
         ? `Welcome! You have ${premiumStatus.daysRemaining} days of premium.`
         : 'Your premium has expired. Refer 3 friends to get 3 months free!',
     });
@@ -398,7 +398,7 @@ router.post('/verify-email', async (req, res) => {
 // Helper function to calculate premium status (STRICT)
 function calculatePremiumStatus(invitedUser: any) {
   const now = new Date();
-  
+
   // Check if new premium fields exist
   if (!invitedUser.premiumExpiresAt) {
     // Fallback to old isPremium field if new fields don't exist
@@ -409,7 +409,7 @@ function calculatePremiumStatus(invitedUser: any) {
         daysRemaining: 30, // Default for old users
       };
     }
-    
+
     return {
       isPremium: false,
       premiumExpiresAt: null,
@@ -418,7 +418,7 @@ function calculatePremiumStatus(invitedUser: any) {
   }
 
   const expiryDate = new Date(invitedUser.premiumExpiresAt);
-  
+
   if (now < expiryDate) {
     // Premium active
     const daysRemaining = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));

@@ -89,7 +89,7 @@ export const prisma = new PrismaClient({
 // Connection pool optimization
 prisma.$connect().then(() => {
   console.log('✅ Database connected with connection pooling');
-}).catch((error) => {
+}).catch((error: any) => {
   console.error('❌ Database connection failed:', error);
 });
 

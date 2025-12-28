@@ -3,7 +3,6 @@ import { prisma } from '../index';
 import { ApiResponse } from '../types';
 import FCMService from '../services/FCMService';
 import { log } from '../utils/logger';
-import { encrypt } from '../utils/encryption';
 
 /**
  * Get user's premium status
@@ -184,27 +183,23 @@ export const updateFCMToken = async (
       return;
     }
 
-    // 🔐 ENCRYPT FCM token before storage
-    const encryptedToken = encrypt(fcmToken);
-
-    // ⚡ SECURITY FIX: Ensure One Token = One User
+    // ⚡ FAST: Store FCM token directly (no encryption for faster notifications)
     // Remove this token from ANY other users to prevent cross-account notifications
-    // Note: We need to find by encrypted token (exact match won't work for different encryptions)
-    // So we clear any matching raw token first
     await prisma.user.updateMany({
       where: {
-        id: { not: user.id }, // Don't touch current user yet
+        id: { not: user.id },
+        fcmToken: fcmToken, // Clear same token from other users
       },
       data: { fcmToken: null },
     });
 
-    // Update encrypted FCM token for current user
+    // Update FCM token for current user
     await prisma.user.update({
       where: { id: user.id },
-      data: { fcmToken: encryptedToken },
+      data: { fcmToken: fcmToken },
     });
 
-    log.info('FCM token updated (encrypted)', { userId: user.id.substring(0, 8) + '...' });
+    log.info('FCM token updated', { userId: user.id.substring(0, 8) + '...' });
 
     res.json({
       success: true,

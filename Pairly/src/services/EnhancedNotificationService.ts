@@ -36,7 +36,7 @@ class EnhancedNotificationService {
         content: {
           title: `💕 New Moment from ${partnerName}`,
           body: 'Tap to view your special moment together',
-          data: { 
+          data: {
             type: 'new_moment',
             momentId,
             partnerName,
@@ -64,7 +64,7 @@ class EnhancedNotificationService {
         content: {
           title: '✅ Moment Delivered',
           body: `${partnerName} received your moment`,
-          data: { 
+          data: {
             type: 'moment_delivered',
             partnerName,
           },
@@ -89,7 +89,7 @@ class EnhancedNotificationService {
         content: {
           title: '👀 Moment Viewed',
           body: `${partnerName} viewed your moment`,
-          data: { 
+          data: {
             type: 'moment_viewed',
             partnerName,
           },
@@ -114,7 +114,7 @@ class EnhancedNotificationService {
         content: {
           title: '✅ Moment Sent',
           body: `Sent to ${partnerName}`,
-          data: { 
+          data: {
             type: 'moment_sent',
             partnerName,
           },
@@ -136,15 +136,15 @@ class EnhancedNotificationService {
   static async showNoteNotification(partnerName: string, noteContent: string): Promise<void> {
     try {
       // Truncate long notes
-      const preview = noteContent.length > 100 
-        ? noteContent.substring(0, 100) + '...' 
+      const preview = noteContent.length > 100
+        ? noteContent.substring(0, 100) + '...'
         : noteContent;
 
       await Notifications.scheduleNotificationAsync({
         content: {
           title: `💌 Note from ${partnerName}`,
           body: preview,
-          data: { 
+          data: {
             type: 'note_received',
             partnerName,
             noteContent,
@@ -172,7 +172,7 @@ class EnhancedNotificationService {
         content: {
           title: '⚠️ Send Failed',
           body: `Will retry sending to ${partnerName}`,
-          data: { 
+          data: {
             type: 'moment_send_failed',
             partnerName,
           },
@@ -197,7 +197,7 @@ class EnhancedNotificationService {
         content: {
           title: '📦 Moment Queued',
           body: 'Will send when connection is restored',
-          data: { 
+          data: {
             type: 'moment_queued',
           },
           sound: 'default',
@@ -226,6 +226,27 @@ class EnhancedNotificationService {
   }
 
   /**
+   * 🔥 Show generic local notification
+   */
+  static async showLocalNotification(title: string, body: string, data?: any): Promise<void> {
+    try {
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title,
+          body,
+          data: data || {},
+          sound: 'default',
+          priority: Notifications.AndroidNotificationPriority.HIGH,
+        },
+        trigger: null,
+      });
+      console.log(`✅ Local notification shown: ${title}`);
+    } catch (error) {
+      console.error('Error showing local notification:', error);
+    }
+  }
+
+  /**
    * Handle notification tap
    */
   static setupNotificationHandlers(
@@ -235,7 +256,7 @@ class EnhancedNotificationService {
     // Handle notification tap
     Notifications.addNotificationResponseReceivedListener((response) => {
       const data = response.notification.request.content.data;
-      
+
       switch (data.type) {
         case 'new_moment':
           onMomentTap(data.momentId as string);

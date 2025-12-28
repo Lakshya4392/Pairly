@@ -10,6 +10,8 @@ import {
   StatusBar,
   Modal,
   RefreshControl,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
@@ -53,6 +55,7 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
   const [isLocked, setIsLocked] = useState(false);
   const [needsUnlock, setNeedsUnlock] = useState(false);
   const [showMemoriesLock, setShowMemoriesLock] = useState(false);
+  const [deleting, setDeleting] = useState(false); // 🗑️ Delete loading state
 
   useEffect(() => {
     checkMemoriesLock();
@@ -195,6 +198,53 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
   const handleRefresh = async () => {
     setRefreshing(true);
     await loadPhotos();
+  };
+
+  // 🗑️ DELETE: Permanently remove photo from DB + Cloudinary
+  const handleDeletePhoto = (photo: Photo) => {
+    Alert.alert(
+      '🗑️ Delete Photo',
+      'This will permanently delete this photo from both your devices. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setDeleting(true);
+              console.log('🗑️ [GALLERY] Deleting photo:', photo.id);
+
+              const response = await ApiClient.delete(`/moments/${photo.id}`) as any;
+
+              if (response.success) {
+                console.log('✅ [GALLERY] Photo deleted successfully');
+                // Remove from local state
+                setPhotos(prev => prev.filter(p => p.id !== photo.id));
+                // Update cache
+                const cached = await AsyncStorage.getItem(GALLERY_CACHE_KEY);
+                if (cached) {
+                  const cachedPhotos = JSON.parse(cached);
+                  await AsyncStorage.setItem(
+                    GALLERY_CACHE_KEY,
+                    JSON.stringify(cachedPhotos.filter((p: Photo) => p.id !== photo.id))
+                  );
+                }
+                setSelectedPhoto(null);
+                Alert.alert('✅ Deleted', 'Photo has been permanently removed');
+              } else {
+                throw new Error(response.error || 'Delete failed');
+              }
+            } catch (error: any) {
+              console.error('❌ [GALLERY] Delete error:', error);
+              Alert.alert('Error', error.message || 'Failed to delete photo');
+            } finally {
+              setDeleting(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const formatDate = (timestamp: string) => {
@@ -408,6 +458,19 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
                   {formatDate(selectedPhoto.timestamp)}
                 </Text>
               </View>
+
+              {/* 🗑️ Delete Button - Bottom Right */}
+              <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={() => handleDeletePhoto(selectedPhoto)}
+                disabled={deleting}
+              >
+                {deleting ? (
+                  <ActivityIndicator size="small" color="white" />
+                ) : (
+                  <Ionicons name="trash-outline" size={24} color="white" />
+                )}
+              </TouchableOpacity>
             </>
           )}
         </View>
@@ -719,6 +782,20 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     fontFamily: 'Inter-Regular',
     fontSize: 14,
     color: 'rgba(255, 255, 255, 0.7)',
+  },
+  // 🗑️ Delete Button
+  deleteButton: {
+    position: 'absolute',
+    bottom: 60,
+    right: 24,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'rgba(220, 53, 69, 0.9)', // Red with transparency
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   modalCard: {
     width: '100%',

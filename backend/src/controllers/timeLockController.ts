@@ -149,7 +149,7 @@ export const getPendingMessages = async (req: AuthRequest, res: Response): Promi
       },
     });
 
-    const formattedMessages = messages.map(msg => ({
+    const formattedMessages = messages.map((msg: any) => ({
       id: msg.id,
       content: msg.content,
       unlockDate: msg.unlockDate.toISOString(),

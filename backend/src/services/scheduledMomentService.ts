@@ -353,18 +353,20 @@ export class ScheduledMomentService {
   }
 
   /**
-   * 🔥 Delete expired moments (photos with expiresAt <= now)
+   * 🔒 Hide expired moments from widget (NOT delete - photos remain in gallery)
+   * User wanted: hide from widget only, keep in Cloudinary and DB for memories
    */
   static async deleteExpiredMoments() {
     try {
       const now = new Date();
 
-      // Find expired moments
+      // Find expired moments that haven't been hidden yet
       const expiredMoments = await prisma.moment.findMany({
         where: {
           AND: [
             { expiresAt: { not: null } },
             { expiresAt: { lte: now } },
+            { isHiddenFromWidget: false }, // Not yet hidden
           ],
         },
         include: {
@@ -382,20 +384,12 @@ export class ScheduledMomentService {
         return;
       }
 
-      console.log(`🔥 Found ${expiredMoments.length} expired moments to delete`);
+      console.log(`🔒 Found ${expiredMoments.length} expired moments to hide from widget`);
 
       for (const moment of expiredMoments) {
         try {
-          // Delete from Cloudinary if it has a cloudinaryId
-          if (moment.cloudinaryId) {
-            try {
-              const CloudinaryService = (await import('./CloudinaryService')).default;
-              await CloudinaryService.deleteImage(moment.cloudinaryId);
-              console.log(`☁️ Deleted from Cloudinary: ${moment.cloudinaryId}`);
-            } catch (cloudError) {
-              console.log('⚠️ Cloudinary delete failed:', cloudError);
-            }
-          }
+          // ⚠️ NOT deleting from Cloudinary - photo stays for memories/gallery
+          // ⚠️ NOT deleting from DB - only hiding from widget
 
           // Get partner to notify
           const partnerId = moment.pair.user1Id === moment.uploaderId
@@ -405,34 +399,33 @@ export class ScheduledMomentService {
             ? moment.pair.user2
             : moment.pair.user1;
 
-          // Delete from database
-          await prisma.moment.delete({
+          // Mark as hidden from widget (NOT delete)
+          await prisma.moment.update({
             where: { id: moment.id },
+            data: { isHiddenFromWidget: true },
           });
 
-          console.log(`🗑️ Deleted expired moment: ${moment.id.substring(0, 8)}...`);
+          console.log(`🔒 Hidden from widget: ${moment.id.substring(0, 8)}... (still in gallery)`);
 
-          // Send FCM notification to partner
+          // Send FCM to refresh widget (will now show empty or previous photo)
           if (partner.fcmToken) {
             try {
               const FCMService = (await import('./FCMService')).default;
               await FCMService.sendNotification(partner.fcmToken, {
-                type: 'moment_expired',
-                title: '📸 Photo Expired',
-                body: `A photo from ${moment.uploader.displayName} has expired`,
+                type: 'widget_refresh',
                 momentId: moment.id,
               });
-              console.log(`📲 Sent expiry notification to ${partner.displayName}`);
+              console.log(`📲 Sent widget refresh to ${partner.displayName}`);
             } catch (fcmError) {
-              console.log('⚠️ Expiry FCM failed:', fcmError);
+              console.log('⚠️ Widget refresh FCM failed:', fcmError);
             }
           }
-        } catch (deleteError) {
-          console.error(`❌ Error deleting moment ${moment.id}:`, deleteError);
+        } catch (hideError) {
+          console.error(`❌ Error hiding moment ${moment.id}:`, hideError);
         }
       }
 
-      console.log(`✅ Deleted ${expiredMoments.length} expired moments`);
+      console.log(`✅ Hidden ${expiredMoments.length} expired moments from widget`);
     } catch (error) {
       console.error('❌ Error processing expired moments:', error);
     }

@@ -20,9 +20,23 @@ router.get('/data', async (req, res) => {
       });
     }
 
+    // 🔒 Security: Verify user exists before returning data
+    const user = await prisma.user.findUnique({
+      where: { id: userId as string },
+      select: { id: true },
+    });
+
+    if (!user) {
+      console.warn('⚠️ [Widget] Invalid userId attempted:', userId);
+      return res.status(401).json({
+        success: false,
+        error: 'Unauthorized',
+      });
+    }
+
     // Fetch data in parallel for speed
     const [recentMoments, recentNotes, partner] = await Promise.all([
-      // Recent moments (last 3)
+      // Recent moments (last 3) - exclude hidden from widget
       prisma.moment.findMany({
         where: {
           pair: {
@@ -31,6 +45,7 @@ router.get('/data', async (req, res) => {
               { user2Id: userId as string },
             ],
           },
+          isHiddenFromWidget: false, // 🔒 Exclude expired/hidden moments
         },
         orderBy: { uploadedAt: 'desc' },
         take: 3,

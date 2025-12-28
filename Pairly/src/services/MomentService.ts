@@ -33,8 +33,9 @@ export interface MomentMetadata {
 class SimpleMomentService {
   /**
    * ⚡ SIMPLE UPLOAD: Compress → Upload → Done
+   * @param expiresIn - Hours until photo hides from widget (0 = never expires)
    */
-  async uploadPhoto(photo: Photo, note?: string): Promise<UploadResult> {
+  async uploadPhoto(photo: Photo, note?: string, expiresIn?: number): Promise<UploadResult> {
     try {
       console.log('📸 [UPLOAD] Starting simple upload...');
 
@@ -57,6 +58,15 @@ class SimpleMomentService {
 
       if (note) {
         formData.append('caption', note);
+      }
+
+      // 🔥 WIDGET EXPIRY: Add expiry duration for immediate sends
+      if (expiresIn && expiresIn > 0) {
+        formData.append('expiresIn', expiresIn.toString());
+        const displayTime = expiresIn < 1
+          ? `${Math.round(expiresIn * 60)} minutes`
+          : `${expiresIn} hours`;
+        console.log(`🔥 [UPLOAD] Photo will hide from widget in ${displayTime}`);
       }
 
       console.log('📤 [UPLOAD] Uploading to backend...');

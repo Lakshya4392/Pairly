@@ -106,7 +106,8 @@ model Moment {
   isScheduled   Boolean   @default(false)
   scheduledFor  DateTime? // When to show this moment
   deliveredAt   DateTime? // When it was actually delivered
-  expiresAt     DateTime? // When to auto-delete (optional)
+  expiresAt     DateTime? // When to hide from widget (NOT delete)
+  isHiddenFromWidget Boolean @default(false) // 🔒 Hide from widget after expiry
   
   pair          Pair      @relation(fields: [pairId], references: [id], onDelete: Cascade)
   uploader      User      @relation("Uploader", fields: [uploaderId], references: [id])
@@ -114,6 +115,7 @@ model Moment {
   
   @@index([pairId, uploadedAt])
   @@index([isScheduled, scheduledFor])
+  @@index([isHiddenFromWidget]) // Fast widget query
 }
 
 // Widget Reactions - Quick emoji reactions from widget

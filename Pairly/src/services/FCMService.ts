@@ -63,8 +63,12 @@ class FCMService {
   /**
    * Register FCM token with backend
    * Uses clerkId for consistency with socket system
+   * 🔧 IMPROVED: Added retry logic with exponential backoff
    */
-  private async registerTokenWithBackend(token: string): Promise<void> {
+  private async registerTokenWithBackend(token: string, retryCount = 0): Promise<void> {
+    const MAX_RETRIES = 3;
+    const RETRY_DELAYS = [1000, 3000, 5000]; // 1s, 3s, 5s
+
     try {
       // Get clerkId from stored user object
       const userJson = await AsyncStorage.getItem('pairly_user');
@@ -106,10 +110,25 @@ class FCMService {
       if (response.ok) {
         console.log('✅ FCM token registered for:', clerkId || userId);
       } else {
-        console.log('⚠️ Failed to register FCM token:', response.status);
+        const errorText = await response.text();
+        console.log('⚠️ Failed to register FCM token:', response.status, errorText);
+
+        // 🔧 RETRY: If server error (5xx) or network issue, retry
+        if ((response.status >= 500 || response.status === 0) && retryCount < MAX_RETRIES) {
+          console.log(`🔄 Retrying FCM registration (${retryCount + 1}/${MAX_RETRIES})...`);
+          await new Promise(r => setTimeout(r, RETRY_DELAYS[retryCount]));
+          return this.registerTokenWithBackend(token, retryCount + 1);
+        }
       }
     } catch (error) {
       console.log('⚠️ Backend offline, FCM token not registered');
+
+      // 🔧 RETRY: On network error, retry
+      if (retryCount < MAX_RETRIES) {
+        console.log(`🔄 Retrying FCM registration (${retryCount + 1}/${MAX_RETRIES})...`);
+        await new Promise(r => setTimeout(r, RETRY_DELAYS[retryCount]));
+        return this.registerTokenWithBackend(token, retryCount + 1);
+      }
     }
   }
 
@@ -189,6 +208,9 @@ class FCMService {
         break;
       case 'partner_connected':
         await this.handlePartnerConnected(data);
+        break;
+      case 'partner_disconnected':
+        await this.handlePartnerDisconnected(data);
         break;
       case 'shared_note':
         await this.handleSharedNote(data);
@@ -292,6 +314,30 @@ class FCMService {
   private async handleSharedNote(data: any): Promise<void> {
     console.log('📝 Shared note via FCM:', data.content);
     // Show notification
+  }
+
+  /**
+   * 🔥 Handle partner disconnected notification
+   * Clear all pairing data when partner disconnects
+   */
+  private async handlePartnerDisconnected(data: any): Promise<void> {
+    console.log('💔 [FCM] Partner disconnected notification received');
+
+    try {
+      // Clear all pairing data
+      const PairingService = (await import('./PairingService')).default;
+      await PairingService.removePair();
+      console.log('✅ [FCM] All pairing data cleared');
+
+      // Show notification
+      const EnhancedNotificationService = (await import('./EnhancedNotificationService')).default;
+      await EnhancedNotificationService.showLocalNotification(
+        '💔 Partner Disconnected',
+        'Your partner has ended the connection'
+      );
+    } catch (error) {
+      console.error('❌ [FCM] Error handling partner disconnect:', error);
+    }
   }
 
   /**

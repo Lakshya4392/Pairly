@@ -22,35 +22,14 @@ class PremiumService {
 
   /**
    * Check if user has premium access
+   * 🔥 SINGLE SOURCE: Uses PremiumCheckService as the source of truth
    */
   async isPremium(): Promise<boolean> {
     try {
-      const status = await this.getPremiumStatus();
-
-      // Check if premium is still valid
-      if (status.isPremium && status.expiresAt) {
-        const expiryDate = new Date(status.expiresAt);
-        const now = new Date();
-
-        if (now > expiryDate) {
-          // Premium expired
-          await this.setPremiumStatus(false);
-          return false;
-        }
-      }
-
-      if (status.isPremium) {
-        return true;
-      }
-
-      // ⚡ FALLBACK: Also check PremiumCheckService source (InvitedUser/Waitlist premium)
-      const waitlistPremium = await AsyncStorage.getItem('isPremium');
-      if (waitlistPremium === 'true') {
-        console.log('✅ [PremiumService] Waitlist premium detected');
-        return true;
-      }
-
-      return false;
+      // 🔥 SINGLE SOURCE: Use PremiumCheckService (handles waitlist, backend, expiry)
+      const PremiumCheckService = (await import('./PremiumCheckService')).default;
+      const status = await PremiumCheckService.getLocalPremiumStatus();
+      return status.isPremium;
     } catch (error) {
       console.error('Error checking premium status:', error);
       return false;

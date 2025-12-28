@@ -40,10 +40,19 @@ class ManualAuthService {
       }
 
       const data: AuthResponse = await response.json();
-      
+
       // Store token and user
       await this.storeToken(data.token);
       await this.storeUser(data.user);
+
+      // 🔥 FIX: Register FCM token immediately after signup
+      try {
+        const FCMService = (await import('./FCMService')).default;
+        await FCMService.registerUser();
+        console.log('✅ FCM token registered after signup');
+      } catch (fcmError) {
+        console.log('⚠️ FCM registration failed (non-blocking):', fcmError);
+      }
 
       return data;
     } catch (error) {
@@ -71,10 +80,19 @@ class ManualAuthService {
       }
 
       const data: AuthResponse = await response.json();
-      
+
       // Store token and user
       await this.storeToken(data.token);
       await this.storeUser(data.user);
+
+      // 🔥 FIX: Register FCM token immediately after login
+      try {
+        const FCMService = (await import('./FCMService')).default;
+        await FCMService.registerUser();
+        console.log('✅ FCM token registered after login');
+      } catch (fcmError) {
+        console.log('⚠️ FCM registration failed (non-blocking):', fcmError);
+      }
 
       return data;
     } catch (error) {
@@ -205,7 +223,7 @@ class ManualAuthService {
   async verifyToken(): Promise<boolean> {
     try {
       const authHeader = await this.getAuthHeader();
-      
+
       const response = await fetch(`${API_BASE_URL}/auth/verify`, {
         method: 'GET',
         headers: {

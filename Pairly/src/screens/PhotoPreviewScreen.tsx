@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   StatusBar,
   ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -35,11 +36,25 @@ export const PhotoPreviewScreen: React.FC<PhotoPreviewScreenProps> = ({
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState<string>('none');
+  const [selectedDuration, setSelectedDuration] = useState<number>(1); // Default 1 hour
+
+  // Duration options for widget visibility
+  const durations = [
+    { label: '10m', value: 0.167, icon: '⏱️' },
+    { label: '30m', value: 0.5, icon: '⏰' },
+    { label: '1h', value: 1, icon: '🕐' },
+    { label: '3h', value: 3, icon: '🕒' },
+    { label: '6h', value: 6, icon: '🕕' },
+    { label: '12h', value: 12, icon: '🕛' },
+    { label: '24h', value: 24, icon: '📅' },
+    { label: '∞', value: 0, icon: '♾️' }, // 0 means no expiry
+  ];
 
   const handleUpload = async () => {
     try {
       setUploading(true);
-      await onUpload(undefined);
+      // Pass duration for widget expiry (0 = no expiry)
+      await onUpload(undefined, undefined, selectedDuration > 0 ? selectedDuration : undefined);
     } catch (error) {
       console.error('Upload error:', error);
     } finally {
@@ -59,6 +74,12 @@ export const PhotoPreviewScreen: React.FC<PhotoPreviewScreenProps> = ({
     }
   };
 
+  const getDurationLabel = (value: number) => {
+    if (value === 0) return 'Forever';
+    if (value < 1) return `${Math.round(value * 60)} min`;
+    return `${value} hr${value > 1 ? 's' : ''}`;
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="black" />
@@ -75,16 +96,16 @@ export const PhotoPreviewScreen: React.FC<PhotoPreviewScreenProps> = ({
         >
           <Ionicons name="close" size={28} color="white" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Preview</Text>
+        <Text style={styles.headerTitle}>Send to {partnerName}</Text>
         <TouchableOpacity
           style={styles.headerButton}
           onPress={() => setShowFilters(!showFilters)}
           disabled={uploading}
         >
-          <Ionicons 
-            name={selectedFilter === 'none' ? "color-filter-outline" : "color-filter"} 
-            size={24} 
-            color={selectedFilter === 'none' ? "white" : colors.secondary} 
+          <Ionicons
+            name={selectedFilter === 'none' ? "color-filter-outline" : "color-filter"}
+            size={24}
+            color={selectedFilter === 'none' ? "white" : colors.secondary}
           />
         </TouchableOpacity>
       </LinearGradient>
@@ -92,7 +113,7 @@ export const PhotoPreviewScreen: React.FC<PhotoPreviewScreenProps> = ({
       {/* Photo Preview */}
       <View style={styles.photoContainer}>
         <Image source={{ uri: photoUri }} style={styles.photo} resizeMode="contain" />
-        
+
         {/* Filter Selector */}
         {showFilters && (
           <View style={styles.filterSelector}>
@@ -126,12 +147,53 @@ export const PhotoPreviewScreen: React.FC<PhotoPreviewScreenProps> = ({
         )}
       </View>
 
-      {/* Action Buttons */}
+      {/* Bottom Section */}
       <View style={styles.bottomContainer}>
         <LinearGradient
           colors={['transparent', 'rgba(0,0,0,0.95)']}
           style={styles.bottomGradient}
         >
+          {/* Duration Picker */}
+          <View style={styles.durationSection}>
+            <View style={styles.durationHeader}>
+              <Ionicons name="time-outline" size={18} color="rgba(255,255,255,0.7)" />
+              <Text style={styles.durationTitle}>Show on widget for</Text>
+            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.durationScroll}
+            >
+              {durations.map((duration) => (
+                <TouchableOpacity
+                  key={duration.value}
+                  style={[
+                    styles.durationChip,
+                    selectedDuration === duration.value && styles.durationChipActive,
+                  ]}
+                  onPress={() => setSelectedDuration(duration.value)}
+                  disabled={uploading}
+                >
+                  <Text style={styles.durationIcon}>{duration.icon}</Text>
+                  <Text
+                    style={[
+                      styles.durationChipText,
+                      selectedDuration === duration.value && styles.durationChipTextActive,
+                    ]}
+                  >
+                    {duration.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            {selectedDuration > 0 && (
+              <Text style={styles.durationInfo}>
+                🔒 Photo will auto-hide from widget after {getDurationLabel(selectedDuration)}
+              </Text>
+            )}
+          </View>
+
+          {/* Action Buttons */}
           <View style={styles.actionButtons}>
             {/* Schedule Button */}
             <TouchableOpacity
@@ -141,8 +203,8 @@ export const PhotoPreviewScreen: React.FC<PhotoPreviewScreenProps> = ({
               activeOpacity={0.8}
             >
               <View style={styles.scheduleButtonContent}>
-                <Ionicons name="time-outline" size={20} color="white" />
-                <Text style={styles.scheduleButtonText}>Schedule</Text>
+                <Ionicons name="calendar-outline" size={20} color="white" />
+                <Text style={styles.scheduleButtonText}>Later</Text>
               </View>
             </TouchableOpacity>
 
@@ -216,7 +278,8 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     alignItems: 'center',
   },
   headerTitle: {
-    fontFamily: 'Inter-SemiBold', fontSize: 18,
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 16,
     color: 'white',
   },
 
@@ -235,7 +298,7 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
   // Filter Selector
   filterSelector: {
     position: 'absolute',
-    bottom: 140,
+    bottom: 200,
     left: 20,
     right: 20,
     backgroundColor: colors.surface,
@@ -281,9 +344,63 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     right: 0,
   },
   bottomGradient: {
-    paddingHorizontal: 24,
-    paddingTop: 40,
+    paddingHorizontal: 20,
+    paddingTop: 30,
     paddingBottom: 40,
+  },
+
+  // Duration Section
+  durationSection: {
+    marginBottom: 16,
+  },
+  durationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 12,
+  },
+  durationTitle: {
+    fontFamily: 'Inter-Medium',
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.7)',
+  },
+  durationScroll: {
+    gap: 8,
+    paddingRight: 20,
+  },
+  durationChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    gap: 6,
+  },
+  durationChipActive: {
+    backgroundColor: colors.secondaryPastel,
+    borderColor: colors.secondary,
+  },
+  durationIcon: {
+    fontSize: 14,
+  },
+  durationChipText: {
+    fontFamily: 'Inter-Medium',
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.8)',
+  },
+  durationChipTextActive: {
+    fontFamily: 'Inter-SemiBold',
+    color: colors.secondary,
+  },
+  durationInfo: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.5)',
+    marginTop: 10,
+    textAlign: 'center',
   },
 
   // Action Buttons
@@ -296,34 +413,11 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     opacity: 0.4,
   },
 
-  // Filter Button
-  filterButton: {
-    height: 56,
-    paddingHorizontal: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderRadius: borderRadius.full,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  filterButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  filterButtonText: {
-    fontFamily: 'Inter-SemiBold',
-    fontSize: 15,
-    color: 'white',
-  },
-  filterActiveText: {
-    color: colors.secondary,
-  },
-
   // Schedule Button
   scheduleButton: {
-    flex: 1,
+    width: 80,
     height: 56,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
     borderRadius: 16,
     borderWidth: 1,
@@ -332,17 +426,14 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     alignItems: 'center',
   },
   scheduleButtonContent: {
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: 4,
   },
   scheduleButtonText: {
-    fontFamily: 'Inter-SemiBold',
-    fontSize: 15,
-    lineHeight: 20,
+    fontFamily: 'Inter-Medium',
+    fontSize: 12,
     color: 'white',
-    letterSpacing: 0.2,
   },
 
   // Send Button
@@ -362,8 +453,7 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
   },
   sendButtonText: {
     fontFamily: 'Inter-Bold',
-    fontSize: 15,
-    lineHeight: 20,
+    fontSize: 16,
     color: 'white',
     letterSpacing: 0.2,
   },
