@@ -82,6 +82,9 @@ model Pair {
   codeExpiresAt DateTime?
   pairedAt      DateTime  @default(now())
   
+  // Meeting countdown (shared between partners)
+  meetingDate   DateTime? // When partners will meet
+  
   user1            User              @relation("User1", fields: [user1Id], references: [id])
   user2            User              @relation("User2", fields: [user2Id], references: [id])
   moments          Moment[]

@@ -13,11 +13,15 @@ import android.util.Base64
 import android.widget.RemoteViews
 import com.pairly.app.MainActivity
 import com.pairly.app.R
+import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 
 /**
  * Premium Pairly Widget with image support
+ * 🔥 FIXED: No flickering - shows cached image immediately
  */
 class PairlyWidget : AppWidgetProvider() {
 
@@ -33,8 +37,18 @@ class PairlyWidget : AppWidgetProvider() {
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
         for (appWidgetId in appWidgetIds) {
-            updateWidgetWithDefault(context, appWidgetManager, appWidgetId)
-            // Try to fetch latest photo in background
+            // 🔥 FIX: Try to show cached image FIRST (no flickering)
+            val cachedBitmap = loadCachedBitmap(context)
+            if (cachedBitmap != null) {
+                // Show cached image immediately
+                updateWidgetWithBitmap(context, appWidgetManager, appWidgetId, cachedBitmap)
+                println("✅ [Widget] Showing cached image (no flicker)")
+            } else {
+                // Only show default if no cache exists
+                updateWidgetWithDefault(context, appWidgetManager, appWidgetId)
+            }
+            
+            // Fetch latest photo in background (will update if different)
             FetchPhotoTask(context, appWidgetManager, appWidgetId).execute()
         }
     }
@@ -63,9 +77,70 @@ class PairlyWidget : AppWidgetProvider() {
         }
     }
 
+    private fun updateWidgetWithBitmap(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int, bitmap: Bitmap) {
+        try {
+            val views = RemoteViews(context.packageName, R.layout.pairly_widget_simple)
+            val prefs = context.getSharedPreferences("pairly_prefs", Context.MODE_PRIVATE)
+            val senderName = prefs.getString("last_sender_name", "Partner") ?: "Partner"
+            
+            views.setImageViewBitmap(R.id.widget_image, bitmap)
+            views.setTextViewText(R.id.widget_sender_name, "$senderName 💝")
+            views.setTextViewText(R.id.widget_timestamp, "Tap to view")
+            
+            // Click handler
+            val intent = Intent(context, MainActivity::class.java)
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            val pendingIntent = PendingIntent.getActivity(
+                context, appWidgetId, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            views.setOnClickPendingIntent(R.id.widget_container, pendingIntent)
+            
+            // Set up reaction button
+            setupReactionButtons(context, views, appWidgetId)
+            
+            appWidgetManager.updateAppWidget(appWidgetId, views)
+        } catch (e: Exception) {
+            println("❌ [Widget] updateWidgetWithBitmap error: ${e.message}")
+        }
+    }
+
     companion object {
         private const val API_URL = "https://pairly-60qj.onrender.com"
         const val ACTION_REFRESH = "com.pairly.app.widget.ACTION_REFRESH"
+        private const val CACHE_FILENAME = "widget_cached_photo.png"
+        
+        /**
+         * 🔥 Load cached bitmap from disk
+         */
+        fun loadCachedBitmap(context: Context): Bitmap? {
+            return try {
+                val cacheFile = File(context.cacheDir, CACHE_FILENAME)
+                if (cacheFile.exists()) {
+                    BitmapFactory.decodeStream(FileInputStream(cacheFile))
+                } else {
+                    null
+                }
+            } catch (e: Exception) {
+                println("⚠️ [Widget] Failed to load cached bitmap: ${e.message}")
+                null
+            }
+        }
+        
+        /**
+         * 🔥 Save bitmap to disk cache
+         */
+        fun saveBitmapToCache(context: Context, bitmap: Bitmap) {
+            try {
+                val cacheFile = File(context.cacheDir, CACHE_FILENAME)
+                FileOutputStream(cacheFile).use { out ->
+                    bitmap.compress(Bitmap.CompressFormat.PNG, 90, out)
+                }
+                println("✅ [Widget] Bitmap cached to disk")
+            } catch (e: Exception) {
+                println("⚠️ [Widget] Failed to cache bitmap: ${e.message}")
+            }
+        }
         
         /**
          * Static helper to refresh all widgets from JS
@@ -93,6 +168,15 @@ class PairlyWidget : AppWidgetProvider() {
             try {
                 println("📱 [Widget] Updating with photo from: $senderName")
                 
+                // 🔥 Save to cache FIRST
+                saveBitmapToCache(context, bitmap)
+                
+                // Save sender name for cached display
+                val prefs = context.getSharedPreferences("pairly_prefs", Context.MODE_PRIVATE)
+                prefs.edit()
+                    .putString("last_sender_name", senderName)
+                    .apply()
+                
                 val appWidgetManager = AppWidgetManager.getInstance(context)
                 val componentName = ComponentName(context, PairlyWidget::class.java)
                 val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
@@ -104,7 +188,6 @@ class PairlyWidget : AppWidgetProvider() {
                 
                 // Save momentId for reactions
                 if (momentId != null) {
-                    val prefs = context.getSharedPreferences("pairly_prefs", Context.MODE_PRIVATE)
                     prefs.edit().putString("current_moment_id", momentId).apply()
                 }
                 
@@ -170,12 +253,16 @@ class PairlyWidget : AppWidgetProvider() {
 
     /**
      * Background task to fetch partner's latest photo
+     * 🔥 FIXED: Also saves to cache for next time
      */
     private class FetchPhotoTask(
         private val context: Context,
         private val appWidgetManager: AppWidgetManager,
         private val appWidgetId: Int
     ) : AsyncTask<Void, Void, Bitmap?>() {
+
+        private var senderName: String = "Partner"
+        private var momentId: String? = null
 
         override fun doInBackground(vararg params: Void?): Bitmap? {
             try {
@@ -189,11 +276,23 @@ class PairlyWidget : AppWidgetProvider() {
                 val connection = url.openConnection() as HttpURLConnection
                 connection.requestMethod = "GET"
                 connection.setRequestProperty("Authorization", "Bearer $authToken")
-                connection.connectTimeout = 10000
-                connection.readTimeout = 10000
+                connection.connectTimeout = 15000
+                connection.readTimeout = 15000
 
                 if (connection.responseCode == 200) {
                     val response = connection.inputStream.bufferedReader().readText()
+                    
+                    // Extract sender name
+                    val senderMatch = Regex("\"uploaderName\":\"([^\"]+)\"").find(response)
+                    if (senderMatch != null) {
+                        senderName = senderMatch.groupValues[1]
+                    }
+                    
+                    // Extract moment ID
+                    val idMatch = Regex("\"id\":\"([^\"]+)\"").find(response)
+                    if (idMatch != null) {
+                        momentId = idMatch.groupValues[1]
+                    }
                     
                     // Try to parse "photoData" (URL) first which is used for Cloudinary
                     val photoUrlMatch = Regex("\"photoData\":\"(https://[^\"]+)\"").find(response)
@@ -214,7 +313,7 @@ class PairlyWidget : AppWidgetProvider() {
                 }
                 connection.disconnect()
             } catch (e: Exception) {
-                // Silent fail
+                println("⚠️ [Widget] FetchPhotoTask error: ${e.message}")
             }
             return null
         }
@@ -223,8 +322,8 @@ class PairlyWidget : AppWidgetProvider() {
             return try {
                 val url = URL(photoUrl)
                 val connection = url.openConnection() as HttpURLConnection
-                connection.connectTimeout = 10000
-                connection.readTimeout = 10000
+                connection.connectTimeout = 15000
+                connection.readTimeout = 15000
                 
                 val bitmap = BitmapFactory.decodeStream(connection.inputStream)
                 connection.disconnect()
@@ -236,6 +335,7 @@ class PairlyWidget : AppWidgetProvider() {
                 }
                 return bitmap
             } catch (e: Exception) {
+                println("⚠️ [Widget] downloadAndScaleBitmap error: ${e.message}")
                 null
             }
         }
@@ -244,11 +344,25 @@ class PairlyWidget : AppWidgetProvider() {
         override fun onPostExecute(bitmap: Bitmap?) {
             if (bitmap != null) {
                 try {
+                    // 🔥 Save to cache for next time
+                    saveBitmapToCache(context, bitmap)
+                    
+                    // Save sender name
+                    val prefs = context.getSharedPreferences("pairly_prefs", Context.MODE_PRIVATE)
+                    prefs.edit()
+                        .putString("last_sender_name", senderName)
+                        .apply()
+                    
+                    // Save moment ID
+                    if (momentId != null) {
+                        prefs.edit().putString("current_moment_id", momentId).apply()
+                    }
+                    
                     val views = RemoteViews(context.packageName, R.layout.pairly_widget_simple)
                     
                     // Use current layout IDs
-                    views.setTextViewText(R.id.widget_sender_name, "Partner 💝")
-                    views.setTextViewText(R.id.widget_timestamp, "Just now")
+                    views.setTextViewText(R.id.widget_sender_name, "$senderName 💝")
+                    views.setTextViewText(R.id.widget_timestamp, "Tap to view")
                     views.setImageViewBitmap(R.id.widget_image, bitmap)
                     
                     // Click handler for main widget
@@ -262,8 +376,6 @@ class PairlyWidget : AppWidgetProvider() {
                     
                     // Set up reaction button
                     try {
-                        val prefs = context.getSharedPreferences("pairly_prefs", Context.MODE_PRIVATE)
-                        val momentId = prefs.getString("current_moment_id", null)
                         if (momentId != null) {
                             val reactIntent = Intent(context, ReactionPickerActivity::class.java).apply {
                                 putExtra(ReactionPickerActivity.EXTRA_MOMENT_ID, momentId)
@@ -284,8 +396,9 @@ class PairlyWidget : AppWidgetProvider() {
                     }
                     
                     appWidgetManager.updateAppWidget(appWidgetId, views)
+                    println("✅ [Widget] Updated with fresh photo from backend")
                 } catch (e: Exception) {
-                    // Silent fail
+                    println("❌ [Widget] onPostExecute error: ${e.message}")
                 }
             }
         }

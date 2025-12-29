@@ -57,13 +57,12 @@ export const setMeetingCountdown = async (req: AuthRequest, res: Response): Prom
             return;
         }
 
-        // Update pair with meeting date (using raw SQL since field might not be in Prisma yet)
-        try {
-            await prisma.$executeRaw`UPDATE "Pair" SET "meetingDate" = ${date} WHERE "id" = ${pair.id}`;
-        } catch (dbError) {
-            // If column doesn't exist, just log and continue
-            console.log('⚠️ meetingDate column not in DB, storing in memory only');
-        }
+        // Update pair with meeting date
+        await prisma.pair.update({
+            where: { id: pair.id },
+            data: { meetingDate: date } as any,
+        });
+        console.log('✅ Meeting date saved to database');
 
         // Determine current user and partner
         const currentUser = pair.user1Id === userId ? pair.user1 : pair.user2;
@@ -143,18 +142,8 @@ export const getMeetingCountdown = async (req: AuthRequest, res: Response): Prom
             return;
         }
 
-        // Get meeting date using raw SQL
-        let meetingDate = null;
-        try {
-            const result = await prisma.$queryRaw<{ meetingDate: Date | null }[]>`
-        SELECT "meetingDate" FROM "Pair" WHERE "id" = ${pair.id}
-      `;
-            if (result[0]?.meetingDate) {
-                meetingDate = result[0].meetingDate;
-            }
-        } catch (dbError) {
-            console.log('⚠️ meetingDate column not in DB');
-        }
+        // Get meeting date from pair
+        const meetingDate = (pair as any).meetingDate;
 
         res.json({
             success: true,
@@ -198,11 +187,11 @@ export const clearMeetingCountdown = async (req: AuthRequest, res: Response): Pr
         }
 
         // Clear meeting date
-        try {
-            await prisma.$executeRaw`UPDATE "Pair" SET "meetingDate" = NULL WHERE "id" = ${pair.id}`;
-        } catch (dbError) {
-            console.log('⚠️ meetingDate column not in DB');
-        }
+        await prisma.pair.update({
+            where: { id: pair.id },
+            data: { meetingDate: null } as any,
+        });
+        console.log('✅ Meeting date cleared');
 
         // Notify partner via Socket
         const partner = pair.user1Id === userId ? pair.user2 : pair.user1;
