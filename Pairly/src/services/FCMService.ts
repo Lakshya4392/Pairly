@@ -215,6 +215,9 @@ class FCMService {
       case 'shared_note':
         await this.handleSharedNote(data);
         break;
+      case 'meeting_countdown':
+        await this.handleMeetingCountdown(data);
+        break;
       default:
         console.log('⚠️ Unknown FCM message type:', data.type);
     }
@@ -341,8 +344,53 @@ class FCMService {
   }
 
   /**
-   * Convert blob to base64
+   * 🔥 Handle meeting countdown notification from partner
+   * Save meeting date locally and update widget
    */
+  private async handleMeetingCountdown(data: any): Promise<void> {
+    console.log('⏰ [FCM] Meeting countdown notification received');
+
+    try {
+      const { meetingDate, setBy } = data;
+
+      if (meetingDate) {
+        // Save to local storage
+        await AsyncStorage.setItem('@pairly_meeting_date', meetingDate);
+
+        // Update widget
+        try {
+          const { NativeModules } = require('react-native');
+          const SharedPrefsModule = NativeModules.SharedPrefsModule;
+          if (SharedPrefsModule) {
+            await SharedPrefsModule.setString('meeting_date', meetingDate);
+            await SharedPrefsModule.setString('partner_name_for_meet', setBy);
+            await SharedPrefsModule.notifyWidgetUpdate();
+          }
+        } catch (widgetError) {
+          console.warn('⚠️ Widget update failed:', widgetError);
+        }
+
+        // Show notification
+        const EnhancedNotificationService = (await import('./EnhancedNotificationService')).default;
+        const date = new Date(meetingDate);
+        const formattedDate = date.toLocaleDateString('en-US', {
+          weekday: 'short',
+          month: 'short',
+          day: 'numeric',
+        });
+
+        await EnhancedNotificationService.showLocalNotification(
+          `💕 ${setBy} set a meeting date!`,
+          `You're meeting on ${formattedDate}! Countdown started ⏰`
+        );
+      }
+    } catch (error) {
+      console.error('❌ [FCM] Error handling meeting countdown:', error);
+    }
+  }
+  /**
+   * Convert blob to base64
+  */
   private blobToBase64(blob: Blob): Promise<string> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();

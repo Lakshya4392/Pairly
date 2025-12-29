@@ -15,7 +15,7 @@ import { CustomAlert } from '../components/CustomAlert';
 import { UpgradePrompt } from '../components/UpgradePrompt';
 import { SharedNoteModal } from '../components/SharedNoteModal';
 import { TimeLockModal } from '../components/TimeLockModal';
-import { DualCameraModal } from '../components/DualCameraModal';
+import { TimeCounterModal } from '../components/TimeCounterModal';
 import { PhotoPreviewScreen } from './PhotoPreviewScreen';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -78,7 +78,7 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
   const [selectedPhotoUri, setSelectedPhotoUri] = useState<string | null>(null);
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [showTimeLockModal, setShowTimeLockModal] = useState(false);
-  const [showDualCameraModal, setShowDualCameraModal] = useState(false);
+  const [showTimeCounterModal, setShowTimeCounterModal] = useState(false);
   const [isPartnerOnline, setIsPartnerOnline] = useState(false);
   const [partnerLastSeen, setPartnerLastSeen] = useState<Date | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -304,102 +304,6 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
     }
 
     setShowTimeLockModal(true);
-  };
-
-  const handleOpenDualCameraModal = async () => {
-    try {
-      console.log('🎬 Dual Camera button clicked!');
-      console.log('Partner connected:', isPartnerConnected);
-      console.log('Premium status:', isPremium);
-
-      // Check if partner is connected
-      if (!isPartnerConnected) {
-        console.log('⚠️ No partner connected - showing alert');
-        setAlertMessage('Please connect with your partner first 💕');
-        setShowErrorAlert(true);
-        return;
-      }
-
-      // Check premium
-      const hasPremium = await PremiumService.isPremium();
-      console.log('Premium check result:', hasPremium);
-
-      if (!hasPremium) {
-        console.log('⚠️ No premium - showing upgrade prompt');
-        setShowUpgradePrompt(true);
-        return;
-      }
-
-      console.log('✅ Opening dual camera modal...');
-
-      // Use setTimeout to ensure state update happens after current render cycle
-      setTimeout(() => {
-        console.log('🔄 Setting showDualCameraModal to true');
-        setShowDualCameraModal(true);
-      }, 0);
-    } catch (error) {
-      console.error('❌ Error opening dual camera modal:', error);
-    }
-  };
-
-  const handleCaptureDualMoment = async (title: string) => {
-    try {
-      console.log('📸 Starting dual camera capture with title:', title);
-
-      // Close modal first
-      setShowDualCameraModal(false);
-
-      // Small delay to let modal close smoothly
-      await new Promise(resolve => setTimeout(resolve, 300));
-
-      // Capture photo
-      const PhotoService = (await import('../services/PhotoService')).default;
-      console.log('📷 Opening camera...');
-      const photo = await PhotoService.capturePhoto();
-
-      if (!photo) {
-        console.log('⚠️ User cancelled photo capture');
-        return; // User cancelled
-      }
-
-      console.log('✅ Photo captured:', photo.uri);
-
-      // Get token
-      const token = await getToken();
-      if (!token) {
-        setAlertMessage('Authentication error. Please try again.');
-        setShowErrorAlert(true);
-        return;
-      }
-
-      // Show uploading state
-      setUploading(true);
-
-      // Create dual moment
-      const DualCameraService = (await import('../services/DualCameraService')).default;
-      console.log('📤 Creating dual moment...');
-      const result = await DualCameraService.createDualMoment(title, photo.uri, token);
-
-      setUploading(false);
-
-      if (result.success) {
-        console.log('✅ Dual moment created successfully');
-        setAlertMessage(`✨ Your photo is saved!\n\nWaiting for ${partnerName} to add theirs 💞`);
-        setShowSuccessAlert(true);
-
-        // Reload recent photos
-        await loadRecentPhotos();
-      } else {
-        console.error('❌ Failed to create dual moment:', result.error);
-        setAlertMessage(result.error || 'Failed to create dual moment');
-        setShowErrorAlert(true);
-      }
-    } catch (error: any) {
-      console.error('❌ Error capturing dual moment:', error);
-      setUploading(false);
-      setAlertMessage(error.message || 'Failed to capture photo. Please try again.');
-      setShowErrorAlert(true);
-    }
   };
 
   const handleSendTimeLock = async (content: string, unlockDate: Date) => {
@@ -1028,17 +932,17 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
           <View style={styles.quickActionsSection}>
             <Text style={styles.sectionTitle}>Quick Actions</Text>
             <View style={styles.quickActionsGrid}>
-              {/* Dual View - Light Blue */}
+              {/* Time Counter - Light Blue */}
               <TouchableOpacity
                 style={[styles.quickActionCard, { backgroundColor: '#E3F2FD' }]}
-                onPress={handleOpenDualCameraModal}
+                onPress={() => setShowTimeCounterModal(true)}
                 activeOpacity={0.7}
               >
                 <View style={styles.quickActionTopRow}>
-                  <Ionicons name="copy-outline" size={24} color="#2196F3" />
+                  <Ionicons name="timer-outline" size={24} color="#2196F3" />
                   <Ionicons name="arrow-forward" size={16} color="#B0BEC5" />
                 </View>
-                <Text style={styles.quickActionText}>Dual View</Text>
+                <Text style={styles.quickActionText}>Time Counter</Text>
               </TouchableOpacity>
 
               {/* Love Note - Light Pink */}
@@ -1143,14 +1047,6 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
         partnerName={partnerName}
       />
 
-      {/* Dual Camera Modal */}
-      <DualCameraModal
-        visible={showDualCameraModal}
-        onClose={() => setShowDualCameraModal(false)}
-        onCapture={handleCaptureDualMoment}
-        partnerName={partnerName}
-      />
-
       {/* Upgrade Prompt */}
       <UpgradePrompt
         visible={showUpgradePrompt}
@@ -1246,6 +1142,17 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
           />
         )}
       </Modal>
+
+      {/* Time Counter Modal */}
+      <TimeCounterModal
+        visible={showTimeCounterModal}
+        onClose={() => setShowTimeCounterModal(false)}
+        partnerName={partnerName}
+        onSave={(date) => {
+          setAlertMessage(`Countdown started! Meeting ${partnerName} on ${date.toLocaleDateString()} 💕`);
+          setShowSuccessAlert(true);
+        }}
+      />
     </View >
   );
 };

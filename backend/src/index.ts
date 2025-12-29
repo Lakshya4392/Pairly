@@ -129,6 +129,7 @@ import inviteRoutes from './routes/inviteRoutes';
 import configRoutes from './routes/configRoutes';
 import reminderRoutes from './routes/reminderRoutes';
 import pingRoutes from './routes/pingRoutes';
+import meetingRoutes from './routes/meetingRoutes';
 
 // Request logging middleware
 app.use((req, res, next) => {
@@ -181,6 +182,7 @@ app.use('/invites', authLimiter, inviteRoutes);
 app.use('/config', configRoutes);
 app.use('/reminders', reminderRoutes);
 app.use('/ping', pingRoutes);
+app.use('/meeting', meetingRoutes);
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {

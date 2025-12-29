@@ -418,6 +418,55 @@ class RealtimeService {
       this.triggerEvent('timelock_unlocked', data);
     });
 
+    // 🔥 Meeting countdown set by partner
+    this.socket.on('meeting_countdown_set', async (data: any) => {
+      console.log('⏰ Meeting countdown set by partner:', data.meetingDate);
+
+      // Save to local storage
+      try {
+        const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+        await AsyncStorage.setItem('@pairly_meeting_date', data.meetingDate);
+        console.log('✅ Meeting date saved locally');
+
+        // Update widget
+        const { NativeModules } = require('react-native');
+        const SharedPrefsModule = NativeModules.SharedPrefsModule;
+        if (SharedPrefsModule) {
+          await SharedPrefsModule.setString('meeting_date', data.meetingDate);
+          await SharedPrefsModule.setString('partner_name_for_meet', data.setBy);
+          await SharedPrefsModule.notifyWidgetUpdate();
+          console.log('✅ Widget updated with countdown');
+        }
+      } catch (error) {
+        console.error('Error saving meeting date:', error);
+      }
+
+      this.triggerEvent('meeting_countdown_set', data);
+    });
+
+    // 🔥 Meeting countdown cleared by partner
+    this.socket.on('meeting_countdown_cleared', async (data: any) => {
+      console.log('⏰ Meeting countdown cleared by partner');
+
+      try {
+        const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+        await AsyncStorage.removeItem('@pairly_meeting_date');
+
+        // Clear widget
+        const { NativeModules } = require('react-native');
+        const SharedPrefsModule = NativeModules.SharedPrefsModule;
+        if (SharedPrefsModule) {
+          await SharedPrefsModule.remove('meeting_date');
+          await SharedPrefsModule.remove('partner_name_for_meet');
+          await SharedPrefsModule.notifyWidgetUpdate();
+        }
+      } catch (error) {
+        console.error('Error clearing meeting date:', error);
+      }
+
+      this.triggerEvent('meeting_countdown_cleared', data);
+    });
+
     // Disconnection
     this.socket.on('disconnect', async (reason: string) => {
       console.log('⚠️ Socket.IO disconnected:', reason);

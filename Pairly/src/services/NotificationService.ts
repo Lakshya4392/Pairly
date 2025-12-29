@@ -216,23 +216,28 @@ class NotificationService {
           data: { type: 'daily_moment' },
           sound: 'default',
           priority: Notifications.AndroidNotificationPriority.HIGH,
+          ...(Platform.OS === 'android' && { channelId: 'reminders' }),
         },
         trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DAILY,
           hour,
           minute,
-          repeats: true,
-          channelId: 'reminders', // Use reminders channel
-        } as any,
+        },
       });
 
       this.notificationIds.set('dailyMoment', id);
       console.log(`✅ Daily moment reminder scheduled for ${hour}:${minute.toString().padStart(2, '0')} daily`);
 
-      // Verify scheduling
+      // Verify scheduling with details
       const scheduled = await Notifications.getAllScheduledNotificationsAsync();
       const thisNotif = scheduled.find(n => n.identifier === id);
       if (thisNotif) {
-        console.log('✅ Verified: Daily moment notification is scheduled');
+        const trigger = thisNotif.trigger as any;
+        console.log('✅ Verified: Daily moment notification scheduled');
+        console.log(`   Trigger type: ${trigger?.type || 'unknown'}`);
+        console.log(`   Hour: ${trigger?.hour}, Minute: ${trigger?.minute}`);
+      } else {
+        console.error('❌ Daily moment notification NOT found in scheduled list!');
       }
     } catch (error) {
       console.error('Error scheduling daily moment reminder:', error);
@@ -263,13 +268,13 @@ class NotificationService {
           data: { type: 'good_morning' },
           sound: 'default',
           priority: Notifications.AndroidNotificationPriority.HIGH,
+          ...(Platform.OS === 'android' && { channelId: 'reminders' }),
         },
         trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DAILY,
           hour,
           minute,
-          repeats: true,
-          channelId: 'reminders', // Use reminders channel
-        } as any,
+        },
       });
 
       this.notificationIds.set('goodMorning', id);
@@ -310,13 +315,13 @@ class NotificationService {
           data: { type: 'good_night' },
           sound: 'default',
           priority: Notifications.AndroidNotificationPriority.HIGH,
+          ...(Platform.OS === 'android' && { channelId: 'reminders' }),
         },
         trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DAILY,
           hour,
           minute,
-          repeats: true,
-          channelId: 'reminders', // Use reminders channel
-        } as any,
+        },
       });
 
       this.notificationIds.set('goodNight', id);

@@ -179,6 +179,139 @@ router.post('/waitlist', async (req, res) => {
   }
 });
 
+// 🎁 Apply referral code (user enters friend's code to get premium)
+router.post('/apply-referral', async (req, res) => {
+  try {
+    const { userEmail, userClerkId, referralCode } = req.body;
+
+    if (!referralCode) {
+      return res.status(400).json({
+        success: false,
+        error: 'Referral code is required',
+      });
+    }
+
+    if (!userEmail && !userClerkId) {
+      return res.status(400).json({
+        success: false,
+        error: 'User identification required',
+      });
+    }
+
+    const normalizedCode = referralCode.trim().toUpperCase();
+
+    // Find the referrer by their invite code
+    const referrer = await prisma.invitedUser.findUnique({
+      where: { inviteCode: normalizedCode },
+    });
+
+    if (!referrer) {
+      return res.status(404).json({
+        success: false,
+        error: 'Invalid referral code. Please check and try again.',
+      });
+    }
+
+    // Find the current user
+    const currentUser = await prisma.invitedUser.findFirst({
+      where: {
+        OR: [
+          userEmail ? { email: userEmail.toLowerCase() } : {},
+          userClerkId ? { clerkId: userClerkId } : {},
+        ],
+      },
+    });
+
+    if (!currentUser) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found. Please sign up first.',
+      });
+    }
+
+    // Check if user already has a referrer
+    if (currentUser.invitedBy) {
+      return res.status(400).json({
+        success: false,
+        error: 'You have already used a referral code.',
+      });
+    }
+
+    // Check if trying to use own code
+    if (currentUser.inviteCode === normalizedCode) {
+      return res.status(400).json({
+        success: false,
+        error: 'You cannot use your own referral code.',
+      });
+    }
+
+    // 🔥 Calculate new premium expiry for USER (EXTEND if already has premium)
+    const now = new Date();
+    const BONUS_DAYS = 30;
+    let userNewExpiry: Date;
+
+    if (currentUser.premiumExpiresAt && new Date(currentUser.premiumExpiresAt) > now) {
+      // User already has premium - EXTEND it
+      userNewExpiry = new Date(currentUser.premiumExpiresAt);
+      userNewExpiry.setDate(userNewExpiry.getDate() + BONUS_DAYS);
+      console.log(`📅 Extending user's premium from ${currentUser.premiumExpiresAt} by ${BONUS_DAYS} days`);
+    } else {
+      // User doesn't have premium - grant new
+      userNewExpiry = new Date(now.getTime() + BONUS_DAYS * 24 * 60 * 60 * 1000);
+      console.log(`📅 Granting user new premium for ${BONUS_DAYS} days`);
+    }
+
+    // Apply referral - update current user
+    await prisma.invitedUser.update({
+      where: { id: currentUser.id },
+      data: {
+        invitedBy: referrer.id,
+        premiumExpiresAt: userNewExpiry,
+      },
+    });
+
+    // 🔥 Calculate new premium expiry for REFERRER (EXTEND if already has premium)
+    let referrerNewExpiry: Date;
+
+    if (referrer.premiumExpiresAt && new Date(referrer.premiumExpiresAt) > now) {
+      // Referrer already has premium - EXTEND it
+      referrerNewExpiry = new Date(referrer.premiumExpiresAt);
+      referrerNewExpiry.setDate(referrerNewExpiry.getDate() + BONUS_DAYS);
+      console.log(`📅 Extending referrer's premium from ${referrer.premiumExpiresAt} by ${BONUS_DAYS} days`);
+    } else {
+      // Referrer doesn't have premium - grant new
+      referrerNewExpiry = new Date(now.getTime() + BONUS_DAYS * 24 * 60 * 60 * 1000);
+      console.log(`📅 Granting referrer new premium for ${BONUS_DAYS} days`);
+    }
+
+    // Increment referrer count AND EXTEND their premium
+    await prisma.invitedUser.update({
+      where: { id: referrer.id },
+      data: {
+        referralCount: { increment: 1 },
+        premiumExpiresAt: referrerNewExpiry,
+      },
+    });
+
+    console.log(`🎁 Referral success: ${currentUser.email} used code from ${referrer.email}`);
+    console.log(`   User premium until: ${userNewExpiry.toISOString()}`);
+    console.log(`   Referrer premium until: ${referrerNewExpiry.toISOString()}`);
+
+    return res.json({
+      success: true,
+      message: `Congratulations! You and your friend both earned ${BONUS_DAYS} days of Premium! 🎉`,
+      premiumExpiresAt: userNewExpiry.toISOString(),
+    });
+
+  } catch (error) {
+    console.error('Error applying referral:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to apply referral code',
+    });
+  }
+});
+
 // 📊 Get waitlist stats (admin only)
 router.get('/waitlist/stats', async (req, res) => {
   try {
