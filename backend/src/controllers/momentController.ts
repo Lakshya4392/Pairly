@@ -377,12 +377,13 @@ export const getAllMoments = async (req: AuthRequest, res: Response): Promise<vo
       res.status(404).json({
         success: false,
         error: 'No active pairing found',
+        isPaired: false,
       } as ApiResponse);
       return;
     }
 
     // Get all moments for this pair (ordered by newest first)
-    // ⚡ PERFORMANCE: Select only needed fields, skip photoData for list view
+    // 🔥 FIXED: Increased limit from 50 to 500 for full history
     const moments = await prisma.moment.findMany({
       where: {
         pairId: pair.id,
@@ -396,7 +397,7 @@ export const getAllMoments = async (req: AuthRequest, res: Response): Promise<vo
       include: {
         uploader: true,
       },
-      take: 50, // Limit to last 50 moments for performance
+      take: 500, // 🔥 Increased from 50 to 500 for full history
     });
 
     if (moments.length === 0) {
@@ -437,8 +438,14 @@ export const getAllMoments = async (req: AuthRequest, res: Response): Promise<vo
 
     console.log(`✅ [GET ALL] Found ${moments.length} moments (using URLs, fast!)`);
 
+    // Get partner display name
+    const currentUserId = userId;
+    const partnerUser = pair.user1Id === currentUserId ? pair.user2 : pair.user1;
+
     res.json({
       success: true,
+      isPaired: true,
+      partnerName: partnerUser.displayName,
       data: {
         moments: momentsData,
         total: moments.length,

@@ -648,7 +648,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       return (
         <View style={styles.profileCardPremium}>
           <LinearGradient
-            colors={['#FFF5F7', '#FFEEF3', '#FFF5F7']}
+            colors={['#FDF2F8', '#FECDD3', '#FDF2F8']}
             style={styles.premiumProfileGradient}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
@@ -664,13 +664,13 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               </View>
               <View style={styles.premiumInfo}>
                 <View style={styles.premiumNameRow}>
-                  <Text style={[styles.premiumName, { color: colors.text }]} numberOfLines={1}>{userName}</Text>
+                  <Text style={[styles.premiumName, { color: '#1F2937' }]} numberOfLines={1}>{userName}</Text>
                   <View style={[styles.premiumChip, { backgroundColor: colors.primary }]}>
                     <Ionicons name="diamond" size={10} color="white" />
                     <Text style={styles.premiumChipText}>PRO</Text>
                   </View>
                 </View>
-                <Text style={[styles.premiumEmail, { color: colors.textSecondary }]} numberOfLines={1} ellipsizeMode="tail">
+                <Text style={[styles.premiumEmail, { color: '#4B5563' }]} numberOfLines={1} ellipsizeMode="tail">
                   {userEmail}
                 </Text>
               </View>

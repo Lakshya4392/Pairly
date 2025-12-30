@@ -107,8 +107,43 @@ app.use(sanitizeRequest);
 import { requestLogger, errorLogger } from './middleware/requestLogger';
 app.use(requestLogger);
 
-// Serve static files from uploads directory (Exempt from Rate Limiting)
+// 🔥 DYNAMIC PHOTO SERVING - Serves photos from database when static file doesn't exist
 import path from 'path';
+import fs from 'fs';
+
+app.get('/uploads/:filename', async (req, res) => {
+  const { filename } = req.params;
+  const staticPath = path.join(__dirname, '../public/uploads', filename);
+
+  // 1. Try static file first (fast)
+  if (fs.existsSync(staticPath)) {
+    return res.sendFile(staticPath);
+  }
+
+  // 2. Fall back to database (for old photos without Cloudinary)
+  try {
+    const momentId = filename.replace('.jpg', '').replace('.png', '');
+    const moment = await prisma.moment.findUnique({
+      where: { id: momentId },
+      select: { photoData: true },
+    });
+
+    if (moment?.photoData) {
+      // Convert Buffer to image response
+      res.set('Content-Type', 'image/jpeg');
+      res.set('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+      return res.send(Buffer.from(moment.photoData));
+    }
+
+    console.log(`⚠️ [UPLOADS] Photo not found: ${filename}`);
+    return res.status(404).json({ error: 'Photo not found' });
+  } catch (error) {
+    console.error(`❌ [UPLOADS] Error serving photo ${filename}:`, error);
+    return res.status(500).json({ error: 'Failed to serve photo' });
+  }
+});
+
+// Serve static files from uploads directory (Exempt from Rate Limiting)
 app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
 
 // Rate limiting

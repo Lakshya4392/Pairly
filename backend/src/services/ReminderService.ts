@@ -5,35 +5,50 @@ import { log } from '../utils/logger';
 /**
  * ReminderService - Handles FCM-based scheduled reminders
  * Runs via cron job every minute, checks who needs reminders
+ * 🔥 FIXED: Now properly handles user timezone
  */
 class ReminderService {
+    /**
+     * Convert current server time to user's local time
+     */
+    static getUserLocalTime(timezone: string): string {
+        try {
+            const now = new Date();
+            const userTime = now.toLocaleString('en-US', {
+                timeZone: timezone,
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+            });
+            // Format: "HH:MM"
+            return userTime.replace(/\s/g, '');
+        } catch (error) {
+            // Fallback to server time if timezone invalid
+            const now = new Date();
+            return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+        }
+    }
+
     /**
      * Process all reminder types
      * Called by cron job every minute
      */
     static async processReminders() {
-        const now = new Date();
-        const currentHour = now.getHours().toString().padStart(2, '0');
-        const currentMinute = now.getMinutes().toString().padStart(2, '0');
-        const currentTime = `${currentHour}:${currentMinute}`;
-
-        // Process Good Morning reminders
-        await this.processGoodMorningReminders(currentTime);
-
-        // Process Good Night reminders
-        await this.processGoodNightReminders(currentTime);
+        // Get all users with reminders enabled
+        await this.processGoodMorningReminders();
+        await this.processGoodNightReminders();
     }
 
     /**
-     * Send Good Morning reminders to users who have it enabled at this time
+     * Send Good Morning reminders to users who have it enabled at their LOCAL time
+     * 🔥 FIXED: Uses user's timezone to check correct time
      */
-    static async processGoodMorningReminders(currentTime: string) {
+    static async processGoodMorningReminders() {
         try {
-            // Find users with Good Morning enabled at this exact time
+            // Find users with Good Morning enabled and FCM token
             const users = await prisma.user.findMany({
                 where: {
                     goodMorningEnabled: true,
-                    goodMorningTime: currentTime,
                     fcmToken: { not: null },
                 },
                 include: {
@@ -48,11 +63,20 @@ class ReminderService {
 
             if (users.length === 0) return;
 
-            console.log(`☀️ Sending ${users.length} Good Morning reminders at ${currentTime}`);
+            let sentCount = 0;
 
             for (const user of users) {
                 try {
-                    // Get partner name - if pairAsUser1, partner is user2, else user1
+                    // 🔥 FIX: Get user's LOCAL time based on their timezone
+                    const userTimezone = user.timezone || 'Asia/Kolkata';
+                    const userLocalTime = this.getUserLocalTime(userTimezone);
+
+                    // Check if it's the right time for THIS user
+                    if (user.goodMorningTime !== userLocalTime) {
+                        continue; // Not time yet for this user
+                    }
+
+                    // Get partner name
                     let partnerName = 'your partner';
                     if (user.pairAsUser1) {
                         partnerName = user.pairAsUser1.user2?.displayName || 'your partner';
@@ -82,10 +106,19 @@ class ReminderService {
                         message
                     );
 
-                    log.info('Good morning reminder sent', { userId: user.id.substring(0, 8) + '...' });
+                    sentCount++;
+                    log.info('Good morning reminder sent', {
+                        userId: user.id.substring(0, 8) + '...',
+                        timezone: userTimezone,
+                        localTime: userLocalTime
+                    });
                 } catch (err) {
                     log.error('Error sending good morning reminder', err);
                 }
+            }
+
+            if (sentCount > 0) {
+                console.log(`☀️ Sent ${sentCount} Good Morning reminders`);
             }
         } catch (error) {
             log.error('Error processing good morning reminders', error);
@@ -93,15 +126,15 @@ class ReminderService {
     }
 
     /**
-     * Send Good Night reminders to users who have it enabled at this time
+     * Send Good Night reminders to users who have it enabled at their LOCAL time
+     * 🔥 FIXED: Uses user's timezone to check correct time
      */
-    static async processGoodNightReminders(currentTime: string) {
+    static async processGoodNightReminders() {
         try {
-            // Find users with Good Night enabled at this exact time
+            // Find users with Good Night enabled and FCM token
             const users = await prisma.user.findMany({
                 where: {
                     goodNightEnabled: true,
-                    goodNightTime: currentTime,
                     fcmToken: { not: null },
                 },
                 include: {
@@ -116,11 +149,20 @@ class ReminderService {
 
             if (users.length === 0) return;
 
-            console.log(`🌙 Sending ${users.length} Good Night reminders at ${currentTime}`);
+            let sentCount = 0;
 
             for (const user of users) {
                 try {
-                    // Get partner name - if pairAsUser1, partner is user2, else user1
+                    // 🔥 FIX: Get user's LOCAL time based on their timezone
+                    const userTimezone = user.timezone || 'Asia/Kolkata';
+                    const userLocalTime = this.getUserLocalTime(userTimezone);
+
+                    // Check if it's the right time for THIS user
+                    if (user.goodNightTime !== userLocalTime) {
+                        continue; // Not time yet for this user
+                    }
+
+                    // Get partner name
                     let partnerName = 'your partner';
                     if (user.pairAsUser1) {
                         partnerName = user.pairAsUser1.user2?.displayName || 'your partner';
@@ -150,10 +192,19 @@ class ReminderService {
                         message
                     );
 
-                    log.info('Good night reminder sent', { userId: user.id.substring(0, 8) + '...' });
+                    sentCount++;
+                    log.info('Good night reminder sent', {
+                        userId: user.id.substring(0, 8) + '...',
+                        timezone: userTimezone,
+                        localTime: userLocalTime
+                    });
                 } catch (err) {
                     log.error('Error sending good night reminder', err);
                 }
+            }
+
+            if (sentCount > 0) {
+                console.log(`🌙 Sent ${sentCount} Good Night reminders`);
             }
         } catch (error) {
             log.error('Error processing good night reminders', error);

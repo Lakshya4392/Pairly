@@ -46,7 +46,7 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
   onNavigateToPremium,
   isPremium = false // Production: Check actual premium status
 }) => {
-  const { colors } = useTheme();
+  const { colors, isDarkMode } = useTheme();
   const { user } = useUser();
   const { getToken } = useAuth();
 
@@ -793,7 +793,7 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="white" />
+      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
 
       {/* Header */}
       <View style={styles.header}>
@@ -867,9 +867,9 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
           />
         }
       >
-        {/* Hero Card - Soft Gradient */}
+        {/* Hero Card - Theme Aware */}
         <LinearGradient
-          colors={['#FFF5F7', '#FFEEF3', '#FFF5F7']}
+          colors={['#FDF2F8', '#FECDD3', '#FDF2F8']} // Elegant blush cream
           style={styles.heroCard}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
@@ -895,33 +895,23 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
           </View>
 
           {/* Title */}
-          <Text style={styles.heroTitle}>
+          <Text style={[styles.heroTitle, { color: '#1F2937' }]}>
             Capture{'\n'}
-            <Text style={styles.heroTitleGradient}>The Moment</Text>
+            <Text style={[styles.heroTitleGradient, { color: '#9333EA' }]}>The Moment</Text>
           </Text>
 
-          {/* Bottom Row - Subtitle + Button */}
+          {/* Bottom Row - Button Only */}
           <View style={styles.heroBottomRow}>
-            {/* Subtitle */}
-            <Text
-              style={styles.heroSubtitle}
-              numberOfLines={3}
-            >
-              {isPartnerConnected
-                ? `Share your world\nwith ${partnerName}`
-                : 'Save your memories'}
-            </Text>
-
             {/* Snap & Send Button */}
             <Animated.View style={animatedButtonStyle}>
               <TouchableOpacity
-                style={[styles.snapSendButton, uploading && styles.snapSendButtonDisabled]}
+                style={[styles.snapSendButton, { backgroundColor: '#FFFFFF' }, uploading && styles.snapSendButtonDisabled]}
                 onPress={handleCapturePress}
                 disabled={uploading}
                 activeOpacity={0.8}
               >
-                <Ionicons name="camera" size={18} color="white" />
-                <Text style={styles.snapSendText}>{uploading ? 'Sending...' : 'Snap & Send'}</Text>
+                <Ionicons name="camera" size={18} color="#1F2937" />
+                <Text style={[styles.snapSendText, { color: '#1F2937' }]}>{uploading ? 'Sending...' : 'Snap & Send'}</Text>
               </TouchableOpacity>
             </Animated.View>
           </View>
@@ -934,7 +924,7 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
             <View style={styles.quickActionsGrid}>
               {/* Time Counter - Light Blue */}
               <TouchableOpacity
-                style={[styles.quickActionCard, { backgroundColor: '#E3F2FD' }]}
+                style={[styles.quickActionCard, { backgroundColor: '#BBDEFB' }]}
                 onPress={() => setShowTimeCounterModal(true)}
                 activeOpacity={0.7}
               >
@@ -942,12 +932,12 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
                   <Ionicons name="timer-outline" size={24} color="#2196F3" />
                   <Ionicons name="arrow-forward" size={16} color="#B0BEC5" />
                 </View>
-                <Text style={styles.quickActionText}>Time Counter</Text>
+                <Text style={[styles.quickActionText, { color: '#1F2937' }]}>Time Counter</Text>
               </TouchableOpacity>
 
               {/* Love Note - Light Pink */}
               <TouchableOpacity
-                style={[styles.quickActionCard, { backgroundColor: '#FCE4EC' }]}
+                style={[styles.quickActionCard, { backgroundColor: '#F8BBD9' }]}
                 onPress={handleOpenNoteModal}
                 activeOpacity={0.7}
               >
@@ -955,12 +945,12 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
                   <Ionicons name="heart" size={24} color="#E91E63" />
                   <Ionicons name="arrow-forward" size={16} color="#B0BEC5" />
                 </View>
-                <Text style={styles.quickActionText}>Love Note</Text>
+                <Text style={[styles.quickActionText, { color: '#1F2937' }]}>Love Note</Text>
               </TouchableOpacity>
 
               {/* Capsule - Light Purple */}
               <TouchableOpacity
-                style={[styles.quickActionCard, { backgroundColor: '#F3E5F5' }]}
+                style={[styles.quickActionCard, { backgroundColor: '#E1BEE7' }]}
                 onPress={handleOpenTimeLockModal}
                 activeOpacity={0.7}
               >
@@ -968,12 +958,12 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
                   <Ionicons name="time-outline" size={24} color="#9C27B0" />
                   <Ionicons name="arrow-forward" size={16} color="#B0BEC5" />
                 </View>
-                <Text style={styles.quickActionText}>Capsule</Text>
+                <Text style={[styles.quickActionText, { color: '#1F2937' }]}>Capsule</Text>
               </TouchableOpacity>
 
               {/* Thinking - Light Yellow */}
               <TouchableOpacity
-                style={[styles.quickActionCard, { backgroundColor: '#FFF8E1' }]}
+                style={[styles.quickActionCard, { backgroundColor: '#FFE082' }]}
                 onPress={handleSendPing}
                 activeOpacity={0.7}
               >
@@ -981,7 +971,7 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
                   <Ionicons name="chatbubble-ellipses-outline" size={24} color="#FF9800" />
                   <Ionicons name="arrow-forward" size={16} color="#B0BEC5" />
                 </View>
-                <Text style={styles.quickActionText}>Thinking</Text>
+                <Text style={[styles.quickActionText, { color: '#1F2937' }]}>Thinking</Text>
               </TouchableOpacity>
             </View>
           </View>

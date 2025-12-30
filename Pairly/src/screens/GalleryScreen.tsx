@@ -56,6 +56,8 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
   const [needsUnlock, setNeedsUnlock] = useState(false);
   const [showMemoriesLock, setShowMemoriesLock] = useState(false);
   const [deleting, setDeleting] = useState(false); // 🗑️ Delete loading state
+  const [isPaired, setIsPaired] = useState(true); // 🔗 Partner connection status
+  const [partnerName, setPartnerName] = useState<string>(''); // 👤 Partner name
 
   useEffect(() => {
     checkMemoriesLock();
@@ -154,6 +156,22 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
       // Fetch fresh data from backend
       const response = await ApiClient.get('/moments/all') as any;
 
+      // 🔗 Check partner connection status
+      if (response.isPaired !== undefined) {
+        setIsPaired(response.isPaired);
+      }
+      if (response.partnerName) {
+        setPartnerName(response.partnerName);
+      }
+
+      // 🔗 If not paired, show empty state
+      if (response.isPaired === false) {
+        console.log('❌ [GALLERY] Not paired with anyone');
+        setPhotos([]);
+        setLoading(false);
+        return;
+      }
+
       if (response.success && response.data?.moments) {
         const moments = response.data.moments;
         console.log(`📱 [GALLERY] Found ${moments.length} moments (URLs, fast!)`);
@@ -174,9 +192,8 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
         const partnerPhotos = loadedPhotos.filter(p => p.sender === 'partner').length;
         console.log(`✅ [GALLERY] Loaded: ${myPhotos} from me, ${partnerPhotos} from partner`);
 
-        // Limit for free users
-        const availablePhotos = isPremium ? loadedPhotos : loadedPhotos.slice(0, 10);
-        setPhotos(availablePhotos);
+        // 🔥 FIXED: No limit - show ALL moments (was limited to 10 for free users)
+        setPhotos(loadedPhotos);
 
         // ⚡ CACHE: Save for next instant load
         await AsyncStorage.setItem(GALLERY_CACHE_KEY, JSON.stringify(loadedPhotos));
@@ -186,9 +203,15 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
         setPhotos([]);
       }
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ [GALLERY] Error loading photos:', error);
-      // Keep cached data if available
+
+      // 🔗 Handle not paired error
+      if (error.message?.includes('No active pairing')) {
+        setIsPaired(false);
+        setPhotos([]);
+      }
+      // Keep cached data if available for other errors
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -373,28 +396,54 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
         {photos.length === 0 ? (
           <View style={styles.emptyState}>
             <LinearGradient
-              colors={['#FFE5EC', '#FFF0F5']}
+              colors={isPaired ? ['#FFE5EC', '#FFF0F5'] : ['#E8EAF6', '#F5F5F5']}
               style={styles.emptyGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
             >
-              <Ionicons name="heart-outline" size={80} color="#FF6B9D" />
-              <Text style={styles.emptyTitle}>Your Memory Box is Empty</Text>
-              <Text style={styles.emptyDescription}>
-                Every great love story starts with a single moment.{'\n'}
-                Capture your first memory together 💕
-              </Text>
-              <TouchableOpacity style={styles.emptyButton} onPress={onBack} activeOpacity={0.8}>
-                <LinearGradient
-                  colors={['#FF6B9D', '#FF8FAB']}
-                  style={styles.emptyButtonGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                >
-                  <Ionicons name="camera" size={20} color="white" />
-                  <Text style={styles.emptyButtonText}>Capture First Moment</Text>
-                </LinearGradient>
-              </TouchableOpacity>
+              {!isPaired ? (
+                // 🔗 NOT PAIRED STATE
+                <>
+                  <Ionicons name="people-outline" size={80} color="#9E9E9E" />
+                  <Text style={styles.emptyTitle}>No Partner Connected</Text>
+                  <Text style={styles.emptyDescription}>
+                    Connect with your partner first to start{'\n'}
+                    sharing beautiful moments together 💕
+                  </Text>
+                  <TouchableOpacity style={styles.emptyButton} onPress={onBack} activeOpacity={0.8}>
+                    <LinearGradient
+                      colors={['#FF6B9D', '#FF8FAB']}
+                      style={styles.emptyButtonGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                    >
+                      <Ionicons name="link" size={20} color="white" />
+                      <Text style={styles.emptyButtonText}>Connect Partner</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                // 💕 EMPTY GALLERY STATE (paired but no moments)
+                <>
+                  <Ionicons name="heart-outline" size={80} color="#FF6B9D" />
+                  <Text style={styles.emptyTitle}>Your Memory Box is Empty</Text>
+                  <Text style={styles.emptyDescription}>
+                    Every great love story starts with a single moment.{'\n'}
+                    Capture your first memory together 💕
+                  </Text>
+                  <TouchableOpacity style={styles.emptyButton} onPress={onBack} activeOpacity={0.8}>
+                    <LinearGradient
+                      colors={['#FF6B9D', '#FF8FAB']}
+                      style={styles.emptyButtonGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                    >
+                      <Ionicons name="camera" size={20} color="white" />
+                      <Text style={styles.emptyButtonText}>Capture First Moment</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </>
+              )}
             </LinearGradient>
           </View>
         ) : (
