@@ -647,41 +647,46 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       // Premium Profile Card - Soft pastel gradient like UploadScreen
       return (
         <View style={styles.profileCardPremium}>
-          <LinearGradient
-            colors={['#FDF2F8', '#FECDD3', '#FDF2F8']}
-            style={styles.premiumProfileGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          >
-            <View style={styles.premiumContent}>
-              <View style={styles.premiumAvatarContainer}>
-                <View style={[styles.premiumAvatar, { backgroundColor: colors.primary }]}>
-                  <Text style={styles.premiumAvatarText}>{initials || 'U'}</Text>
-                </View>
-                <View style={styles.premiumBadgeGlow}>
-                  <Ionicons name="diamond" size={12} color="#EC4899" />
-                </View>
-              </View>
-              <View style={styles.premiumInfo}>
-                <View style={styles.premiumNameRow}>
-                  <Text style={[styles.premiumName, { color: '#1F2937' }]} numberOfLines={1}>{userName}</Text>
-                  <View style={[styles.premiumChip, { backgroundColor: colors.primary }]}>
-                    <Ionicons name="diamond" size={10} color="white" />
-                    <Text style={styles.premiumChipText}>PRO</Text>
+          <View style={styles.profileCardPremium}>
+            <View
+              style={[
+                styles.premiumProfileGradient,
+                {
+                  backgroundColor: colors.secondary, // Solid Bright Pink Background
+                  // No border needed for solid card
+                }
+              ]}
+            >
+              <View style={styles.premiumContent}>
+                <View style={styles.premiumAvatarContainer}>
+                  <View style={[styles.premiumAvatar, { backgroundColor: 'white' }]}>
+                    <Text style={[styles.premiumAvatarText, { color: colors.secondary }]}>{initials || 'U'}</Text>
+                  </View>
+                  <View style={[styles.premiumBadgeGlow, { shadowColor: 'white' }]}>
+                    <Ionicons name="diamond" size={12} color="white" />
                   </View>
                 </View>
-                <Text style={[styles.premiumEmail, { color: '#4B5563' }]} numberOfLines={1} ellipsizeMode="tail">
-                  {userEmail}
-                </Text>
+                <View style={styles.premiumInfo}>
+                  <View style={styles.premiumNameRow}>
+                    <Text style={[styles.premiumName, { color: 'white' }]} numberOfLines={1}>{userName}</Text>
+                    <View style={[styles.premiumChip, { backgroundColor: 'white' }]}>
+                      <Ionicons name="diamond" size={10} color={colors.secondary} />
+                      <Text style={[styles.premiumChipText, { color: colors.secondary }]}>PRO</Text>
+                    </View>
+                  </View>
+                  <Text style={[styles.premiumEmail, { color: 'rgba(255, 255, 255, 0.9)' }]} numberOfLines={1} ellipsizeMode="tail">
+                    {userEmail}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={[styles.premiumEditButton, { backgroundColor: 'rgba(255, 255, 255, 0.2)' }]}
+                  onPress={() => setShowProfileEditor(true)}
+                >
+                  <Ionicons name="create-outline" size={18} color="white" />
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity
-                style={[styles.premiumEditButton, { backgroundColor: 'rgba(236, 72, 153, 0.1)' }]}
-                onPress={() => setShowProfileEditor(true)}
-              >
-                <Ionicons name="create-outline" size={18} color="#EC4899" />
-              </TouchableOpacity>
             </View>
-          </LinearGradient>
+          </View>
         </View>
       );
     }

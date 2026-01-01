@@ -34,7 +34,7 @@ class PairlyMessagingService : FirebaseMessagingService() {
         private const val TAG = "PairlyMessaging"
         private const val CHANNEL_ID = "moments"
         private const val CHANNEL_NAME = "Moments"
-        private const val PING_CHANNEL_ID = "thinking_ping"
+        private const val PING_CHANNEL_ID = "thinking_ping_v3" // 🔥 FORCE NEW CHANNEL (No Sound)
         private const val PING_CHANNEL_NAME = "Thinking of You"
     }
 
@@ -76,16 +76,29 @@ class PairlyMessagingService : FirebaseMessagingService() {
         }
     }
 
-    /**
-     * Handle new moment - download photo and update widget
-     */
+    // ... (handleNewMoment remains unchanged) ...
     private fun handleNewMoment(data: Map<String, String>) {
         val photoUrl = data["photoUrl"]
         val partnerName = data["partnerName"] ?: "Partner"
         val momentId = data["momentId"] ?: "unknown"
+        val expiresInStr = data["expiresIn"] // "0.167", "1", "24" etc.
 
         Log.d(TAG, "🖼️ Photo URL: $photoUrl")
         Log.d(TAG, "👤 Partner: $partnerName")
+        Log.d(TAG, "⏱️ Expires In (Hours): $expiresInStr")
+
+        // Parse Expiry
+        var expiryTimestamp: Long = 0
+        if (!expiresInStr.isNullOrEmpty()) {
+            try {
+                val hours = expiresInStr.toDouble()
+                if (hours > 0) {
+                    expiryTimestamp = System.currentTimeMillis() + (hours * 3600 * 1000).toLong()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Error parsing expiresIn: $expiresInStr")
+            }
+        }
 
         // Use coroutine for background work
         CoroutineScope(Dispatchers.IO).launch {
@@ -103,7 +116,8 @@ class PairlyMessagingService : FirebaseMessagingService() {
                                 applicationContext,
                                 bitmap,
                                 partnerName,
-                                momentId  // Pass momentId for reactions
+                                momentId,
+                                expiryTimestamp // 🔥 Pass Custom Expiry
                             )
                             // Also update Polaroid widget
                             PairlyPolaroidWidget.updateWithPhoto(
@@ -116,7 +130,7 @@ class PairlyMessagingService : FirebaseMessagingService() {
                             // Also update V4 Pink Heart Widget
                             PairlyV4Widget.updateAllWidgets(applicationContext)
                             
-                            Log.d(TAG, "✅ All widgets (Simple, Polaroid, V3, V4) updated with new photo")
+                            Log.d(TAG, "✅ All widgets updated (Expiry: ${if (expiryTimestamp > 0) "Custom" else "Default 24h"})")
                         }
                     } else {
                         Log.e(TAG, "❌ Failed to download photo")
@@ -148,9 +162,7 @@ class PairlyMessagingService : FirebaseMessagingService() {
         }
     }
 
-    /**
-     * Download photo from URL
-     */
+    // ... (downloadPhoto same) ...
     private fun downloadPhoto(photoUrl: String): Bitmap? {
         return try {
             Log.d(TAG, "⬇️ Downloading photo from: $photoUrl")
@@ -181,9 +193,7 @@ class PairlyMessagingService : FirebaseMessagingService() {
         }
     }
 
-    /**
-     * Show notification for new moment
-     */
+    // ... (showMomentNotification same) ...
     private fun showMomentNotification(partnerName: String, momentId: String) {
         try {
             val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -225,52 +235,8 @@ class PairlyMessagingService : FirebaseMessagingService() {
         val senderName = data["senderName"] ?: "Your partner"
         
         Log.d(TAG, "💭 Thinking ping from: $senderName")
-        Log.d(TAG, "📱 Starting custom vibration...")
         
-        // Vibrate phone with romantic heartbeat pattern (~5 seconds)
-        // Pattern: beat-beat pause beat-beat pause beat-beat pause beat-beat
-        try {
-            // Long romantic vibration sequence
-            val heartbeatPattern = longArrayOf(
-                0,    // Start immediately
-                200, 150, 200, 500,   // First heartbeat (stronger, longer)
-                200, 150, 200, 500,   // Second heartbeat
-                200, 150, 200, 500,   // Third heartbeat
-                200, 150, 200, 500,   // Fourth heartbeat
-                300, 200, 300, 0      // Fifth heartbeat (finale - stronger)
-            )
-            
-            // Get vibrator - use VibratorManager for Android 12+
-            val vibrator: android.os.Vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                val vibratorManager = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as android.os.VibratorManager
-                vibratorManager.defaultVibrator
-            } else {
-                @Suppress("DEPRECATION")
-                getSystemService(Context.VIBRATOR_SERVICE) as android.os.Vibrator
-            }
-            
-            Log.d(TAG, "📳 Vibrator obtained, hasVibrator: ${vibrator.hasVibrator()}")
-            
-            if (vibrator.hasVibrator()) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    val effect = android.os.VibrationEffect.createWaveform(heartbeatPattern, -1)
-                    vibrator.vibrate(effect)
-                    Log.d(TAG, "✅ VibrationEffect.createWaveform executed!")
-                } else {
-                    @Suppress("DEPRECATION")
-                    vibrator.vibrate(heartbeatPattern, -1)
-                    Log.d(TAG, "✅ Legacy vibrate() executed!")
-                }
-                Log.d(TAG, "💓 Heartbeat vibration triggered (5 seconds)")
-            } else {
-                Log.w(TAG, "⚠️ Device has no vibrator!")
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "❌ Vibration error: ${e.message}")
-            e.printStackTrace()
-        }
-        
-        // Show notification
+        // 1. Show Notification FIRST (Silent)
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
@@ -280,15 +246,14 @@ class PairlyMessagingService : FirebaseMessagingService() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         
-        // Use PING_CHANNEL_ID - this channel has NO vibration
-        // so our custom heartbeat vibration above works
+        // Use PING_CHANNEL_ID (v3) - No Sound, No Vibrate
         val notification = NotificationCompat.Builder(this, PING_CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle("💭 Thinking of You")
             .setContentText("$senderName is thinking of you right now 💕")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setVibrate(longArrayOf(0)) // Empty vibration for this channel
-            .setSound(android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION))
+            .setVibrate(longArrayOf(0)) // Ensure no system vibration
+            .setSound(null)              // 🔥 Ensure no sound
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
             .setColor(0xFFFF6B9D.toInt())
@@ -296,8 +261,54 @@ class PairlyMessagingService : FirebaseMessagingService() {
         
         val notificationManager = getSystemService(NotificationManager::class.java)
         notificationManager.notify(System.currentTimeMillis().toInt(), notification)
+        Log.d(TAG, "✅ Thinking ping notification shown (SILENT)")
+
+        // 2. Start Custom Vibration (Heartbeat)
+        Log.d(TAG, "📱 Starting custom vibration...")
         
-        Log.d(TAG, "✅ Thinking ping notification shown")
+        // Vibrate phone with romantic heartbeat pattern (~5 seconds)
+        // Pattern: beat-beat pause beat-beat pause beat-beat pause beat-beat
+        try {
+            // Heartbeat Pattern
+            val heartbeatPattern = longArrayOf(
+                0,    
+                200, 150, 200, 500,   // Beat-Beat ...
+                200, 150, 200, 500,   
+                200, 150, 200, 500,   
+                200, 150, 200, 500,   
+                300, 200, 300, 0      
+            )
+            
+            // Get vibrator
+            val vibrator: android.os.Vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val vibratorManager = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as android.os.VibratorManager
+                vibratorManager.defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                getSystemService(Context.VIBRATOR_SERVICE) as android.os.Vibrator
+            }
+            
+            if (vibrator.hasVibrator()) {
+                // Use RING usage to ensure it vibrates even if notification volume is low (but not silent)
+                // Or ALARM if we want to be really annoying, but NOTIFICATION is standard.
+                // User wants "Thinking", so SONIFICATION/NOTIFICATION is correct.
+                val audioAttributes = android.media.AudioAttributes.Builder()
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION)
+                    .build()
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    val effect = android.os.VibrationEffect.createWaveform(heartbeatPattern, -1)
+                    vibrator.vibrate(effect, audioAttributes)
+                } else {
+                    @Suppress("DEPRECATION")
+                    vibrator.vibrate(heartbeatPattern, -1, audioAttributes)
+                }
+                Log.d(TAG, "💓 Heartbeat vibration triggered")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Vibration error: ${e.message}")
+        }
     }
 
     /**
@@ -305,18 +316,18 @@ class PairlyMessagingService : FirebaseMessagingService() {
      */
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            // Main moments channel - with vibration
+            // Main moments channel - Default Sound/Vibrate
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 CHANNEL_NAME,
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "Notifications for new moments from your partner"
+                description = "Notifications for new moments"
                 enableLights(true)
                 enableVibration(true)
             }
 
-            // Ping channel - NO vibration (we do custom heartbeat)
+            // Ping channel v3 - NO SOUND, NO VIBRATION (System level)
             val pingChannel = NotificationChannel(
                 PING_CHANNEL_ID,
                 PING_CHANNEL_NAME,
@@ -324,14 +335,15 @@ class PairlyMessagingService : FirebaseMessagingService() {
             ).apply {
                 description = "Thinking of You ping notifications"
                 enableLights(true)
-                enableVibration(false) // IMPORTANT: No channel vibration
-                vibrationPattern = longArrayOf(0) // Empty pattern
+                enableVibration(false) // No System Vibrate
+                vibrationPattern = longArrayOf(0)
+                setSound(null, null)   // 🔥 No System Sound
             }
 
             val notificationManager = getSystemService(NotificationManager::class.java)
             notificationManager.createNotificationChannel(channel)
             notificationManager.createNotificationChannel(pingChannel)
-            Log.d(TAG, "✅ Notification channels created (moments + ping)")
+            Log.d(TAG, "✅ Notification channels created (moments + ping v3)")
         }
     }
 

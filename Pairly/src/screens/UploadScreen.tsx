@@ -868,26 +868,22 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
         }
       >
         {/* Hero Card - Theme Aware */}
-        <LinearGradient
-          colors={['#FDF2F8', '#FECDD3', '#FDF2F8']} // Elegant blush cream
-          style={styles.heroCard}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
+        {/* Hero Card - Theme Aware - Solid Background (No Gradient) */}
+        <View style={[styles.heroCard, { backgroundColor: colors.surface }]}>
           {/* Top Row - Status Only */}
           <View style={styles.heroTopRow}>
             {/* Connected Status Badge */}
             <View style={[
               styles.connectedBadge,
-              !isPartnerConnected && { backgroundColor: 'rgba(156, 163, 175, 0.1)' }
+              !isPartnerConnected && { backgroundColor: colors.backgroundTertiary, borderColor: colors.border }
             ]}>
               <View style={[
                 styles.connectedDot,
-                !isPartnerConnected && { backgroundColor: '#9CA3AF' }
+                !isPartnerConnected && { backgroundColor: colors.textTertiary }
               ]} />
               <Text style={[
                 styles.connectedText,
-                !isPartnerConnected && { color: '#9CA3AF' }
+                !isPartnerConnected && { color: colors.textTertiary }
               ]}>
                 {isPartnerConnected ? 'CONNECTED' : 'WAITING'}
               </Text>
@@ -895,9 +891,9 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
           </View>
 
           {/* Title */}
-          <Text style={[styles.heroTitle, { color: '#1F2937' }]}>
+          <Text style={[styles.heroTitle, { color: colors.text }]}>
             Capture{'\n'}
-            <Text style={[styles.heroTitleGradient, { color: '#9333EA' }]}>The Moment</Text>
+            <Text style={[styles.heroTitleGradient, { color: colors.primary }]}>The Moment</Text>
           </Text>
 
           {/* Bottom Row - Button Only */}
@@ -905,23 +901,24 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
             {/* Snap & Send Button */}
             <Animated.View style={animatedButtonStyle}>
               <TouchableOpacity
-                style={[styles.snapSendButton, { backgroundColor: '#FFFFFF' }, uploading && styles.snapSendButtonDisabled]}
+                style={[styles.snapSendButton, { backgroundColor: colors.text }, uploading && styles.snapSendButtonDisabled]}
                 onPress={handleCapturePress}
                 disabled={uploading}
                 activeOpacity={0.8}
               >
-                <Ionicons name="camera" size={18} color="#1F2937" />
-                <Text style={[styles.snapSendText, { color: '#1F2937' }]}>{uploading ? 'Sending...' : 'Snap & Send'}</Text>
+                <Ionicons name="camera" size={18} color={colors.background} />
+                <Text style={[styles.snapSendText, { color: colors.background }]}>{uploading ? 'Sending...' : 'Snap & Send'}</Text>
               </TouchableOpacity>
             </Animated.View>
           </View>
-        </LinearGradient>
+        </View>
 
         {/* Quick Actions - 2x2 Grid */}
         {isPremium && isPartnerConnected && (
           <View style={styles.quickActionsSection}>
             <Text style={styles.sectionTitle}>Quick Actions</Text>
             <View style={styles.quickActionsGrid}>
+              {/* Time Counter - Light Blue */}
               {/* Time Counter - Light Blue */}
               <TouchableOpacity
                 style={[styles.quickActionCard, { backgroundColor: '#BBDEFB' }]}
@@ -936,6 +933,7 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
               </TouchableOpacity>
 
               {/* Love Note - Light Pink */}
+              {/* Love Note - Light Pink */}
               <TouchableOpacity
                 style={[styles.quickActionCard, { backgroundColor: '#F8BBD9' }]}
                 onPress={handleOpenNoteModal}
@@ -949,6 +947,7 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
               </TouchableOpacity>
 
               {/* Capsule - Light Purple */}
+              {/* Capsule - Light Purple */}
               <TouchableOpacity
                 style={[styles.quickActionCard, { backgroundColor: '#E1BEE7' }]}
                 onPress={handleOpenTimeLockModal}
@@ -961,6 +960,7 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
                 <Text style={[styles.quickActionText, { color: '#1F2937' }]}>Capsule</Text>
               </TouchableOpacity>
 
+              {/* Thinking - Light Yellow */}
               {/* Thinking - Light Yellow */}
               <TouchableOpacity
                 style={[styles.quickActionCard, { backgroundColor: '#FFE082' }]}
@@ -1403,28 +1403,32 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     gap: spacing.sm,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
-    backgroundColor: 'rgba(20, 184, 166, 0.1)',
+    backgroundColor: colors.mintLight ? `${colors.mintLight}20` : 'rgba(52, 211, 153, 0.1)', // Dynamic with fallback
     borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: colors.mintLight ? `${colors.mintLight}40` : 'transparent',
   },
   connectedDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#14B8A6',
+    backgroundColor: colors.mint || '#34D399',
   },
   connectedText: {
     fontFamily: 'Inter-SemiBold',
     fontSize: 12,
-    color: '#14B8A6',
+    color: colors.mint || '#34D399',
     letterSpacing: 0.5,
   },
   galleryIconButton: {
     width: 36,
     height: 36,
     borderRadius: 12,
-    backgroundColor: 'rgba(156, 163, 175, 0.1)',
+    backgroundColor: colors.backgroundTertiary,
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   heroTitle: {
     fontFamily: 'Inter-Bold',

@@ -32,6 +32,10 @@ class PairlyWidget : AppWidgetProvider() {
         if (intent.action == ACTION_REFRESH) {
             println("📱 [Widget] Received refresh broadcast")
             updateAllWidgets(context)
+        } else if (intent.action == ACTION_EXPIRE) {
+             println("⏰ [Widget] Expiry Alarm Fired! Clearing widget...")
+             // This will trigger onUpdate, which calls loadCachedBitmap -> checks time -> deletes cache
+             updateAllWidgets(context)
         }
     }
 
@@ -81,6 +85,15 @@ class PairlyWidget : AppWidgetProvider() {
         try {
             val views = RemoteViews(context.packageName, R.layout.pairly_widget_simple)
             val prefs = context.getSharedPreferences("pairly_prefs", Context.MODE_PRIVATE)
+            
+            // Check expiry again just in case
+            val expiryTime = prefs.getLong("photo_expiry_time", 0)
+            if (expiryTime > 0 && System.currentTimeMillis() > expiryTime) {
+                // Expired! Show default
+                updateWidgetWithDefault(context, appWidgetManager, appWidgetId)
+                return
+            }
+
             val senderName = prefs.getString("last_sender_name", "Partner") ?: "Partner"
             
             views.setImageViewBitmap(R.id.widget_image, bitmap)
@@ -108,13 +121,33 @@ class PairlyWidget : AppWidgetProvider() {
     companion object {
         private const val API_URL = "https://pairly-60qj.onrender.com"
         const val ACTION_REFRESH = "com.pairly.app.widget.ACTION_REFRESH"
+        const val ACTION_EXPIRE = "com.pairly.app.widget.ACTION_EXPIRE"
         private const val CACHE_FILENAME = "widget_cached_photo.png"
+        private const val EXPIRY_DURATION_MS = 24 * 60 * 60 * 1000L // 24 Hours
         
         /**
-         * 🔥 Load cached bitmap from disk
+         * 🔥 Load cached bitmap from disk (Checks Expiry)
          */
         fun loadCachedBitmap(context: Context): Bitmap? {
             return try {
+                val prefs = context.getSharedPreferences("pairly_prefs", Context.MODE_PRIVATE)
+                val expiryTime = prefs.getLong("photo_expiry_time", 0)
+                
+                // 🕒 EXPIRY CHECK
+                if (expiryTime > 0 && System.currentTimeMillis() > expiryTime) {
+                    println("🕒 [Widget] Photo EXPIRED! Deleting cache. Now: ${System.currentTimeMillis()}, Exp: $expiryTime")
+                    val cacheFile = File(context.cacheDir, CACHE_FILENAME)
+                    if (cacheFile.exists()) {
+                        cacheFile.delete()
+                    }
+                    // Clear prefs
+                    prefs.edit()
+                        .remove("photo_expiry_time")
+                        .remove("last_sender_name")
+                        .apply()
+                    return null
+                }
+
                 val cacheFile = File(context.cacheDir, CACHE_FILENAME)
                 if (cacheFile.exists()) {
                     BitmapFactory.decodeStream(FileInputStream(cacheFile))
@@ -128,7 +161,7 @@ class PairlyWidget : AppWidgetProvider() {
         }
         
         /**
-         * 🔥 Save bitmap to disk cache
+         * 🔥 Save bitmap to disk cache (Sets Expiry)
          */
         fun saveBitmapToCache(context: Context, bitmap: Bitmap) {
             try {
@@ -136,9 +169,47 @@ class PairlyWidget : AppWidgetProvider() {
                 FileOutputStream(cacheFile).use { out ->
                     bitmap.compress(Bitmap.CompressFormat.PNG, 90, out)
                 }
-                println("✅ [Widget] Bitmap cached to disk")
+                
+                // Set expiry to 24 hours from now
+                val prefs = context.getSharedPreferences("pairly_prefs", Context.MODE_PRIVATE)
+                val expiryTime = System.currentTimeMillis() + EXPIRY_DURATION_MS
+                prefs.edit().putLong("photo_expiry_time", expiryTime).apply()
+                
+                // Schedule Alarm
+                scheduleExpiryAlarm(context, expiryTime)
+                
+                println("✅ [Widget] Bitmap cached to disk. Expires in 24h.")
             } catch (e: Exception) {
                 println("⚠️ [Widget] Failed to cache bitmap: ${e.message}")
+            }
+        }
+        
+        /**
+         * ⏰ Schedule Alarm to Auto-Clear Widget
+         */
+        private fun scheduleExpiryAlarm(context: Context, expiryTime: Long) {
+            try {
+                val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+                val intent = Intent(context, PairlyWidget::class.java).apply {
+                    action = ACTION_EXPIRE
+                }
+                val pendingIntent = PendingIntent.getBroadcast(
+                    context, 777, intent, 
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+                
+                // Remove any prev alarm
+                alarmManager.cancel(pendingIntent)
+                
+                // Set new alarm
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                    alarmManager.setExactAndAllowWhileIdle(android.app.AlarmManager.RTC, expiryTime, pendingIntent)
+                } else {
+                    alarmManager.setExact(android.app.AlarmManager.RTC, expiryTime, pendingIntent)
+                }
+                println("⏰ [Widget] Alarm Scheduled for: $expiryTime")
+            } catch (e: Exception) {
+                println("⚠️ [Widget] Failed to schedule alarm: ${e.message}")
             }
         }
         
@@ -164,12 +235,34 @@ class PairlyWidget : AppWidgetProvider() {
          * Called by PairlyMessagingService when FCM message received in background.
          * This enables instant widget updates even when app is killed.
          */
-        fun updateWithPhoto(context: Context, bitmap: Bitmap, senderName: String, momentId: String? = null) {
+        fun updateWithPhoto(context: Context, bitmap: Bitmap, senderName: String, momentId: String? = null, customExpiryTime: Long = 0) {
             try {
                 println("📱 [Widget] Updating with photo from: $senderName")
                 
-                // 🔥 Save to cache FIRST
-                saveBitmapToCache(context, bitmap)
+                // 🔥 Save to cache FIRST (Sets new Expiry)
+                try {
+                    val cacheFile = File(context.cacheDir, CACHE_FILENAME)
+                    FileOutputStream(cacheFile).use { out ->
+                        bitmap.compress(Bitmap.CompressFormat.PNG, 90, out)
+                    }
+                    
+                    // Set Expiry: Use custom if provided, else Default 24h
+                    val prefs = context.getSharedPreferences("pairly_prefs", Context.MODE_PRIVATE)
+                    val finalExpiry = if (customExpiryTime > 0) {
+                        customExpiryTime 
+                    } else {
+                        System.currentTimeMillis() + EXPIRY_DURATION_MS
+                    }
+                    
+                    prefs.edit().putLong("photo_expiry_time", finalExpiry).apply()
+                    
+                    // ⏰ Schedule Alarm for THIS expiry
+                    scheduleExpiryAlarm(context, finalExpiry)
+                    
+                    println("✅ [Widget] Bitmap cached. Expires at: $finalExpiry (Custom: ${customExpiryTime > 0})")
+                } catch (e: Exception) {
+                    println("⚠️ [Widget] Failed to cache bitmap: ${e.message}")
+                }
                 
                 // Save sender name for cached display
                 val prefs = context.getSharedPreferences("pairly_prefs", Context.MODE_PRIVATE)
@@ -344,7 +437,7 @@ class PairlyWidget : AppWidgetProvider() {
         override fun onPostExecute(bitmap: Bitmap?) {
             if (bitmap != null) {
                 try {
-                    // 🔥 Save to cache for next time
+                    // 🔥 Save to cache for next time (Sets Expiry)
                     saveBitmapToCache(context, bitmap)
                     
                     // Save sender name
@@ -362,7 +455,7 @@ class PairlyWidget : AppWidgetProvider() {
                     
                     // Use current layout IDs
                     views.setTextViewText(R.id.widget_sender_name, "$senderName 💝")
-                    views.setTextViewText(R.id.widget_timestamp, "Tap to view")
+                    views.setTextViewText(R.id.widget_timestamp, "Just now")
                     views.setImageViewBitmap(R.id.widget_image, bitmap)
                     
                     // Click handler for main widget

@@ -164,10 +164,12 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
         setPartnerName(response.partnerName);
       }
 
-      // 🔗 If not paired, show empty state
+      // 🔗 If not paired, show empty state & CLEAR CACHE
       if (response.isPaired === false) {
-        console.log('❌ [GALLERY] Not paired with anyone');
+        console.log('❌ [GALLERY] Not paired with anyone - clearing data');
         setPhotos([]);
+        setIsPaired(false);
+        await AsyncStorage.removeItem(GALLERY_CACHE_KEY); // 🔥 Clear local cache
         setLoading(false);
         return;
       }
@@ -206,12 +208,13 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
     } catch (error: any) {
       console.error('❌ [GALLERY] Error loading photos:', error);
 
-      // 🔗 Handle not paired error
-      if (error.message?.includes('No active pairing')) {
+      // 🔗 Handle not paired error specifically
+      if (error.message?.includes('No active pairing') || error.response?.status === 403) {
         setIsPaired(false);
         setPhotos([]);
+        await AsyncStorage.removeItem(GALLERY_CACHE_KEY); // 🔥 Clear cache on error too
       }
-      // Keep cached data if available for other errors
+      // Keep cached data if available for other errors (network etc)
     } finally {
       setLoading(false);
       setRefreshing(false);

@@ -40,14 +40,13 @@ export const PhotoPreviewScreen: React.FC<PhotoPreviewScreenProps> = ({
 
   // Duration options for widget visibility
   const durations = [
-    { label: '10m', value: 0.167, icon: '⏱️' },
-    { label: '30m', value: 0.5, icon: '⏰' },
-    { label: '1h', value: 1, icon: '🕐' },
-    { label: '3h', value: 3, icon: '🕒' },
-    { label: '6h', value: 6, icon: '🕕' },
-    { label: '12h', value: 12, icon: '🕛' },
-    { label: '24h', value: 24, icon: '📅' },
-    { label: '∞', value: 0, icon: '♾️' }, // 0 means no expiry
+    { label: '10m', value: 0.167 },
+    { label: '30m', value: 0.5 },
+    { label: '1h', value: 1 },
+    { label: '3h', value: 3 },
+    { label: '6h', value: 6 },
+    { label: '12h', value: 12 },
+    { label: '24h', value: 24 },
   ];
 
   const handleUpload = async () => {
@@ -97,17 +96,7 @@ export const PhotoPreviewScreen: React.FC<PhotoPreviewScreenProps> = ({
           <Ionicons name="close" size={28} color="white" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Send to {partnerName}</Text>
-        <TouchableOpacity
-          style={styles.headerButton}
-          onPress={() => setShowFilters(!showFilters)}
-          disabled={uploading}
-        >
-          <Ionicons
-            name={selectedFilter === 'none' ? "color-filter-outline" : "color-filter"}
-            size={24}
-            color={selectedFilter === 'none' ? "white" : colors.secondary}
-          />
-        </TouchableOpacity>
+        <View style={{ width: 44 }} />
       </LinearGradient>
 
       {/* Photo Preview */}
@@ -138,7 +127,7 @@ export const PhotoPreviewScreen: React.FC<PhotoPreviewScreenProps> = ({
                     {filter === 'none' ? 'Original' : filter.charAt(0).toUpperCase() + filter.slice(1)}
                   </Text>
                   {selectedFilter === filter && (
-                    <Ionicons name="checkmark-circle" size={18} color={colors.secondary} />
+                    <Ionicons name="checkmark-circle" size={18} color="#EC4899" />
                   )}
                 </TouchableOpacity>
               ))}
@@ -150,14 +139,14 @@ export const PhotoPreviewScreen: React.FC<PhotoPreviewScreenProps> = ({
       {/* Bottom Section */}
       <View style={styles.bottomContainer}>
         <LinearGradient
-          colors={['transparent', 'rgba(0,0,0,0.95)']}
+          colors={['transparent', 'rgba(0,0,0,0.9)', 'black']}
           style={styles.bottomGradient}
         >
           {/* Duration Picker */}
           <View style={styles.durationSection}>
             <View style={styles.durationHeader}>
-              <Ionicons name="time-outline" size={18} color="rgba(255,255,255,0.7)" />
-              <Text style={styles.durationTitle}>Show on widget for</Text>
+              <Ionicons name="timer-outline" size={16} color="rgba(255,255,255,0.6)" />
+              <Text style={styles.durationTitle}>Disappear after...</Text>
             </View>
             <ScrollView
               horizontal
@@ -174,7 +163,6 @@ export const PhotoPreviewScreen: React.FC<PhotoPreviewScreenProps> = ({
                   onPress={() => setSelectedDuration(duration.value)}
                   disabled={uploading}
                 >
-                  <Text style={styles.durationIcon}>{duration.icon}</Text>
                   <Text
                     style={[
                       styles.durationChipText,
@@ -186,11 +174,6 @@ export const PhotoPreviewScreen: React.FC<PhotoPreviewScreenProps> = ({
                 </TouchableOpacity>
               ))}
             </ScrollView>
-            {selectedDuration > 0 && (
-              <Text style={styles.durationInfo}>
-                🔒 Photo will auto-hide from widget after {getDurationLabel(selectedDuration)}
-              </Text>
-            )}
           </View>
 
           {/* Action Buttons */}
@@ -203,8 +186,8 @@ export const PhotoPreviewScreen: React.FC<PhotoPreviewScreenProps> = ({
               activeOpacity={0.8}
             >
               <View style={styles.scheduleButtonContent}>
-                <Ionicons name="calendar-outline" size={20} color="white" />
-                <Text style={styles.scheduleButtonText}>Later</Text>
+                <Ionicons name="calendar" size={22} color="white" />
+                <Text style={styles.scheduleButtonText}>Schedule</Text>
               </View>
             </TouchableOpacity>
 
@@ -215,11 +198,8 @@ export const PhotoPreviewScreen: React.FC<PhotoPreviewScreenProps> = ({
               disabled={uploading}
               activeOpacity={0.8}
             >
-              <LinearGradient
-                colors={uploading ? ['rgba(255,255,255,0.15)', 'rgba(255,255,255,0.1)'] : [colors.secondary, colors.secondaryLight]}
+              <View
                 style={styles.sendButtonGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
               >
                 {uploading ? (
                   <>
@@ -228,11 +208,11 @@ export const PhotoPreviewScreen: React.FC<PhotoPreviewScreenProps> = ({
                   </>
                 ) : (
                   <>
-                    <Ionicons name="send" size={20} color="white" />
                     <Text style={styles.sendButtonText}>Send Now</Text>
+                    <Ionicons name="arrow-forward" size={20} color="white" />
                   </>
                 )}
-              </LinearGradient>
+              </View>
             </TouchableOpacity>
           </View>
         </LinearGradient>
@@ -260,7 +240,7 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: spacing.huge,
+    paddingTop: spacing.huge + 10,
     paddingBottom: spacing.lg,
     paddingHorizontal: layout.screenPaddingHorizontal,
     position: 'absolute',
@@ -270,17 +250,20 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     zIndex: 10,
   },
   headerButton: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     borderRadius: borderRadius.full,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   headerTitle: {
     fontFamily: 'Inter-SemiBold',
-    fontSize: 16,
+    fontSize: 17,
     color: 'white',
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
 
   // Photo
@@ -289,6 +272,7 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
+    backgroundColor: '#000',
   },
   photo: {
     width: '100%',
@@ -298,18 +282,18 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
   // Filter Selector
   filterSelector: {
     position: 'absolute',
-    bottom: 200,
+    bottom: 220,
     left: 20,
     right: 20,
-    backgroundColor: colors.surface,
+    backgroundColor: 'rgba(255,255,255,0.95)',
     borderRadius: borderRadius.xl,
     padding: spacing.lg,
     ...shadows.lg,
   },
   filterTitle: {
     fontFamily: 'Inter-SemiBold',
-    fontSize: 14,
-    color: colors.text,
+    fontSize: 15,
+    color: '#000',
     marginBottom: spacing.md,
   },
   filtersList: {
@@ -321,18 +305,18 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     justifyContent: 'space-between',
     padding: spacing.md,
     borderRadius: borderRadius.md,
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: '#F3F4F6',
   },
   filterOptionActive: {
-    backgroundColor: colors.secondaryPastel,
+    backgroundColor: '#FCE7F3', // Light pink
   },
   filterOptionText: {
     fontFamily: 'Inter-Medium',
-    fontSize: 14,
-    color: colors.text,
+    fontSize: 15,
+    color: '#374151',
   },
   filterOptionTextActive: {
-    color: colors.secondary,
+    color: '#EC4899', // Pink
     fontFamily: 'Inter-SemiBold',
   },
 
@@ -344,84 +328,71 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     right: 0,
   },
   bottomGradient: {
-    paddingHorizontal: 20,
-    paddingTop: 30,
-    paddingBottom: 40,
+    paddingHorizontal: 24,
+    paddingTop: 40,
+    paddingBottom: 50,
   },
 
   // Duration Section
   durationSection: {
-    marginBottom: 16,
+    marginBottom: 24,
   },
   durationHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     marginBottom: 12,
+    marginLeft: 4,
   },
   durationTitle: {
     fontFamily: 'Inter-Medium',
     fontSize: 13,
-    color: 'rgba(255,255,255,0.7)',
+    color: 'rgba(255,255,255,0.6)',
+    letterSpacing: 0.5,
   },
   durationScroll: {
-    gap: 8,
+    gap: 10,
     paddingRight: 20,
   },
   durationChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     paddingVertical: 10,
-    borderRadius: 20,
+    borderRadius: 30,
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-    gap: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minWidth: 64,
   },
   durationChipActive: {
-    backgroundColor: colors.secondaryPastel,
-    borderColor: colors.secondary,
-  },
-  durationIcon: {
-    fontSize: 14,
+    backgroundColor: '#EC4899', // Hot Pink
+    transform: [{ scale: 1.05 }],
   },
   durationChipText: {
     fontFamily: 'Inter-Medium',
     fontSize: 14,
-    color: 'rgba(255,255,255,0.8)',
+    color: 'rgba(255,255,255,0.7)',
   },
   durationChipTextActive: {
-    fontFamily: 'Inter-SemiBold',
-    color: colors.secondary,
-  },
-  durationInfo: {
-    fontFamily: 'Inter-Regular',
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.5)',
-    marginTop: 10,
-    textAlign: 'center',
+    fontFamily: 'Inter-Bold',
+    color: 'white',
   },
 
   // Action Buttons
   actionButtons: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'stretch',
     gap: 12,
+    height: 56,
   },
   buttonDisabled: {
-    opacity: 0.4,
+    opacity: 0.6,
   },
 
   // Schedule Button
   scheduleButton: {
     width: 80,
-    height: 56,
-    paddingHorizontal: 16,
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -432,15 +403,20 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
   },
   scheduleButtonText: {
     fontFamily: 'Inter-Medium',
-    fontSize: 12,
-    color: 'white',
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.9)',
   },
 
   // Send Button
   sendButton: {
     flex: 1,
-    height: 56,
-    borderRadius: 16,
+    borderRadius: 20,
+    backgroundColor: '#EC4899', // Solid Hot Pink
+    shadowColor: '#EC4899',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    elevation: 8,
     overflow: 'hidden',
   },
   sendButtonGradient: {
@@ -448,13 +424,11 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 24,
     gap: 8,
   },
   sendButtonText: {
     fontFamily: 'Inter-Bold',
-    fontSize: 16,
+    fontSize: 17,
     color: 'white',
-    letterSpacing: 0.2,
   },
 });

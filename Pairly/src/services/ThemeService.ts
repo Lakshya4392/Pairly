@@ -9,105 +9,105 @@ interface ThemeSettings {
   colorTheme: ColorTheme;
 }
 
-// Dark mode colors - Premium Modern Design (matches all lightColors properties)
+// Dark mode colors - Vibrant Charcoal Black Theme (Bright Accents)
 export const darkColors = {
-  // Primary Colors - Vibrant but elegant
-  primary: '#8B5CF6', // Purple
-  primaryLight: '#A78BFA',
-  primaryDark: '#7C3AED',
-  primaryPastel: '#DDD6FE',
+  // Primary Colors - Bright Pink (Not Blue)
+  primary: '#EC4899', // Pink 500
+  primaryLight: '#F472B6', // Pink 400
+  primaryDark: '#DB2777', // Pink 600
+  primaryPastel: '#831843', // Dark Pink bg
 
-  // Secondary Colors - Complementary Pink
-  secondary: '#EC4899',
-  secondaryLight: '#F472B6',
-  secondaryPastel: '#FBCFE8',
+  // Secondary Colors - Vibrant Pink
+  secondary: '#EC4899', // Pink 500
+  secondaryLight: '#F472B6', // Pink 400
+  secondaryPastel: '#831843', // Dark Pink bg
 
-  // Accent Colors - Complete set
-  mint: '#34D399',
-  mintLight: '#6EE7B7',
-  mintPastel: '#A7F3D0',
+  // Accent Colors - Bright & Clear
+  mint: '#10B981', // Emerald 500
+  mintLight: '#34D399', // Emerald 400
+  mintPastel: '#064E3B', // Emerald 900
 
-  lavender: '#C4B5FD',
-  lavenderLight: '#DDD6FE',
+  lavender: '#8B5CF6', // Violet 500
+  lavenderLight: '#A78BFA', // Violet 400
 
-  peach: '#FB923C',
-  peachLight: '#FED7AA',
+  peach: '#F59E0B', // Amber 500
+  peachLight: '#FBBF24', // Amber 400
 
-  sky: '#38BDF8',
-  skyLight: '#7DD3FC',
+  sky: '#06B6D4', // Cyan 500
+  skyLight: '#22D3EE', // Cyan 400
 
-  // Backgrounds - Pure Black/Charcoal Theme
-  background: '#0A0A0A', // Pure black
-  backgroundSecondary: '#1A1A1A', // Dark charcoal
-  backgroundTertiary: '#2A2A2A', // Charcoal
-  surface: '#1A1A1A',
-  surfaceElevated: '#2A2A2A',
+  // Backgrounds - Charcoal Black (Confirmed)
+  background: '#121212', // Charcoal Black
+  backgroundSecondary: '#1E1E1E', // Dark Grey Surface
+  backgroundTertiary: '#2D2D2D', // Light Grey Surface
+  surface: '#1E1E1E',    // Card Background
+  surfaceElevated: '#2D2D2D', // Elevated
 
-  // Dark Mode specific (for compatibility)
-  darkBg: '#0A0A0A',
-  darkCard: '#1A1A1A',
-  darkCardElevated: '#2A2A2A',
-  darkBorder: '#3A3A3A',
+  // Dark Mode specific
+  darkBg: '#121212',
+  darkCard: '#1E1E1E',
+  darkCardElevated: '#2D2D2D',
+  darkBorder: '#2D2D2D',
   darkText: '#FFFFFF',
-  darkTextSecondary: '#B0B0B0',
+  darkTextSecondary: '#A0A0A0',
 
-  // Text - High contrast for readability
-  text: '#FFFFFF', // Pure white
-  textSecondary: '#B0B0B0', // Light gray
-  textTertiary: '#808080', // Medium gray
-  textLight: '#606060', // Dark gray
-  textMuted: '#404040', // Very dark gray
+  // Text - Pure White & Grey
+  text: '#FFFFFF',          // Pure White
+  textSecondary: '#CCCCCC', // Light Grey
+  textTertiary: '#999999',  // Medium Grey
+  textLight: '#666666',     // Dark Grey
+  textMuted: '#444444',     // Very Dark Grey
 
   // Border Colors
-  border: '#2A2A2A', // Dark charcoal
-  borderLight: '#3A3A3A', // Charcoal
-  borderFocus: '#8B5CF6', // Primary
+  border: '#2D2D2D',        // Dark Grey
+  borderLight: '#1E1E1E',
+  borderFocus: '#3B82F6',   // Bright Blue
 
-  // Status Colors - Vibrant
-  success: '#10B981', // Emerald 500
-  successLight: '#064E3B', // Emerald 900
-  successText: '#34D399', // Emerald 400
+  // Status Colors - Bright
+  success: '#10B981',
+  successLight: 'rgba(16, 185, 129, 0.15)',
+  successText: '#34D399',
 
-  error: '#EF4444', // Red 500
-  errorLight: '#7F1D1D', // Red 900
-  errorText: '#F87171', // Red 400
+  error: '#EF4444',
+  errorLight: 'rgba(239, 68, 68, 0.15)',
+  errorText: '#FCA5A5',
 
-  warning: '#F59E0B', // Amber 500
-  warningLight: '#78350F', // Amber 900
-  warningText: '#FBBF24', // Amber 400
+  warning: '#F59E0B',
+  warningLight: 'rgba(245, 158, 11, 0.15)',
+  warningText: '#FCD34D',
 
-  info: '#3B82F6', // Blue 500
-  infoLight: '#1E3A8A', // Blue 900
-  infoText: '#60A5FA', // Blue 400
+  info: '#3B82F6',
+  infoLight: 'rgba(59, 130, 246, 0.15)',
+  infoText: '#93C5FD',
 
-  // Shadow - Darker for depth
+  // Shadow
   shadow: 'rgba(0, 0, 0, 0.6)',
-  shadowMedium: 'rgba(0, 0, 0, 0.7)',
-  shadowStrong: 'rgba(0, 0, 0, 0.8)',
-  shadowPrimary: 'rgba(139, 92, 246, 0.5)',
-  shadowSecondary: 'rgba(236, 72, 153, 0.5)',
+  shadowMedium: 'rgba(0, 0, 0, 0.8)',
+  shadowStrong: 'rgba(0, 0, 0, 1)',
+  shadowPrimary: 'rgba(59, 130, 246, 0.3)',
+  shadowSecondary: 'rgba(236, 72, 153, 0.3)',
 
   // Overlay
-  overlay: 'rgba(10, 10, 10, 0.9)',
-  overlayLight: 'rgba(10, 10, 10, 0.7)',
+  overlay: 'rgba(0, 0, 0, 0.85)',
+  overlayLight: 'rgba(0, 0, 0, 0.7)',
 
   // Transparent
   transparent: 'transparent',
 
   // Interactive States
-  hover: 'rgba(139, 92, 246, 0.15)',
-  pressed: 'rgba(139, 92, 246, 0.25)',
-  disabled: '#2A2A2A',
-  disabledText: '#64748B',
+  hover: 'rgba(255, 255, 255, 0.1)',
+  pressed: 'rgba(255, 255, 255, 0.15)',
+  disabled: '#2D2D2D',
+  disabledText: '#666666',
 };
 
 // Color theme variations
 export const colorThemes = {
   default: {
-    primary: '#FF6B9D',
-    primaryLight: '#FF8FB3',
-    secondary: '#C77DFF',
-    secondaryLight: '#E0AAFF',
+    primary: '#EC4899',   // Bright Pink
+    primaryLight: '#F472B6',
+    secondary: '#8B5CF6', // Violet
+    secondaryLight: '#A78BFA',
   },
   pink: {
     primary: '#FF1493',

@@ -1,138 +1,138 @@
-// iOS-Style Color Palette - Soft & Minimal
+// iOS-Style Color Palette - Bright & Vibrant
 export const colors = {
-  // Primary Colors - Soft Purple/Indigo
-  primary: '#6366F1',
-  primaryLight: '#A5B4FC',
-  primaryPastel: '#E0E7FF',
-  primaryDark: '#4F46E5',
-  
-  // Secondary Colors - Soft Pink
-  secondary: '#EC4899',
-  secondaryLight: '#F9A8D4',
-  secondaryPastel: '#FCE7F3',
-  
-  // Accent Colors - Soft Pastels
-  mint: '#6EE7B7',
-  mintLight: '#A7F3D0',
-  mintPastel: '#D1FAE5',
-  
-  lavender: '#C4B5FD',
-  lavenderLight: '#DDD6FE',
-  
-  peach: '#FDBA74',
-  peachLight: '#FED7AA',
-  
-  sky: '#7DD3FC',
-  skyLight: '#BAE6FD',
-  
-  // Background Colors - Clean & Soft
-  background: '#FFFFFF',
-  backgroundSecondary: '#F8FAFC',
-  backgroundTertiary: '#F1F5F9',
+  // Primary Colors - Bright Pink (User Request)
+  primary: '#EC4899',      // Pink 500
+  primaryLight: '#F472B6', // Pink 400
+  primaryPastel: '#FCE7F3', // Pink 100
+  primaryDark: '#DB2777',  // Pink 600
+
+  // Secondary Colors - Violet/Purple (Complementary)
+  secondary: '#8B5CF6',      // Violet 500
+  secondaryLight: '#A78BFA', // Violet 400
+  secondaryPastel: '#F5F3FF', // Violet 50
+
+  // Accent Colors - Clear & Bright
+  mint: '#10B981',       // Emerald 500
+  mintLight: '#34D399',  // Emerald 400
+  mintPastel: '#ECFDF5', // Emerald 50
+
+  lavender: '#8B5CF6',      // Violet 500
+  lavenderLight: '#A78BFA', // Violet 400
+
+  peach: '#F59E0B',      // Amber 500
+  peachLight: '#FBBF24', // Amber 400
+
+  sky: '#06B6D4',        // Cyan 500
+  skyLight: '#22D3EE',   // Cyan 400
+
+  // Background Colors - Pure White (Bright)
+  background: '#FFFFFF',        // Pure White
+  backgroundSecondary: '#F9FAFB', // Gray 50 (Very subtle)
+  backgroundTertiary: '#F3F4F6',  // Gray 100
   surface: '#FFFFFF',
   surfaceElevated: '#FFFFFF',
 
-  // Dark Mode Colors - Charcoal/Black Theme
-  darkBg: '#0A0A0A',           // Pure black background
-  darkCard: '#1A1A1A',         // Dark charcoal cards
-  darkCardElevated: '#2A2A2A', // Elevated charcoal
-  darkBorder: '#3A3A3A',       // Subtle borders
-  darkText: '#FFFFFF',         // Pure white text
-  darkTextSecondary: '#B0B0B0', // Light gray text
+  // Dark Mode Colors - Charcoal Black (Legacy props)
+  darkBg: '#121212',
+  darkCard: '#1E1E1E',
+  darkCardElevated: '#2D2D2D',
+  darkBorder: '#2D2D2D',
+  darkText: '#FFFFFF',
+  darkTextSecondary: '#CCCCCC',
 
-  // Text Colors - iOS Hierarchy
-  text: '#0F172A',
-  textSecondary: '#64748B',
-  textTertiary: '#94A3B8',
-  textLight: '#CBD5E1',
-  textMuted: '#E2E8F0',
+  // Text Colors - High Contrast
+  text: '#111827',          // Gray 900
+  textSecondary: '#4B5563', // Gray 600
+  textTertiary: '#9CA3AF',  // Gray 400
+  textLight: '#D1D5DB',     // Gray 300
+  textMuted: '#E5E7EB',     // Gray 200
 
-  // Border Colors - Soft
-  border: '#E2E8F0',
-  borderLight: '#F1F5F9',
-  borderFocus: '#6366F1',
+  // Border Colors - Clean
+  border: '#E5E7EB',        // Gray 200
+  borderLight: '#F3F4F6',   // Gray 100
+  borderFocus: '#3B82F6',   // Primary
 
-  // Status Colors - Soft & Friendly
-  error: '#EF4444',
+  // Status Colors - Bright
+  error: '#EF4444',         // Red 500
   errorLight: '#FEF2F2',
   errorText: '#DC2626',
-  
-  success: '#10B981',
-  successLight: '#F0FDF4',
+
+  success: '#10B981',       // Emerald 500
+  successLight: '#ECFDF5',
   successText: '#059669',
-  
-  warning: '#F59E0B',
+
+  warning: '#F59E0B',       // Amber 500
   warningLight: '#FFFBEB',
   warningText: '#D97706',
 
-  info: '#3B82F6',
+  info: '#3B82F6',          // Blue 500
   infoLight: '#EFF6FF',
   infoText: '#2563EB',
 
-  // Shadow Colors - Soft
-  shadow: 'rgba(15, 23, 42, 0.08)',
-  shadowMedium: 'rgba(15, 23, 42, 0.12)',
-  shadowStrong: 'rgba(15, 23, 42, 0.16)',
-  shadowPrimary: 'rgba(99, 102, 241, 0.3)',
-  shadowSecondary: 'rgba(236, 72, 153, 0.3)',
+  // Shadow Colors - Crisp
+  shadow: 'rgba(0, 0, 0, 0.05)',
+  shadowMedium: 'rgba(0, 0, 0, 0.1)',
+  shadowStrong: 'rgba(0, 0, 0, 0.15)',
+  shadowPrimary: 'rgba(59, 130, 246, 0.25)',
+  shadowSecondary: 'rgba(236, 72, 153, 0.25)',
 
   // Overlay
-  overlay: 'rgba(15, 23, 42, 0.6)',
-  overlayLight: 'rgba(15, 23, 42, 0.4)',
+  overlay: 'rgba(0, 0, 0, 0.4)',
+  overlayLight: 'rgba(0, 0, 0, 0.2)',
 
   // Transparent
   transparent: 'transparent',
 
   // Interactive States
-  hover: 'rgba(99, 102, 241, 0.08)',
-  pressed: 'rgba(99, 102, 241, 0.12)',
-  disabled: '#F1F5F9',
-  disabledText: '#CBD5E1',
+  hover: 'rgba(59, 130, 246, 0.08)',
+  pressed: 'rgba(59, 130, 246, 0.12)',
+  disabled: '#F3F4F6',
+  disabledText: '#9CA3AF',
 };
 
-// iOS-Style Gradients
+// iOS-Style Gradients - Simplified/Bright
 export const gradients = {
-  // Primary gradients - Soft
-  primary: ['#6366F1', '#8B5CF6'],
-  primarySoft: ['#A5B4FC', '#C4B5FD'],
-  
-  // Secondary gradients - Soft
-  secondary: ['#EC4899', '#F472B6'],
-  secondarySoft: ['#F9A8D4', '#FBCFE8'],
-  
+  // Primary gradients
+  primary: ['#3B82F6', '#60A5FA'], // Bright Blue
+  primarySoft: ['#60A5FA', '#93C5FD'],
+
+  // Secondary gradients
+  secondary: ['#EC4899', '#F472B6'], // Pink
+  secondarySoft: ['#F472B6', '#FBCFE8'],
+
   // Accent gradients
-  mint: ['#6EE7B7', '#34D399'],
-  mintSoft: ['#A7F3D0', '#6EE7B7'],
-  
-  lavender: ['#C4B5FD', '#A78BFA'],
-  peach: ['#FDBA74', '#FB923C'],
-  sky: ['#7DD3FC', '#38BDF8'],
-  
-  // Background gradients - Subtle
-  background: ['#FFFFFF', '#F8FAFC'],
-  backgroundSubtle: ['#F8FAFC', '#F1F5F9'],
-  
-  // Dark mode gradients - Charcoal/Black
-  darkBg: ['#0A0A0A', '#1A1A1A'],
-  darkCard: ['#1A1A1A', '#2A2A2A'],
-  
+  mint: ['#10B981', '#34D399'],
+  mintSoft: ['#34D399', '#6EE7B7'],
+
+  lavender: ['#8B5CF6', '#A78BFA'],
+  peach: ['#F59E0B', '#FBBF24'],
+  sky: ['#06B6D4', '#22D3EE'],
+
+  // Background gradients - Very Subtle
+  background: ['#FFFFFF', '#F9FAFB'],
+  backgroundSubtle: ['#F9FAFB', '#F3F4F6'],
+
+  // Dark mode gradients
+  darkBg: ['#121212', '#1E1E1E'],
+  darkCard: ['#1E1E1E', '#2D2D2D'],
+
   // Button gradients
-  button: ['#6366F1', '#8B5CF6'],
-  buttonSecondary: ['#EC4899', '#F472B6'],
-  buttonSuccess: ['#10B981', '#34D399'],
-  
-  // Card gradients - Soft
+  button: ['#3B82F6', '#2563EB'],
+  buttonSecondary: ['#EC4899', '#DB2777'],
+  buttonSuccess: ['#10B981', '#059669'],
+
+  // Card gradients
   card: ['#FFFFFF', '#FFFFFF'],
-  cardElevated: ['#FFFFFF', '#F8FAFC'],
-  
-  // Special gradients - Playful
-  rainbow: ['#6366F1', '#EC4899', '#F59E0B'],
+  cardElevated: ['#FFFFFF', '#F9FAFB'],
+
+  // Special gradients
+  rainbow: ['#3B82F6', '#EC4899', '#F59E0B'],
   sunset: ['#EC4899', '#F59E0B', '#EF4444'],
   ocean: ['#3B82F6', '#06B6D4', '#10B981'],
-  
+
   // Overlay gradients
-  overlay: ['rgba(15, 23, 42, 0)', 'rgba(15, 23, 42, 0.6)'],
-  overlayTop: ['rgba(15, 23, 42, 0.6)', 'rgba(15, 23, 42, 0)'],
+  overlay: ['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0.6)'],
+  overlayTop: ['rgba(0, 0, 0, 0.6)', 'rgba(0, 0, 0, 0)'],
 };
 
 // Color utility functions
