@@ -71,12 +71,12 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
 
   // ⚡ PERFECT SYSTEM: Auto-refresh gallery on events
   useEffect(() => {
-    // Set up interval to refresh photos every 5 seconds when screen is active
+    // Set up interval to refresh photos every 30 seconds (prevent 429 rate limit)
     const refreshInterval = setInterval(() => {
       if (!needsUnlock) {
         loadPhotos();
       }
-    }, 5000);
+    }, 30000); // Changed from 5000 to 30000
 
     // Listen for photo events from RealtimeService
     const setupEventListeners = async () => {
