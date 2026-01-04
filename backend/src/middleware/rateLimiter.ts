@@ -1,8 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
 
 /**
- * Simple in-memory rate limiter
- * For production with multiple servers, use Redis-based solution
+ * Production-Ready Rate Limiter
+ * Uses User ID (from auth header) when available, falls back to IP
+ * Much higher limits to support real production traffic
  */
 
 interface RateLimitRecord {
@@ -31,6 +32,51 @@ interface RateLimitOptions {
 }
 
 /**
+ * Get User ID from request (JWT or query param)
+ * This ensures rate limits are per-user, not per-IP
+ */
+const getUserIdFromRequest = (req: Request): string | null => {
+    // 1. Try from authenticated user (set by auth middleware)
+    if ((req as any).user?.id) {
+        return `user:${(req as any).user.id}`;
+    }
+    
+    // 2. Try from userId query param (widget requests)
+    if (req.query.userId) {
+        return `user:${req.query.userId}`;
+    }
+    
+    // 3. Try from authorization header (extract from JWT if possible)
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        // Extract user ID from JWT without verifying (just for rate limiting key)
+        try {
+            const token = authHeader.slice(7);
+            const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+            if (payload.sub || payload.userId || payload.id) {
+                return `user:${payload.sub || payload.userId || payload.id}`;
+            }
+        } catch {
+            // Invalid JWT, fall back to IP
+        }
+    }
+    
+    return null;
+};
+
+/**
+ * Smart key generator: User ID if authenticated, IP otherwise
+ */
+const smartKeyGenerator = (req: Request): string => {
+    const userId = getUserIdFromRequest(req);
+    if (userId) {
+        return userId;
+    }
+    // Fall back to IP
+    return `ip:${req.ip || req.headers['x-forwarded-for'] || 'unknown'}`;
+};
+
+/**
  * Create a rate limiter middleware
  */
 export const createRateLimiter = (options: RateLimitOptions) => {
@@ -38,7 +84,7 @@ export const createRateLimiter = (options: RateLimitOptions) => {
         windowMs,
         maxRequests,
         message = 'Too many requests, please try again later.',
-        keyGenerator = (req) => req.ip || req.headers['x-forwarded-for'] as string || 'unknown',
+        keyGenerator = smartKeyGenerator, // Use smart key by default
     } = options;
 
     return (req: Request, res: Response, next: NextFunction): void => {
@@ -84,52 +130,62 @@ export const createRateLimiter = (options: RateLimitOptions) => {
     };
 };
 
-// Pre-configured rate limiters for different endpoints
+// ============================================
+// PRE-CONFIGURED RATE LIMITERS FOR PRODUCTION
+// ============================================
 
 /**
- * General API rate limit - 100 requests per minute
- */
-/**
- * General API rate limit - 300 requests per minute
+ * General API rate limit - 1000 requests per minute per user (very generous)
  */
 export const generalLimiter = createRateLimiter({
     windowMs: 60 * 1000, // 1 minute
-    maxRequests: 300,
+    maxRequests: 1000,
     message: 'Too many requests, please slow down.',
 });
 
 /**
- * Auth rate limit - 60 requests per minute
+ * Auth rate limit - 200 requests per minute per user
  */
 export const authLimiter = createRateLimiter({
     windowMs: 60 * 1000, // 1 minute
-    maxRequests: 60,
+    maxRequests: 200,
     message: 'Too many authentication attempts, please try again in a minute.',
 });
 
 /**
- * Pairing rate limit - 60 requests per minute
+ * Pairing rate limit - 120 requests per minute per user
  */
 export const pairingLimiter = createRateLimiter({
     windowMs: 60 * 1000, // 1 minute
-    maxRequests: 60,
+    maxRequests: 120,
     message: 'Too many pairing attempts, please wait.',
 });
 
 /**
- * Upload rate limit - 30 uploads per minute
+ * Upload/Moments rate limit - 100 requests per minute per user
+ * (Includes GET /all, GET /latest, POST /upload, DELETE, etc.)
  */
 export const uploadLimiter = createRateLimiter({
     windowMs: 60 * 1000, // 1 minute
-    maxRequests: 30,
-    message: 'Too many uploads, please wait before uploading more.',
+    maxRequests: 100,
+    message: 'Too many moment requests, please wait before trying again.',
 });
 
 /**
- * Strict rate limit for sensitive operations - 5 per minute
+ * Widget rate limit - 200 requests per minute (extra generous for background widget)
+ */
+export const widgetLimiter = createRateLimiter({
+    windowMs: 60 * 1000, // 1 minute
+    maxRequests: 200,
+    message: 'Widget rate limit exceeded.',
+});
+
+/**
+ * Strict rate limit for sensitive operations - 30 per minute per user
  */
 export const strictLimiter = createRateLimiter({
     windowMs: 60 * 1000, // 1 minute
-    maxRequests: 5,
+    maxRequests: 30,
     message: 'Rate limit exceeded for this operation.',
 });
+

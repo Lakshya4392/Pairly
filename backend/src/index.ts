@@ -147,7 +147,7 @@ app.get('/uploads/:filename', async (req, res) => {
 app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
 
 // Rate limiting
-import { generalLimiter, authLimiter, pairingLimiter, uploadLimiter } from './middleware/rateLimiter';
+import { generalLimiter, authLimiter, pairingLimiter, uploadLimiter, widgetLimiter } from './middleware/rateLimiter';
 app.use(generalLimiter); // Apply general rate limit to all routes
 
 // Import routes
@@ -206,13 +206,13 @@ app.get('/keep-alive', (req, res) => {
 app.use('/auth', authLimiter, authRoutes); // Strict rate limit for auth
 app.use('/auth', authLimiter, inviteRoutes); // Invite routes also under auth
 app.use('/pairs', pairingLimiter, pairRoutes); // Pairing rate limit
-app.use('/moments', uploadLimiter, momentRoutes); // Upload rate limit
+app.use('/moments', uploadLimiter, momentRoutes); // Moments rate limit (all operations)
 app.use('/test', testRoutes);
 app.use('/users', userRoutes);
 app.use('/notes', noteRoutes);
 app.use('/timelock', timeLockRoutes);
 app.use('/dual-moments', uploadLimiter, dualCameraRoutes); // Upload rate limit
-app.use('/widget', widgetRoutes);
+app.use('/widget', widgetLimiter, widgetRoutes); // 🔥 Widget-specific generous limit
 app.use('/invites', authLimiter, inviteRoutes);
 app.use('/config', configRoutes);
 app.use('/reminders', reminderRoutes);
