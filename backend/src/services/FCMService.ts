@@ -155,12 +155,14 @@ class FCMService {
   /**
    * ⚡ IMPROVED: Send new photo notification with URL for background download
    * Premium romantic messages that vary
+   * @param expiresAt - ISO timestamp when photo should expire from widget (null = default 24h)
    */
   async sendNewPhotoNotification(
     fcmToken: string,
     photoUrl: string,
     partnerName: string,
-    momentId: string
+    momentId: string,
+    expiresAt?: string | null
   ): Promise<boolean> {
     // Romantic message variations
     const romanticMessages = [
@@ -182,6 +184,8 @@ class FCMService {
         partnerName,
         momentId,
         timestamp: Date.now().toString(),
+        // 🔥 WIDGET EXPIRY: Pass expiresAt timestamp to native widget
+        expiresAt: expiresAt || '',
       },
       message
     );

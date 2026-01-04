@@ -80,19 +80,37 @@ class PairlyMessagingService : FirebaseMessagingService() {
         val photoUrl = data["photoUrl"]
         val partnerName = data["partnerName"] ?: "Partner"
         val momentId = data["momentId"] ?: "unknown"
-        val expiresInStr = data["expiresIn"] // "0.167", "1", "24" etc.
+        val expiresAtStr = data["expiresAt"] // 🔥 NEW: ISO timestamp from backend
+        val expiresInStr = data["expiresIn"] // Fallback: "0.167", "1", "24" etc.
 
         Log.d(TAG, "🖼️ Photo URL: $photoUrl")
         Log.d(TAG, "👤 Partner: $partnerName")
+        Log.d(TAG, "⏱️ Expires At (ISO): $expiresAtStr")
         Log.d(TAG, "⏱️ Expires In (Hours): $expiresInStr")
 
-        // Parse Expiry
+        // Parse Expiry - prefer expiresAt (ISO timestamp), fallback to expiresIn (hours)
         var expiryTimestamp: Long = 0
-        if (!expiresInStr.isNullOrEmpty()) {
+        
+        // 🔥 FIRST: Try to parse expiresAt (ISO timestamp from backend)
+        if (!expiresAtStr.isNullOrEmpty()) {
+            try {
+                val sdf = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US)
+                sdf.timeZone = java.util.TimeZone.getTimeZone("UTC")
+                val parsedDate = sdf.parse(expiresAtStr.substringBefore(".").substringBefore("Z"))
+                expiryTimestamp = parsedDate?.time ?: 0
+                Log.d(TAG, "✅ Parsed expiresAt: $expiryTimestamp (${java.util.Date(expiryTimestamp)})")
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Error parsing expiresAt: $expiresAtStr - ${e.message}")
+            }
+        }
+        
+        // Fallback: Try expiresIn (hours from now)
+        if (expiryTimestamp == 0L && !expiresInStr.isNullOrEmpty()) {
             try {
                 val hours = expiresInStr.toDouble()
                 if (hours > 0) {
                     expiryTimestamp = System.currentTimeMillis() + (hours * 3600 * 1000).toLong()
+                    Log.d(TAG, "✅ Calculated from expiresIn: $expiryTimestamp")
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "❌ Error parsing expiresIn: $expiresInStr")
@@ -118,11 +136,12 @@ class PairlyMessagingService : FirebaseMessagingService() {
                                 momentId,
                                 expiryTimestamp // 🔥 Pass Custom Expiry
                             )
-                            // Also update Polaroid widget
+                            // Also update Polaroid widget with same expiry
                             PairlyPolaroidWidget.updateWithPhoto(
                                 applicationContext,
                                 bitmap,
-                                momentId
+                                momentId,
+                                expiryTimestamp // 🔥 Pass Custom Expiry to Polaroid too!
                             )
 
                             

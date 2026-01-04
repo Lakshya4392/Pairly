@@ -62,6 +62,7 @@
         <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
         <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE"/>
         <action android:name="com.pairly.app.widget.ACTION_REFRESH"/>
+        <action android:name="com.pairly.app.widget.ACTION_EXPIRE"/>
       </intent-filter>
       <meta-data android:name="android.appwidget.provider" 
                  android:resource="@xml/pairly_widget_info"/>
@@ -76,6 +77,7 @@
         <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
         <action android:name="com.pairly.app.widget.POLAROID_REFRESH"/>
         <action android:name="com.pairly.app.widget.POLAROID_REACT"/>
+        <action android:name="com.pairly.app.widget.POLAROID_EXPIRE"/>
       </intent-filter>
       <meta-data android:name="android.appwidget.provider" 
                  android:resource="@xml/pairly_widget_polaroid_info"/>

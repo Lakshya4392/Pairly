@@ -296,12 +296,13 @@ export const uploadMoment = async (req: AuthRequest, res: Response): Promise<voi
         if (partner?.fcmToken) {
           console.log(`📲 [FCM] Sending push notification to partner...`);
           const FCMService = (await import('../services/FCMService')).default;
-          // ⚡ MODIFIED: Send URL instead of Base64
+          // ⚡ MODIFIED: Send URL instead of Base64, include expiresAt for widget timer
           const fcmSent = await FCMService.sendNewPhotoNotification(
             partner.fcmToken,
             photoUrl,
             user.displayName || 'Your Partner',
-            moment.id
+            moment.id,
+            expiresAt ? expiresAt.toISOString() : null // 🔥 Pass expiry timestamp
           );
 
           if (fcmSent) {
@@ -540,6 +541,9 @@ export const getLatestMoment = async (req: AuthRequest, res: Response): Promise<
     let photoResponse: any = {
       partnerName: partner.displayName,
       sentAt: moment.uploadedAt.toISOString(),
+      id: moment.id,
+      // 🔥 WIDGET EXPIRY: Return expiresAt for widget timer
+      expiresAt: moment.expiresAt ? moment.expiresAt.toISOString() : null,
     };
 
     if (fs.existsSync(filePath)) {
@@ -552,6 +556,10 @@ export const getLatestMoment = async (req: AuthRequest, res: Response): Promise<
       // For now, let's keep sending base64 to not break existing clients, BUT also send URL.
       const fileBuffer = fs.readFileSync(filePath);
       photoResponse.photo = fileBuffer.toString('base64');
+      // Also return Cloudinary URL if available (faster CDN)
+      if (moment.photoUrl) {
+        photoResponse.photoData = moment.photoUrl;
+      }
     } else {
       // Fallback to DB blob if file not found
       photoResponse.photo = Buffer.from(moment.photoData).toString('base64');
