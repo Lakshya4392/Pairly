@@ -87,6 +87,26 @@ class PairlyWidgetModule(reactContext: ReactApplicationContext) : ReactContextBa
     }
 
     /**
+     * Save partner name to SharedPreferences for widget display
+     */
+    @ReactMethod
+    fun savePartnerName(partnerName: String, promise: Promise) {
+        try {
+            val sharedPrefs = reactApplicationContext.getSharedPreferences("pairly_prefs", Context.MODE_PRIVATE)
+            sharedPrefs.edit().putString("partner_name", partnerName).apply()
+            println("✅ Widget: Partner name saved: $partnerName")
+            
+            // Trigger widget refresh to show partner name
+            refreshAllWidgets()
+            
+            promise.resolve(true)
+        } catch (e: Exception) {
+            println("❌ Widget: savePartnerName error: ${e.message}")
+            promise.reject("ERROR", e.message)
+        }
+    }
+
+    /**
      * Manually trigger widget refresh
      */
     @ReactMethod
@@ -119,10 +139,8 @@ class PairlyWidgetModule(reactContext: ReactApplicationContext) : ReactContextBa
                 println("🔄 Widget: Refresh broadcast sent for ${widgetIds.size} widgets")
             }
 
-            // Also refresh V3 Widgets
-            com.pairly.app.widget.PairlyV3Widget.updateAllWidgets(reactApplicationContext)
-            // Also refresh V4 Widgets
-            com.pairly.app.widget.PairlyV4Widget.updateAllWidgets(reactApplicationContext)
+            // Also refresh Polaroid Widget
+            com.pairly.app.widget.PairlyPolaroidWidget.updateAllWidgets(reactApplicationContext)
         } catch (e: Exception) {
             println("⚠️ Widget: refreshAllWidgets error: ${e.message}")
         }

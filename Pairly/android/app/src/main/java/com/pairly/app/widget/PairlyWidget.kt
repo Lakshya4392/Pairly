@@ -60,10 +60,20 @@ class PairlyWidget : AppWidgetProvider() {
     private fun updateWidgetWithDefault(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int) {
         try {
             val views = RemoteViews(context.packageName, R.layout.pairly_widget_simple)
+            val prefs = context.getSharedPreferences("pairly_prefs", Context.MODE_PRIVATE)
             
-            // Use current layout IDs
-            views.setTextViewText(R.id.widget_sender_name, "Pairly")
-            views.setTextViewText(R.id.widget_timestamp, "Tap to share")
+            // Try to get partner name from prefs
+            val partnerName = prefs.getString("partner_name", null)
+            
+            if (partnerName != null && partnerName.isNotEmpty()) {
+                // Show partner name with waiting message
+                views.setTextViewText(R.id.widget_sender_name, "$partnerName 💕")
+                views.setTextViewText(R.id.widget_timestamp, "Waiting for moment...")
+            } else {
+                // No partner - show default
+                views.setTextViewText(R.id.widget_sender_name, "Pairly")
+                views.setTextViewText(R.id.widget_timestamp, "Tap to share")
+            }
             views.setImageViewResource(R.id.widget_image, R.drawable.widget_placeholder)
             
             // Click handler
@@ -94,7 +104,9 @@ class PairlyWidget : AppWidgetProvider() {
                 return
             }
 
-            val senderName = prefs.getString("last_sender_name", "Partner") ?: "Partner"
+            // Get sender name - fallback to saved partner name if not available
+            val partnerName = prefs.getString("partner_name", "Partner") ?: "Partner"
+            val senderName = prefs.getString("last_sender_name", partnerName) ?: partnerName
             
             views.setImageViewBitmap(R.id.widget_image, bitmap)
             views.setTextViewText(R.id.widget_sender_name, "$senderName 💝")
@@ -354,7 +366,9 @@ class PairlyWidget : AppWidgetProvider() {
         private val appWidgetId: Int
     ) : AsyncTask<Void, Void, Bitmap?>() {
 
-        private var senderName: String = "Partner"
+        // Initialize senderName from saved partner_name
+        private var senderName: String = context.getSharedPreferences("pairly_prefs", Context.MODE_PRIVATE)
+            .getString("partner_name", "Partner") ?: "Partner"
         private var momentId: String? = null
 
         override fun doInBackground(vararg params: Void?): Bitmap? {

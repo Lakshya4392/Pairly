@@ -166,82 +166,99 @@ export const PairingScreen: React.FC<PairingScreenProps> = ({ onPairingComplete,
 
   const renderChooseMode = () => (
     <View style={styles.content}>
-      {/* Premium Background Atmosphere */}
+      {/* ✨ Premium Animated Background */}
       <View style={styles.blobContainer}>
+        {/* Larger, softer gradient blobs */}
         <LinearGradient
-          colors={['rgba(255, 107, 157, 0.12)', 'rgba(255, 107, 157, 0)']}
-          style={styles.blobTopRight}
-          start={{ x: 0.8, y: 0.2 }}
-          end={{ x: 0, y: 1 }}
+          colors={['rgba(236, 72, 153, 0.15)', 'rgba(236, 72, 153, 0)']}
+          style={[styles.blobTopRight, { transform: [{ rotate: '15deg' }] }]}
+          start={{ x: 0.7, y: 0.3 }}
+          end={{ x: 0.3, y: 0.9 }}
         />
         <LinearGradient
           colors={['rgba(168, 85, 247, 0.12)', 'rgba(168, 85, 247, 0)']}
           style={styles.blobBottomLeft}
-          start={{ x: 0.2, y: 0.8 }}
-          end={{ x: 1, y: 0 }}
+          start={{ x: 0.2, y: 0.2 }}
+          end={{ x: 0.8, y: 0.8 }}
         />
         <LinearGradient
-          colors={['rgba(14, 165, 233, 0.08)', 'rgba(14, 165, 233, 0)']}
-          style={styles.blobCenter}
-          start={{ x: 0.5, y: 0.5 }}
-          end={{ x: 1, y: 1 }}
+          colors={['rgba(59, 130, 246, 0.08)', 'rgba(59, 130, 246, 0)']}
+          style={[styles.blobCenter, { transform: [{ rotate: '-10deg' }] }]}
+          start={{ x: 0.5, y: 0.2 }}
+          end={{ x: 0.5, y: 0.9 }}
         />
       </View>
 
-      {/* Premium Hero Header with Glowing Heart */}
+      {/* 💕 Premium Hero with Glowing Heart */}
       <View style={styles.header}>
         <View style={styles.iconContainer}>
-          <View style={styles.iconOuterRing}>
-            <LinearGradient
-              colors={['#FF6B9D', '#EC4899', '#A855F7']}
-              style={styles.iconGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
-              <Ionicons name="heart" size={42} color="white" />
-            </LinearGradient>
+          {/* Outer glow ring */}
+          <View style={styles.iconGlowOuter}>
+            <View style={styles.iconGlowInner}>
+              <LinearGradient
+                colors={['#FF6B9D', '#EC4899', '#D946EF']}
+                style={styles.iconGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <Ionicons name="heart" size={44} color="white" />
+              </LinearGradient>
+            </View>
           </View>
         </View>
+
         <Text style={styles.title}>Connect with{'\n'}Your Person</Text>
         <Text style={styles.subtitle}>
-          Start your shared journey together
+          Begin your beautiful journey together
         </Text>
       </View>
 
-      {/* Beautiful Premium Option Cards - Vertical Stack */}
+      {/* 🎨 Premium Option Cards */}
       <View style={styles.optionsContainer}>
-        {/* Generate Code Card - Blue Pastel */}
+        {/* Generate Code Card - Premium Glassmorphism Blue */}
         <Animated.View style={{ transform: [{ scale: generateCardScale }], width: '100%' }}>
           <TouchableOpacity
             onPress={handleGenerateCode}
-            activeOpacity={0.9}
+            activeOpacity={0.85}
             disabled={loading}
           >
-            <LinearGradient
-              colors={['#E0F2FE', '#BAE6FD', '#E0F2FE']}
-              style={styles.optionCardGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
-              <View style={styles.optionCardInner}>
-                <View style={[styles.optionIconCircle, { backgroundColor: '#0EA5E9' }]}>
-                  <Ionicons name="add" size={28} color="white" />
+            <View style={styles.premiumCardWrapper}>
+              <LinearGradient
+                colors={['rgba(186, 230, 253, 0.95)', 'rgba(224, 242, 254, 0.9)', 'rgba(186, 230, 253, 0.85)']}
+                style={styles.premiumCardGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                {/* Glass overlay */}
+                <View style={styles.glassOverlay} />
+
+                <View style={styles.premiumCardContent}>
+                  {/* Icon with gradient background */}
+                  <LinearGradient
+                    colors={['#0EA5E9', '#38BDF8']}
+                    style={styles.premiumIconCircle}
+                  >
+                    <Ionicons name="add" size={26} color="white" />
+                  </LinearGradient>
+
+                  <View style={styles.premiumTextContainer}>
+                    <Text style={styles.premiumCardTitle}>Generate Code</Text>
+                    <Text style={styles.premiumCardSubtitle}>
+                      Create your unique invite code
+                    </Text>
+                  </View>
+
+                  {/* Premium arrow with subtle background */}
+                  <View style={[styles.premiumArrowCircle, { backgroundColor: 'rgba(14, 165, 233, 0.15)' }]}>
+                    <Ionicons name="chevron-forward" size={18} color="#0EA5E9" />
+                  </View>
                 </View>
-                <View style={styles.optionTextContainer}>
-                  <Text style={styles.optionTitle}>Generate Code</Text>
-                  <Text style={styles.optionDescription}>
-                    Create your unique invite code
-                  </Text>
-                </View>
-                <View style={styles.optionArrow}>
-                  <Ionicons name="chevron-forward" size={20} color="#0EA5E9" />
-                </View>
-              </View>
-            </LinearGradient>
+              </LinearGradient>
+            </View>
           </TouchableOpacity>
         </Animated.View>
 
-        {/* Enter Code Card - Pink Pastel */}
+        {/* Enter Code Card - Premium Glassmorphism Pink */}
         <Animated.View style={{ transform: [{ scale: joinCardScale }], width: '100%' }}>
           <TouchableOpacity
             onPress={() => {
@@ -258,31 +275,49 @@ export const PairingScreen: React.FC<PairingScreenProps> = ({ onPairingComplete,
               ]).start();
               setTimeout(() => setMode('join'), 100);
             }}
-            activeOpacity={0.9}
+            activeOpacity={0.85}
           >
-            <LinearGradient
-              colors={['#FCE7F3', '#FBCFE8', '#FCE7F3']}
-              style={styles.optionCardGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
-              <View style={styles.optionCardInner}>
-                <View style={[styles.optionIconCircle, { backgroundColor: '#EC4899' }]}>
-                  <Ionicons name="link" size={28} color="white" />
+            <View style={styles.premiumCardWrapper}>
+              <LinearGradient
+                colors={['rgba(251, 207, 232, 0.95)', 'rgba(252, 231, 243, 0.9)', 'rgba(251, 207, 232, 0.85)']}
+                style={styles.premiumCardGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                {/* Glass overlay */}
+                <View style={styles.glassOverlay} />
+
+                <View style={styles.premiumCardContent}>
+                  {/* Icon with gradient background */}
+                  <LinearGradient
+                    colors={['#EC4899', '#F472B6']}
+                    style={styles.premiumIconCircle}
+                  >
+                    <Ionicons name="link" size={24} color="white" />
+                  </LinearGradient>
+
+                  <View style={styles.premiumTextContainer}>
+                    <Text style={styles.premiumCardTitle}>Enter Code</Text>
+                    <Text style={styles.premiumCardSubtitle}>
+                      Join with partner's invite code
+                    </Text>
+                  </View>
+
+                  {/* Premium arrow with subtle background */}
+                  <View style={[styles.premiumArrowCircle, { backgroundColor: 'rgba(236, 72, 153, 0.15)' }]}>
+                    <Ionicons name="chevron-forward" size={18} color="#EC4899" />
+                  </View>
                 </View>
-                <View style={styles.optionTextContainer}>
-                  <Text style={styles.optionTitle}>Enter Code</Text>
-                  <Text style={styles.optionDescription}>
-                    Join with partner's invite code
-                  </Text>
-                </View>
-                <View style={styles.optionArrow}>
-                  <Ionicons name="chevron-forward" size={20} color="#EC4899" />
-                </View>
-              </View>
-            </LinearGradient>
+              </LinearGradient>
+            </View>
           </TouchableOpacity>
         </Animated.View>
+      </View>
+
+      {/* Subtle trust message */}
+      <View style={styles.trustBadge}>
+        <Ionicons name="shield-checkmark" size={14} color={colors.textTertiary} />
+        <Text style={styles.trustText}>Secure & Private Connection</Text>
       </View>
 
       {onSkipPairing && (
@@ -299,41 +334,83 @@ export const PairingScreen: React.FC<PairingScreenProps> = ({ onPairingComplete,
 
   const renderGenerateMode = () => (
     <View style={styles.content}>
+      {/* ✨ Premium Background */}
+      <View style={styles.blobContainer}>
+        <LinearGradient
+          colors={['rgba(14, 165, 233, 0.12)', 'rgba(14, 165, 233, 0)']}
+          style={[styles.blobTopRight, { transform: [{ rotate: '15deg' }] }]}
+          start={{ x: 0.7, y: 0.3 }}
+          end={{ x: 0.3, y: 0.9 }}
+        />
+        <LinearGradient
+          colors={['rgba(34, 197, 94, 0.1)', 'rgba(34, 197, 94, 0)']}
+          style={styles.blobBottomLeft}
+          start={{ x: 0.2, y: 0.2 }}
+          end={{ x: 0.8, y: 0.8 }}
+        />
+      </View>
+
+      {/* ✅ Success Header with Green Glow */}
       <View style={styles.header}>
         <View style={styles.iconContainer}>
-          <View style={styles.successIconContainer}>
-            <Ionicons name="checkmark-circle" size={32} color={colors.success} />
+          <View style={[styles.iconGlowOuter, { backgroundColor: 'rgba(34, 197, 94, 0.08)' }]}>
+            <View style={[styles.iconGlowInner, { shadowColor: '#22C55E' }]}>
+              <LinearGradient
+                colors={['#22C55E', '#4ADE80']}
+                style={styles.iconGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <Ionicons name="checkmark-circle" size={40} color="white" />
+              </LinearGradient>
+            </View>
           </View>
         </View>
         <Text style={styles.title}>Your Invite Code</Text>
         <Text style={styles.subtitle}>Share this code with your partner</Text>
       </View>
 
-      <View style={styles.codeContainer}>
-        <View style={styles.codeDisplay}>
-          <Text style={styles.codeText}>{generatedCode}</Text>
-        </View>
-
-        <TouchableOpacity
-          style={styles.copyButton}
-          onPress={handleCopyCode}
-          activeOpacity={0.8}
+      {/* 🎨 Premium Code Display Card */}
+      <View style={styles.premiumCardWrapper}>
+        <LinearGradient
+          colors={['rgba(186, 230, 253, 0.95)', 'rgba(224, 242, 254, 0.9)', 'rgba(186, 230, 253, 0.85)']}
+          style={[styles.premiumCardGradient, { padding: spacing.xxl, alignItems: 'center' }]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
         >
-          <LinearGradient
-            colors={[colors.primary, colors.primaryLight]}
-            style={styles.copyButtonGradient}
-          >
-            <Ionicons name="copy" size={20} color="white" />
-            <Text style={styles.copyButtonText}>Copy Code</Text>
-          </LinearGradient>
-        </TouchableOpacity>
+          <View style={styles.glassOverlay} />
+
+          <View style={{ zIndex: 1, alignItems: 'center' }}>
+            {/* Big Code Display */}
+            <View style={[styles.codeDisplay, { backgroundColor: 'rgba(255,255,255,0.8)', borderRadius: borderRadius.xl, paddingHorizontal: spacing.xxl, paddingVertical: spacing.xl, marginBottom: spacing.lg }]}>
+              <Text style={[styles.codeText, { fontSize: 32, letterSpacing: 8 }]}>{generatedCode}</Text>
+            </View>
+
+            {/* Copy Button - Blue Gradient */}
+            <TouchableOpacity
+              style={styles.copyButton}
+              onPress={handleCopyCode}
+              activeOpacity={0.85}
+            >
+              <LinearGradient
+                colors={['#0EA5E9', '#38BDF8']}
+                style={[styles.copyButtonGradient, { paddingHorizontal: spacing.xxl }]}
+              >
+                <Ionicons name="copy" size={18} color="white" />
+                <Text style={styles.copyButtonText}>Copy Code</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </LinearGradient>
       </View>
 
-      <View style={styles.infoContainer}>
-        <Ionicons name="time" size={16} color={colors.textTertiary} />
+      {/* Timer Info */}
+      <View style={[styles.infoContainer, { marginTop: spacing.xl }]}>
+        <Ionicons name="time-outline" size={16} color={colors.textTertiary} />
         <Text style={styles.expiryText}>Code expires in 15 minutes</Text>
       </View>
 
+      {/* Back Button */}
       <TouchableOpacity
         style={styles.backButtonContainer}
         onPress={() => setMode('choose')}
@@ -345,62 +422,102 @@ export const PairingScreen: React.FC<PairingScreenProps> = ({ onPairingComplete,
     </View>
   );
 
+
   const renderJoinMode = () => (
     <View style={styles.content}>
+      {/* ✨ Premium Background */}
+      <View style={styles.blobContainer}>
+        <LinearGradient
+          colors={['rgba(236, 72, 153, 0.12)', 'rgba(236, 72, 153, 0)']}
+          style={[styles.blobTopRight, { transform: [{ rotate: '15deg' }] }]}
+          start={{ x: 0.7, y: 0.3 }}
+          end={{ x: 0.3, y: 0.9 }}
+        />
+        <LinearGradient
+          colors={['rgba(168, 85, 247, 0.1)', 'rgba(168, 85, 247, 0)']}
+          style={styles.blobBottomLeft}
+          start={{ x: 0.2, y: 0.2 }}
+          end={{ x: 0.8, y: 0.8 }}
+        />
+      </View>
+
+      {/* 💕 Header with Pink Glow */}
       <View style={styles.header}>
         <View style={styles.iconContainer}>
-          <View style={styles.joinIconContainer}>
-            <Ionicons name="link" size={32} color={colors.secondary} />
+          <View style={[styles.iconGlowOuter, { backgroundColor: 'rgba(236, 72, 153, 0.08)' }]}>
+            <View style={[styles.iconGlowInner, { shadowColor: '#EC4899' }]}>
+              <LinearGradient
+                colors={['#EC4899', '#F472B6']}
+                style={styles.iconGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <Ionicons name="link" size={40} color="white" />
+              </LinearGradient>
+            </View>
           </View>
         </View>
         <Text style={styles.title}>Enter Invite Code</Text>
         <Text style={styles.subtitle}>Enter the 6-character code from your partner</Text>
       </View>
 
-      <View style={styles.joinInputContainer}>
-        <View style={styles.codeInputWrapper}>
-          <TextInput
-            style={styles.codeInput}
-            value={inviteCode}
-            onChangeText={(text) => setInviteCode(text.toUpperCase())}
-            placeholder="ABC123"
-            placeholderTextColor={colors.textTertiary}
-            maxLength={6}
-            autoCapitalize="characters"
-            autoCorrect={false}
-            autoFocus
-          />
-        </View>
+      {/* 🎨 Premium Code Input Card */}
+      <View style={styles.premiumCardWrapper}>
+        <LinearGradient
+          colors={['rgba(252, 231, 243, 0.95)', 'rgba(251, 207, 232, 0.9)', 'rgba(252, 231, 243, 0.85)']}
+          style={[styles.premiumCardGradient, { padding: spacing.xl }]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          <View style={styles.glassOverlay} />
 
-        <Text style={styles.inputHelper}>
-          Ask your partner to share their invite code
-        </Text>
+          <View style={{ zIndex: 1 }}>
+            <TextInput
+              style={[styles.codeInput, { backgroundColor: 'rgba(255,255,255,0.7)', borderRadius: borderRadius.lg, padding: spacing.lg }]}
+              value={inviteCode}
+              onChangeText={(text) => setInviteCode(text.toUpperCase())}
+              placeholder="ABC123"
+              placeholderTextColor={colors.textTertiary}
+              maxLength={6}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              autoFocus
+            />
+
+            <Text style={[styles.inputHelper, { marginTop: spacing.md }]}>
+              Ask your partner to share their invite code
+            </Text>
+          </View>
+        </LinearGradient>
       </View>
 
+      {/* 🔗 Connect Button */}
       <TouchableOpacity
         style={[
           styles.connectButton,
+          { marginTop: spacing.xl },
           inviteCode.length !== 6 && styles.connectButtonDisabled
         ]}
         onPress={handleJoinWithCode}
         disabled={loading || inviteCode.length !== 6}
-        activeOpacity={0.8}
+        activeOpacity={0.85}
       >
         <LinearGradient
-          colors={inviteCode.length === 6 ? [colors.secondary, colors.secondaryLight] : [colors.disabled, colors.disabled]}
+          colors={inviteCode.length === 6 ? ['#EC4899', '#F472B6'] : [colors.disabled, colors.disabled]}
           style={styles.connectButtonGradient}
         >
           {loading ? (
             <Text style={styles.connectButtonText}>Connecting...</Text>
           ) : (
             <>
-              <Ionicons name="link" size={20} color="white" />
-              <Text style={styles.connectButtonText}>Connect</Text>
+              <Ionicons name="heart" size={20} color="white" />
+              <Text style={styles.connectButtonText}>Connect with Partner</Text>
             </>
           )}
         </LinearGradient>
       </TouchableOpacity>
 
+      {/* Back Button */}
       <TouchableOpacity
         style={styles.backButtonContainer}
         onPress={() => {
@@ -414,6 +531,7 @@ export const PairingScreen: React.FC<PairingScreenProps> = ({ onPairingComplete,
       </TouchableOpacity>
     </View>
   );
+
 
   return (
     <View style={styles.container}>
@@ -746,4 +864,103 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     color: colors.textTertiary,
     fontFamily: 'Inter-Medium',
   },
+
+  // ✨ Premium Glow Icon Styles
+  iconGlowOuter: {
+    padding: 8,
+    borderRadius: 36,
+    backgroundColor: 'rgba(236, 72, 153, 0.08)',
+  },
+  iconGlowInner: {
+    padding: 6,
+    borderRadius: 30,
+    backgroundColor: 'rgba(255, 255, 255, 0.6)',
+    shadowColor: '#EC4899',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+
+  // 🎨 Premium Glassmorphism Cards
+  premiumCardWrapper: {
+    borderRadius: borderRadius.xl,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  premiumCardGradient: {
+    borderRadius: borderRadius.xl,
+    padding: spacing.lg,
+    minHeight: 88,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.5)',
+  },
+  glassOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '50%',
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    borderTopLeftRadius: borderRadius.xl,
+    borderTopRightRadius: borderRadius.xl,
+  },
+  premiumCardContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    zIndex: 1,
+  },
+  premiumIconCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  premiumTextContainer: {
+    flex: 1,
+  },
+  premiumCardTitle: {
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 17,
+    color: colors.text,
+    marginBottom: 2,
+  },
+  premiumCardSubtitle: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    lineHeight: 18,
+  },
+  premiumArrowCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  // 🔒 Trust Badge
+  trustBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    marginBottom: spacing.xl,
+  },
+  trustText: {
+    fontSize: 12,
+    color: colors.textTertiary,
+    fontFamily: 'Inter-Medium',
+  },
 });
+

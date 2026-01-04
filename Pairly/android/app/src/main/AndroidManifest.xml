@@ -81,32 +81,6 @@
                  android:resource="@xml/pairly_widget_polaroid_info"/>
     </receiver>
     
-    <!-- V3 Widget (Gold Canvas Style) -->
-    <receiver android:name=".widget.PairlyV3Widget" 
-              android:exported="true" 
-              android:label="Pairly Gold"
-              android:enabled="true">
-      <intent-filter>
-        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
-        <action android:name="com.pairly.app.widget.V3_REFRESH"/>
-      </intent-filter>
-      <meta-data android:name="android.appwidget.provider" 
-                 android:resource="@xml/pairly_widget_v3_info"/>
-    </receiver>
-
-    <!-- V4 Widget (Pink Heart) -->
-    <receiver android:name=".widget.PairlyV4Widget" 
-              android:exported="true" 
-              android:label="Pairly Pink Heart"
-              android:enabled="true">
-      <intent-filter>
-        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
-        <action android:name="com.pairly.app.widget.V4_REFRESH"/>
-      </intent-filter>
-      <meta-data android:name="android.appwidget.provider" 
-                 android:resource="@xml/pairly_widget_v4_info"/>
-    </receiver>
-    
     <!-- Native FCM Service for background widget updates -->
     <service
         android:name=".PairlyMessagingService"

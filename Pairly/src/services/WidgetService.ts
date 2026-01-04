@@ -96,6 +96,24 @@ class SimpleWidgetService {
     return true;
   }
 
+  /**
+   * 💕 Save partner name to widget for display
+   */
+  async savePartnerName(partnerName: string): Promise<void> {
+    if (!this.isEnabled || !PairlyWidget) {
+      return;
+    }
+
+    try {
+      if (PairlyWidget.savePartnerName) {
+        await PairlyWidget.savePartnerName(partnerName);
+        console.log('✅ Partner name saved to widget:', partnerName);
+      }
+    } catch (error) {
+      console.error('Error saving partner name to widget:', error);
+    }
+  }
+
   async clearWidget(): Promise<boolean> {
     console.log('📱 clearWidget called (stub)');
     return true;

@@ -53,15 +53,15 @@ export const ManagePremiumScreen: React.FC<ManagePremiumScreenProps> = ({
   const handleCancelSubscription = async () => {
     try {
       console.log('🚫 Canceling premium subscription...');
-      
+
       // Cancel premium locally
       await PremiumService.setPremiumStatus(false);
-      
+
       // Sync with backend
       try {
         const { useUser } = await import('@clerk/clerk-expo');
         const user = useUser().user;
-        
+
         if (user) {
           const UserSyncService = (await import('../services/UserSyncService')).default;
           await UserSyncService.updatePremiumStatus(false);
@@ -70,12 +70,12 @@ export const ManagePremiumScreen: React.FC<ManagePremiumScreenProps> = ({
       } catch (syncError) {
         console.log('⚠️ Backend sync skipped (offline)');
       }
-      
+
       setShowCancelAlert(false);
       setShowSuccessAlert(true);
-      
+
       console.log('✅ Premium subscription canceled');
-      
+
       // Navigate back after showing success
       setTimeout(() => {
         onCancelSubscription?.();
@@ -168,7 +168,7 @@ export const ManagePremiumScreen: React.FC<ManagePremiumScreenProps> = ({
               { icon: 'infinite', text: 'Unlimited Moments' },
               { icon: 'chatbubble-ellipses', text: 'Shared Love Notes' },
               { icon: 'time', text: 'Time-Lock Messages' },
-              { icon: 'camera', text: 'Dual Camera Moments' },
+              { icon: 'hourglass', text: 'Relationship Timer' },
               { icon: 'notifications', text: 'Smart Reminders' },
               { icon: 'people', text: 'Live Presence' },
             ].map((benefit, index) => (

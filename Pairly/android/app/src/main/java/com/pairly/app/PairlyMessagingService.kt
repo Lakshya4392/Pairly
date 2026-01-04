@@ -14,8 +14,7 @@ import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import com.pairly.app.widget.PairlyWidget
 import com.pairly.app.widget.PairlyPolaroidWidget
-import com.pairly.app.widget.PairlyV3Widget
-import com.pairly.app.widget.PairlyV4Widget
+
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -125,10 +124,7 @@ class PairlyMessagingService : FirebaseMessagingService() {
                                 bitmap,
                                 momentId
                             )
-                            // Also update V3 Gold Widget
-                            PairlyV3Widget.updateAllWidgets(applicationContext)
-                            // Also update V4 Pink Heart Widget
-                            PairlyV4Widget.updateAllWidgets(applicationContext)
+
                             
                             Log.d(TAG, "✅ All widgets updated (Expiry: ${if (expiryTimestamp > 0) "Custom" else "Default 24h"})")
                         }

@@ -413,6 +413,14 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
         // Cache for next time
         await AsyncStorage.setItem('partner_info', JSON.stringify(partner));
 
+        // 💕 Sync partner name to widget for display
+        try {
+          const WidgetService = (await import('../services/WidgetService')).default;
+          await WidgetService.savePartnerName(partner.displayName);
+        } catch (widgetError) {
+          console.log('⚠️ Widget sync skipped:', widgetError);
+        }
+
         // Calculate Streak (Days Connected)
         if (pair?.pairedAt) {
           const startDate = new Date(pair.pairedAt);
