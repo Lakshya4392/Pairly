@@ -391,19 +391,22 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
       const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
 
       // ⚡ FAST: Load cached partner info first (instant display)
+      // But we'll verify with backend and clear if not paired
+      let cachedPartnerName: string | null = null;
       try {
         const cachedPartner = await AsyncStorage.getItem('partner_info');
         if (cachedPartner) {
           const partner = JSON.parse(cachedPartner);
+          cachedPartnerName = partner.displayName;
+          // Temporarily show cached name (will be verified)
           setPartnerName(partner.displayName);
-          setIsPartnerConnected(true);
           console.log('⚡ [PARTNER] Loaded from cache:', partner.displayName);
         }
       } catch (cacheError) {
         console.log('⚠️ [PARTNER] No cache, fetching fresh');
       }
 
-      // Fetch fresh pair info
+      // Fetch fresh pair info - THIS IS THE SOURCE OF TRUTH
       const pair = await PairingService.getPair();
       const partner = pair?.partner;
 
@@ -434,17 +437,34 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
 
         console.log('✅ [PARTNER] Loaded and cached:', partner.displayName);
       } else {
-        // If no partner, show solo mode
+        // 🔥 NOT PAIRED: Clear everything
+        console.log('❌ [PARTNER] Not paired - clearing cache');
         setPartnerName('Solo Mode');
         setIsPartnerConnected(false);
-        // Clear cache
+        setStreakDays(0);
+        // Clear partner cache
         await AsyncStorage.removeItem('partner_info');
+        // Clear recent photos cache too
+        await AsyncStorage.removeItem('@pairly_recent_photos');
+        setRecentPhotos([]);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading partner:', error);
-      // Fallback to solo mode if pairing service fails
-      setPartnerName('Solo Mode');
-      setIsPartnerConnected(false);
+      // 🔥 If error contains "No active pairing", user is NOT paired
+      if (error.message?.includes('No active pairing') || error.message?.includes('404')) {
+        console.log('❌ [PARTNER] Not paired (404) - clearing cache');
+        const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+        setPartnerName('Solo Mode');
+        setIsPartnerConnected(false);
+        setStreakDays(0);
+        await AsyncStorage.removeItem('partner_info');
+        await AsyncStorage.removeItem('@pairly_recent_photos');
+        setRecentPhotos([]);
+      } else {
+        // Network error etc - keep cached data for UX
+        setPartnerName('Solo Mode');
+        setIsPartnerConnected(false);
+      }
     }
   };
 
@@ -573,12 +593,27 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
           // Cache for next time
           await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(recentUrls));
           console.log(`✅ [RECENT] Loaded ${recentUrls.length} photos`);
+        } else {
+          // No photos from backend - clear everything
+          setRecentPhotos([]);
+          await AsyncStorage.removeItem(CACHE_KEY);
         }
+      } else if (response.isPaired === false) {
+        // 🔥 NOT PAIRED: Clear cache and show empty
+        console.log('❌ [RECENT] Not paired - clearing cache');
+        setRecentPhotos([]);
+        await AsyncStorage.removeItem(CACHE_KEY);
       }
-      // Don't set empty if API fails - keep cached data
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading recent photos:', error);
-      // Keep existing photos on error (no flicker)
+      // 🔥 Detect "No active pairing" 404 error
+      if (error.message?.includes('No active pairing') || error.message?.includes('404')) {
+        console.log('❌ [RECENT] Not paired (404) - clearing cache');
+        const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+        setRecentPhotos([]);
+        await AsyncStorage.removeItem('@pairly_recent_photos');
+      }
+      // For other errors, keep existing photos (no flicker)
     }
   };
 

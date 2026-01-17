@@ -104,5 +104,15 @@
         android:excludeFromRecents="true"
         android:taskAffinity=""
         android:exported="false"/>
+    
+    <!-- Widget Tap Receiver for double-tap detection -->
+    <receiver
+        android:name=".widget.WidgetTapReceiver"
+        android:exported="false">
+      <intent-filter>
+        <action android:name="com.pairly.app.widget.WIDGET_TAP"/>
+        <action android:name="com.pairly.app.widget.DELAYED_OPEN_APP"/>
+      </intent-filter>
+    </receiver>
   </application>
 </manifest>

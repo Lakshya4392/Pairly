@@ -1,29 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Pairly Widget with Reaction Button -->
+<!-- Pairly Widget - Clean & Resizable -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_container"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#1A1A1A">
 
-    <!-- Full Photo -->
+    <!-- Full Photo - fills entire widget -->
     <ImageView
         android:id="@+id/widget_image"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:scaleType="centerCrop" />
-
-    <!-- Tiny Heart (top right) -->
-    <TextView
-        android:id="@+id/widget_heart_icon"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top|end"
-        android:layout_marginTop="8dp"
-        android:layout_marginEnd="10dp"
-        android:text="♥"
-        android:textColor="#FF6B6B"
-        android:textSize="12sp" />
 
     <!-- Partner Name (bottom left) -->
     <TextView
@@ -37,26 +25,22 @@
         android:textColor="#FFFFFF"
         android:textSize="14sp"
         android:textStyle="bold" />
-    
-    <!-- Single Reaction Button (bottom right) -->
-    <TextView
-        android:id="@+id/react_button"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom|end"
-        android:layout_marginEnd="12dp"
-        android:layout_marginBottom="8dp"
-        android:text="💕"
-        android:textSize="20sp"
-        android:background="#80000000"
-        android:paddingHorizontal="10dp"
-        android:paddingVertical="4dp"
-        android:clickable="true"
-        android:focusable="true" />
 
-    <!-- Hidden timestamp -->
+    <!-- Hidden fields for compatibility -->
     <TextView
         android:id="@+id/widget_timestamp"
+        android:layout_width="1dp"
+        android:layout_height="1dp"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/widget_heart_icon"
+        android:layout_width="1dp"
+        android:layout_height="1dp"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/react_button"
         android:layout_width="1dp"
         android:layout_height="1dp"
         android:visibility="gone" />

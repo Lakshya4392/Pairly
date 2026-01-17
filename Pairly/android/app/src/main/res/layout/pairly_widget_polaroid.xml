@@ -1,17 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Pairly Polaroid Widget - Premium Style -->
+<!-- Pairly Polaroid Widget - Premium Clean Style -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_container"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:padding="8dp">
+    android:padding="6dp">
 
-    <!-- Polaroid Frame (White Background with Shadow) -->
+    <!-- Polaroid Frame (White Background) -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
-        android:background="@drawable/polaroid_background"
+        android:background="@drawable/polaroid_background_rounded"
         android:padding="10dp"
         android:gravity="center_horizontal">
 
@@ -19,7 +19,8 @@
         <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_weight="1">
+            android:layout_weight="1"
+            android:background="#F0F0F0">
 
             <!-- Photo -->
             <ImageView
@@ -27,7 +28,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:scaleType="centerCrop"
-                android:background="#F5F5F5" />
+                android:background="#F0F0F0" />
 
             <!-- Default Heart when no photo -->
             <TextView
@@ -39,25 +40,9 @@
                 android:textSize="48sp"
                 android:visibility="gone" />
 
-            <!-- Single Reaction Button (bottom right of photo) -->
-            <TextView
-                android:id="@+id/react_button"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="bottom|end"
-                android:layout_marginEnd="8dp"
-                android:layout_marginBottom="8dp"
-                android:text="💕"
-                android:textSize="20sp"
-                android:background="#80000000"
-                android:paddingHorizontal="10dp"
-                android:paddingVertical="4dp"
-                android:clickable="true"
-                android:focusable="true" />
-
         </FrameLayout>
 
-        <!-- Missing You Text (Centered below photo) -->
+        <!-- Missing You Text -->
         <TextView
             android:id="@+id/widget_missing_text"
             android:layout_width="wrap_content"
@@ -81,6 +66,18 @@
 
     <TextView
         android:id="@+id/widget_timestamp"
+        android:layout_width="1dp"
+        android:layout_height="1dp"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/widget_heart_icon"
+        android:layout_width="1dp"
+        android:layout_height="1dp"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/react_button"
         android:layout_width="1dp"
         android:layout_height="1dp"
         android:visibility="gone" />

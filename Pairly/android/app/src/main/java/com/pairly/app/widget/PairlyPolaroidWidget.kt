@@ -86,9 +86,10 @@ class PairlyPolaroidWidget : AppWidgetProvider() {
                     views.setViewVisibility(R.id.widget_placeholder, android.view.View.GONE)
                     views.setViewVisibility(R.id.widget_image, android.view.View.VISIBLE)
 
-                    // Click handler for main widget
-                    val intent = Intent(context, MainActivity::class.java)
-                    intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    // Click handler - Open app directly
+                    val intent = Intent(context, MainActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    }
                     val pendingIntent = PendingIntent.getActivity(
                         context, appWidgetId, intent,
                         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -233,14 +234,15 @@ class PairlyPolaroidWidget : AppWidgetProvider() {
         }
 
         /**
-         * Set up single reaction button that opens picker
+         * Set up reaction button in bottom-right
+         * Tap heart = Open reaction picker
          */
         private fun setupReactionButton(context: Context, views: RemoteViews, appWidgetId: Int) {
             try {
                 val prefs = context.getSharedPreferences("pairly_prefs", Context.MODE_PRIVATE)
                 val momentId = prefs.getString("polaroid_moment_id", null) ?: return
                 
-                // Single reaction button opens picker activity (same as simple widget)
+                // Reaction button opens picker activity
                 val intent = Intent(context, ReactionPickerActivity::class.java).apply {
                     putExtra(ReactionPickerActivity.EXTRA_MOMENT_ID, momentId)
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -254,11 +256,12 @@ class PairlyPolaroidWidget : AppWidgetProvider() {
                     PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                 )
                 
+                // Attach to react button (visible in bottom-right)
                 views.setOnClickPendingIntent(R.id.react_button, pendingIntent)
                 
                 println("✅ [PolaroidWidget] Reaction button set up for moment: $momentId")
             } catch (e: Exception) {
-                println("⚠️ [PolaroidWidget] Failed to set up reaction button: ${e.message}")
+                println("⚠️ [PolaroidWidget] Failed to set up reaction: ${e.message}")
             }
         }
     }
