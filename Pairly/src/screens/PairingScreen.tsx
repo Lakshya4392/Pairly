@@ -933,12 +933,12 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
   premiumCardTitle: {
     fontFamily: 'Inter-SemiBold',
     fontSize: 17,
-    color: colors.text,
+    color: '#1A1A1A',
     marginBottom: 2,
   },
   premiumCardSubtitle: {
     fontSize: 13,
-    color: colors.textSecondary,
+    color: '#4A4A4A',
     lineHeight: 18,
   },
   premiumArrowCircle: {
