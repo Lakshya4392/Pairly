@@ -12,7 +12,7 @@ import { Platform } from 'react-native';
 export const getApiUrl = (): string => {
   // Use Render backend (works from any network)
   const renderUrl = 'https://pairly-60qj.onrender.com';
-  console.log('✅ Using Render backend URL:', renderUrl);
+  // console.log('✅ Using Render backend URL:', renderUrl);
   return renderUrl;
 };
 
@@ -22,7 +22,7 @@ export const getApiUrl = (): string => {
 export const getSocketUrl = (): string => {
   // Use Render backend (works from any network)
   const renderUrl = 'https://pairly-60qj.onrender.com';
-  console.log('✅ Using Render Socket URL:', renderUrl);
+  // console.log('✅ Using Render Socket URL:', renderUrl);
   return renderUrl;
 };
 

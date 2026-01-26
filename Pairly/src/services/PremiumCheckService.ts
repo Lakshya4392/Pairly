@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_CONFIG } from '../config/api.config';
+import Logger from '../utils/Logger';
 
 interface PremiumStatus {
   isPremium: boolean;
@@ -75,6 +76,42 @@ class PremiumCheckService {
   }
 
   /**
+   * ⚡ Start 30-day trial locally
+   */
+  async start30DayTrial(startDate: Date): Promise<void> {
+    try {
+      const expiresAt = new Date(startDate);
+      expiresAt.setDate(expiresAt.getDate() + 30);
+
+      const status: PremiumStatus = {
+        isPremium: true,
+        daysRemaining: 30,
+        referralCount: 0,
+        premiumExpiresAt: expiresAt.toISOString()
+      };
+
+      console.log('🎁 [Premium] Starting 30-day trial locally until:', expiresAt.toISOString());
+
+      await AsyncStorage.setItem('isPremium', 'true');
+      await AsyncStorage.setItem('premiumDaysRemaining', '30');
+      await AsyncStorage.setItem('premiumExpiresAt', expiresAt.toISOString());
+
+      this._cachedStatus = status;
+      this._lastCheckTime = Date.now();
+
+      // Sync with legacy service
+      try {
+        const PremiumService = (await import('./PremiumService')).default;
+        await PremiumService.setPremiumStatus(true, 'monthly', expiresAt);
+      } catch (e) {
+        console.warn('Failed to sync trial with PremiumService');
+      }
+    } catch (error) {
+      console.error('Error starting trial:', error);
+    }
+  }
+
+  /**
    * Check premium status - uses cache if available
    */
   async checkPremiumStatus(): Promise<PremiumStatus> {
@@ -86,6 +123,18 @@ class PremiumCheckService {
     }
 
     try {
+      // First check if we have a valid LOCAL trial that shouldn't be overwritten
+      const localStatus = await this.getLocalPremiumStatus();
+      if (localStatus.isPremium && localStatus.premiumExpiresAt) {
+        const expiry = new Date(localStatus.premiumExpiresAt);
+        if (expiry > new Date()) {
+          console.log('⚡ [Premium] Valid local trial active, skipping backend check to prevent overwrite');
+          this._cachedStatus = localStatus;
+          this._lastCheckTime = now;
+          return localStatus;
+        }
+      }
+
       const email = await AsyncStorage.getItem('userEmail');
       const clerkId = await AsyncStorage.getItem('clerkId');
 
@@ -106,6 +155,11 @@ class PremiumCheckService {
 
       const data = await response.json();
       console.log('✅ [Premium] Status:', data.isPremium ? 'PREMIUM' : 'FREE', `(${data.daysRemaining} days left)`);
+
+      // IF backend says FREE, but we might have just started a trial locally in AppNavigator (race condition),
+      // we should double check if we should really overwrite it.
+      // But since we did the localStatus check at the start of this function, we are relatively safe.
+      // However, if the user is TRULY free (expired), we accept it.
 
       // Save to local storage
       await AsyncStorage.setItem('isPremium', data.isPremium ? 'true' : 'false');

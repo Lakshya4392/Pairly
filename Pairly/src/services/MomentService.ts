@@ -10,6 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import apiClient from '../utils/apiClient';
 import { API_CONFIG } from '../config/api.config';
 import RealtimeService from './RealtimeService';
+import Logger from '../utils/Logger';
 
 export interface Photo {
   uri: string;
@@ -37,7 +38,7 @@ class SimpleMomentService {
    */
   async uploadPhoto(photo: Photo, note?: string, expiresIn?: number): Promise<UploadResult> {
     try {
-      console.log('📸 [UPLOAD] Starting simple upload...');
+      Logger.debug('📸 [UPLOAD] Starting simple upload...');
 
       // 1. Compress photo (expo-image-manipulator)
       const compressed = await ImageManipulator.manipulateAsync(
@@ -46,7 +47,7 @@ class SimpleMomentService {
         { compress: 0.8, format: SaveFormat.JPEG }
       );
 
-      console.log('✅ [UPLOAD] Photo compressed');
+      Logger.debug('✅ [UPLOAD] Photo compressed');
 
       // 2. Create FormData
       const formData = new FormData();
@@ -66,10 +67,10 @@ class SimpleMomentService {
         const displayTime = expiresIn < 1
           ? `${Math.round(expiresIn * 60)} minutes`
           : `${expiresIn} hours`;
-        console.log(`🔥 [UPLOAD] Photo will hide from widget in ${displayTime}`);
+        Logger.info(`🔥 [UPLOAD] Photo will hide from widget in ${displayTime}`);
       }
 
-      console.log('📤 [UPLOAD] Uploading to backend...');
+      Logger.debug('📤 [UPLOAD] Uploading to backend...');
 
       // 3. Upload to backend
       // NOTE: Do NOT set Content-Type manually - axios will auto-generate with boundary
@@ -78,7 +79,7 @@ class SimpleMomentService {
       const token = await AsyncStorage.getItem('auth_token');
       const uploadUrl = API_CONFIG.baseUrl + '/moments/upload';
 
-      console.log('📡 [UPLOAD] Direct fetch to:', uploadUrl);
+      Logger.debug('📡 [UPLOAD] Direct fetch to: ' + uploadUrl);
 
       const response = await fetch(uploadUrl, {
         method: 'POST',
@@ -95,7 +96,7 @@ class SimpleMomentService {
       try {
         responseData = JSON.parse(responseText);
       } catch (e) {
-        console.error('❌ [UPLOAD] Invalid JSON response:', responseText);
+        Logger.error('❌ [UPLOAD] Invalid JSON response:', responseText);
         throw new Error('Invalid response from server');
       }
 
@@ -103,7 +104,7 @@ class SimpleMomentService {
         throw new Error(responseData.error || `Upload failed: ${response.status}`);
       }
 
-      console.log('✅ [UPLOAD] Upload successful:', responseData.data.moment.id);
+      Logger.info('✅ [UPLOAD] Upload successful: ' + responseData.data.moment.id);
 
       // Map to expected local structure for the rest of the function
       const data = {
@@ -127,7 +128,7 @@ class SimpleMomentService {
         timestamp: metadata.timestamp,
       });
 
-      console.log('✅ [UPLOAD] Complete!');
+      Logger.debug('✅ [UPLOAD] Complete!');
 
       return {
         success: true,
@@ -135,7 +136,7 @@ class SimpleMomentService {
       };
 
     } catch (error: any) {
-      console.error('❌ [UPLOAD] Failed:', error.message);
+      Logger.error('❌ [UPLOAD] Failed:', error.message);
       return {
         success: false,
         error: error.message || 'Upload failed',
@@ -148,7 +149,7 @@ class SimpleMomentService {
    */
   async schedulePhoto(params: { photo: any, scheduledTime: Date, caption?: string, expiresIn?: number }): Promise<UploadResult> {
     try {
-      console.log('⏰ [SCHEDULE] Scheduling photo for:', params.scheduledTime);
+      Logger.debug('⏰ [SCHEDULE] Scheduling photo for: ' + params.scheduledTime);
 
       // 1. Compress photo
       const compressed = await ImageManipulator.manipulateAsync(
@@ -157,7 +158,7 @@ class SimpleMomentService {
         { compress: 0.8, format: SaveFormat.JPEG }
       );
 
-      console.log('✅ [SCHEDULE] Photo compressed');
+      Logger.debug('✅ [SCHEDULE] Photo compressed');
 
       // 2. Create FormData with schedule info
       const formData = new FormData();
@@ -178,10 +179,10 @@ class SimpleMomentService {
       // 🔥 PHOTO EXPIRY: Send expiry duration in hours
       if (params.expiresIn && params.expiresIn > 0) {
         formData.append('expiresIn', params.expiresIn.toString());
-        console.log(`🔥 [SCHEDULE] Photo expires in ${params.expiresIn} hours`);
+        Logger.info(`🔥 [SCHEDULE] Photo expires in ${params.expiresIn} hours`);
       }
 
-      console.log('📤 [SCHEDULE] Uploading scheduled moment...');
+      Logger.debug('📤 [SCHEDULE] Uploading scheduled moment...');
 
       // 3. Upload to backend
       const token = await AsyncStorage.getItem('auth_token');
@@ -201,8 +202,8 @@ class SimpleMomentService {
         throw new Error(responseData.error || 'Schedule failed');
       }
 
-      console.log('✅ [SCHEDULE] Moment scheduled for:', params.scheduledTime);
-      console.log('   📸 Moment ID:', responseData.data.moment.id);
+      Logger.info('✅ [SCHEDULE] Moment scheduled for: ' + params.scheduledTime);
+      Logger.debug('   📸 Moment ID: ' + responseData.data.moment.id);
 
       return {
         success: true,
@@ -210,7 +211,7 @@ class SimpleMomentService {
       };
 
     } catch (error: any) {
-      console.error('❌ [SCHEDULE] Failed:', error.message);
+      Logger.error('❌ [SCHEDULE] Failed:', error.message);
       return {
         success: false,
         error: error.message || 'Schedule failed',
@@ -223,7 +224,7 @@ class SimpleMomentService {
    */
   async onMomentAvailable(data: { momentId: string; timestamp: string; partnerName?: string }): Promise<void> {
     try {
-      console.log('📥 [RECEIVE] Moment available:', data.momentId);
+      Logger.info('📥 [RECEIVE] Moment available: ' + data.momentId);
 
       // Save metadata only
       const metadata: MomentMetadata = {
@@ -239,16 +240,24 @@ class SimpleMomentService {
         const EnhancedNotificationService = (await import('./EnhancedNotificationService')).default;
         await EnhancedNotificationService.showMomentNotification(data.partnerName || 'Partner', data.momentId);
       } catch (error) {
-        console.error('Notification error:', error);
+        Logger.error('Notification error:', error);
       }
 
       // Trigger gallery refresh
       RealtimeService.emit('gallery_refresh', { timestamp: Date.now() });
 
-      console.log('✅ [RECEIVE] Metadata saved, notification sent');
+      Logger.debug('✅ [RECEIVE] Metadata saved, notification sent');
+
+      // 🔥 WIDGET FIX: Notify widget of new moment
+      try {
+        const WidgetUtils = (await import('../utils/WidgetUtils')).default;
+        await WidgetUtils.notifyNewMoment();
+      } catch (widgetError) {
+        Logger.warn('⚠️ Widget notification failed:', widgetError);
+      }
 
     } catch (error) {
-      console.error('❌ [RECEIVE] Error:', error);
+      Logger.error('❌ [RECEIVE] Error:', error);
     }
   }
 
@@ -257,23 +266,23 @@ class SimpleMomentService {
    */
   async getLatestMoment(): Promise<{ photo: string; partnerName: string; sentAt: string } | null> {
     try {
-      console.log('📡 [FETCH] Getting latest moment from backend...');
+      Logger.debug('📡 [FETCH] Getting latest moment from backend...');
 
       const response: any = await apiClient.get('/moments/latest');
 
       if (!response.data?.success) {
-        console.log('⚠️ [FETCH] No moment found');
+        Logger.debug('⚠️ [FETCH] No moment found');
         return null;
       }
 
-      console.log('✅ [FETCH] Moment received');
+      Logger.debug('✅ [FETCH] Moment received');
 
       // 🔥 WIDGET FIX: Notify widget of new moment
       try {
         const WidgetUtils = (await import('../utils/WidgetUtils')).default;
         await WidgetUtils.notifyNewMoment();
       } catch (widgetError) {
-        console.warn('⚠️ Widget notification failed:', widgetError);
+        Logger.warn('⚠️ Widget notification failed:', widgetError);
       }
 
       return {
@@ -283,7 +292,7 @@ class SimpleMomentService {
       };
 
     } catch (error: any) {
-      console.error('❌ [FETCH] Error:', error.message);
+      Logger.error('❌ [FETCH] Error:', error.message);
       return null;
     }
   }
@@ -305,10 +314,10 @@ class SimpleMomentService {
       // Save
       await AsyncStorage.setItem('moments_metadata', JSON.stringify(limited));
 
-      console.log('💾 Metadata saved:', metadata.momentId);
+      Logger.debug('💾 Metadata saved: ' + metadata.momentId);
 
     } catch (error) {
-      console.error('Error saving metadata:', error);
+      Logger.error('Error saving metadata:', error);
     }
   }
 
@@ -320,7 +329,7 @@ class SimpleMomentService {
       const data = await AsyncStorage.getItem('moments_metadata');
       return data ? JSON.parse(data) : [];
     } catch (error) {
-      console.error('Error getting metadata:', error);
+      Logger.error('Error getting metadata:', error);
       return [];
     }
   }
@@ -331,10 +340,10 @@ class SimpleMomentService {
   async clearAllData(): Promise<boolean> {
     try {
       await AsyncStorage.removeItem('moments_metadata');
-      console.log('✅ All metadata cleared');
+      Logger.info('✅ All metadata cleared');
       return true;
     } catch (error) {
-      console.error('Error clearing data:', error);
+      Logger.error('Error clearing data:', error);
       return false;
     }
   }
@@ -352,7 +361,7 @@ class SimpleMomentService {
         partnerMoments: metadata.filter(m => m.sender === 'partner').length,
       };
     } catch (error) {
-      console.error('Error getting stats:', error);
+      Logger.error('Error getting stats:', error);
       return {
         totalMoments: 0,
         myMoments: 0,
@@ -365,7 +374,7 @@ class SimpleMomentService {
    * 🔄 Initialize service
    */
   async initialize(): Promise<void> {
-    console.log('🚀 SimpleMomentService initialized');
+    Logger.info('🚀 SimpleMomentService initialized');
 
     // Setup socket listener for moment_available
     RealtimeService.on('moment_available', (data: any) => {

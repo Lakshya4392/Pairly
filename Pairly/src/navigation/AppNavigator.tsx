@@ -324,6 +324,27 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
         const expiryDate = status.premiumExpiresAt ? new Date(status.premiumExpiresAt) : undefined;
         // Use 'monthly' as default plan type for waitlist users
         await PremiumService.setPremiumStatus(true, 'monthly', expiryDate);
+      } else {
+        // 🔥 FIX: If user is not premium but is NEW (< 30 days old), give them a trial
+        // This fixes the issue where backend returns FREE for waitlist users
+        if (user.createdAt) {
+          const createdAt = new Date(user.createdAt);
+          const now = new Date();
+          const diffTime = Math.abs(now.getTime() - createdAt.getTime());
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+          console.log(`👤 User age: ${diffDays} days`);
+
+          if (diffDays <= 30) {
+            console.log('🎁 User is new (< 30 days), enforcing 30-day trial...');
+            await PremiumCheckService.start30DayTrial(createdAt);
+
+            // Refresh local status immediately to update UI
+            const newStatus = await PremiumCheckService.getLocalPremiumStatus();
+            setIsPremium(newStatus.isPremium);
+            return;
+          }
+        }
       }
     } catch (error) {
       console.error('Error checking premium status:', error);

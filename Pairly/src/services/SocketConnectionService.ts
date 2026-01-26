@@ -2,6 +2,7 @@ import { io, Socket } from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState, AppStateStatus, Platform } from 'react-native';
 import { API_CONFIG } from '../config/api.config';
+import Logger from '../utils/Logger';
 
 // APK detection
 const isAPK = !__DEV__ && Platform.OS === 'android';
@@ -37,7 +38,7 @@ class SocketConnectionService {
     this.isConnecting = true;
 
     try {
-      console.log(`🔌 Initializing socket connection for user: ${userId}`);
+      Logger.info(`🔌 Initializing socket connection for user: ${userId}`);
 
       // ⚡ BULLETPROOF: Wait for internet connection
       try {

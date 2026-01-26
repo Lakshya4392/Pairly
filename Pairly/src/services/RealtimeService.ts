@@ -4,6 +4,7 @@ import NetInfo from '@react-native-community/netinfo';
 import { API_CONFIG } from '../config/api.config';
 import { APP_CONFIG, log } from '../config/app.config';
 import AuthService from './AuthService';
+import Logger from '../utils/Logger';
 
 // APK detection
 const isAPK = !__DEV__ && Platform.OS === 'android';
@@ -32,7 +33,7 @@ class RealtimeService {
    */
   private async wakeUpBackend(): Promise<void> {
     try {
-      console.log('⏰ Waking up backend...');
+      Logger.debug('⏰ Waking up backend...');
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
 
@@ -42,9 +43,9 @@ class RealtimeService {
       });
 
       clearTimeout(timeoutId);
-      console.log('✅ Backend is awake');
+      Logger.debug('✅ Backend is awake');
     } catch (error) {
-      console.log('⚠️ Backend wake-up failed (will retry with socket)');
+      Logger.debug('⚠️ Backend wake-up failed (will retry with socket)');
     }
   }
 
@@ -53,7 +54,7 @@ class RealtimeService {
    */
   async connect(userId: string): Promise<void> {
     if (this.socket && this.isConnected) {
-      log.debug('Already connected to Socket.IO');
+      Logger.debug('Already connected to Socket.IO');
       return;
     }
 
@@ -75,9 +76,9 @@ class RealtimeService {
         }
       }
 
-      log.network('Connecting to Socket.IO:', API_CONFIG.socketUrl);
-      console.log('🔌 Creating realtime socket with URL:', API_CONFIG.socketUrl);
-      console.log('🔑 Auth token present:', !!token);
+      Logger.debug('Connecting to Socket.IO:', API_CONFIG.socketUrl);
+      Logger.debug('🔌 Creating realtime socket with URL:', API_CONFIG.socketUrl);
+      Logger.debug('🔑 Auth token present:', !!token);
 
       this.socket = io(API_CONFIG.socketUrl, {
         auth: {
@@ -127,7 +128,7 @@ class RealtimeService {
       this.setupAppStateHandler();
     } catch (error) {
       // Silent fail - app works without realtime features
-      log.debug('Realtime features unavailable');
+      Logger.warn('Realtime features unavailable');
     }
   }
 
@@ -144,11 +145,11 @@ class RealtimeService {
       const wasAvailable = this.isNetworkAvailable;
       this.isNetworkAvailable = state.isConnected === true && state.isInternetReachable === true;
 
-      log.debug(`📡 Network status: ${this.isNetworkAvailable ? 'Online' : 'Offline'}`);
+      Logger.debug(`📡 Network status: ${this.isNetworkAvailable ? 'Online' : 'Offline'}`);
 
       // Network came back online
       if (!wasAvailable && this.isNetworkAvailable) {
-        console.log('🌐 Internet restored - reconnecting socket...');
+        Logger.info('🌐 Internet restored - reconnecting socket...');
 
         if (this.socket && !this.socket.connected) {
           this.socket.connect();
@@ -157,11 +158,11 @@ class RealtimeService {
 
       // Network went offline
       if (wasAvailable && !this.isNetworkAvailable) {
-        console.log('📡 Internet lost - socket will auto-reconnect when available');
+        Logger.warn('📡 Internet lost - socket will auto-reconnect when available');
       }
     });
 
-    console.log('✅ Network listener setup complete');
+    Logger.debug('✅ Network listener setup complete');
   }
 
   /**
@@ -174,15 +175,15 @@ class RealtimeService {
     }
 
     this.appStateSubscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
-      console.log(`📱 App state: ${this.lastAppState} → ${nextAppState}`);
+      Logger.debug(`📱 App state: ${this.lastAppState} → ${nextAppState}`);
 
       // App came to foreground
       if (this.lastAppState.match(/inactive|background/) && nextAppState === 'active') {
-        console.log('🔄 App foreground - checking socket...');
+        Logger.debug('🔄 App foreground - checking socket...');
 
         // Reconnect if disconnected
         if (this.socket && !this.socket.connected && this.isNetworkAvailable) {
-          console.log('⚡ Reconnecting socket...');
+          Logger.debug('⚡ Reconnecting socket...');
           this.socket.connect();
         }
 
@@ -194,7 +195,7 @@ class RealtimeService {
 
       // App going to background
       if (nextAppState.match(/inactive|background/)) {
-        console.log('📱 App background - switching to slow heartbeat');
+        Logger.debug('📱 App background - switching to slow heartbeat');
 
         // ⚡ WORLD CLASS: Don't stop completely! Switch to slow heartbeat
         // This keeps presence alive ("Idle") without draining battery
@@ -206,10 +207,9 @@ class RealtimeService {
       this.lastAppState = nextAppState;
     });
 
-    console.log('✅ App state handler setup complete');
+    Logger.debug('✅ App state handler setup complete');
   }
 
-  // ... (rest of the file until startHeartbeat)
 
   /**
    * Set up Socket.IO event handlers
@@ -217,15 +217,13 @@ class RealtimeService {
   private setupEventHandlers(userId: string): void {
     if (!this.socket) return;
 
-    // ... (existing event handlers)
 
     // Connection successful
     this.socket.on('connect', async () => {
-      log.network('Socket.IO connected:', this.socket?.id);
+      Logger.info('Socket.IO connected:' + this.socket?.id);
       this.isConnected = true;
       this.reconnectAttempts = 0;
 
-      // ... (existing code)
 
       // Join user's personal room
       this.socket?.emit('join_room', { userId });
@@ -238,22 +236,21 @@ class RealtimeService {
       }
     });
 
-    // ... (rest of event handlers)
 
     // Room joined confirmation
     this.socket.on('room_joined', (data: { userId: string }) => {
-      log.debug('Joined room:', data.userId);
+      Logger.verbose('Joined room:', data.userId);
     });
 
     // New moment received
     this.socket.on('new_moment', (data: any) => {
-      log.debug('New moment received');
+      Logger.info('New moment received');
 
       // ⚡ WORLD CLASS: De-duplication for moments
       const messageId = data.momentId || data.id || `moment_${data.timestamp}`;
 
       if (this.processedMessageIds.has(messageId)) {
-        console.log('🛡️ Duplicate moment detected - ignoring:', messageId);
+        Logger.debug('🛡️ Duplicate moment detected - ignoring:', messageId);
         return;
       }
 
@@ -263,11 +260,11 @@ class RealtimeService {
 
     // ⚡ SIMPLE MVP: Moment available notification (lightweight)
     this.socket.on('moment_available', async (data: any) => {
-      log.debug('Photo received from partner:', data.senderName);
+      Logger.info('Photo received from partner:', data.senderName);
 
       // ⚡ CRITICAL FIX: Don't receive your own photos!
       if (data.senderId === this.currentUserId) {
-        console.log('🚫 [RECEIVER] Ignoring own photo (sender = receiver)');
+        Logger.debug('🚫 [RECEIVER] Ignoring own photo (sender = receiver)');
         return;
       }
 
@@ -275,7 +272,7 @@ class RealtimeService {
       const messageId = data.messageId || data.photoId || `${data.senderId}_${data.timestamp}`;
 
       if (this.processedMessageIds.has(messageId)) {
-        console.log('🛡️ Duplicate photo detected - ignoring:', messageId);
+        Logger.debug('🛡️ Duplicate photo detected - ignoring:', messageId);
         return;
       }
 
@@ -289,9 +286,9 @@ class RealtimeService {
           data.senderName || 'Partner',
           data.photoId || messageId
         );
-        console.log('✅ Push notification sent for new photo');
+        Logger.info('✅ Push notification sent for new photo');
       } catch (error) {
-        console.error('Error showing notification:', error);
+        Logger.error('Error showing notification:', error);
       }
 
       // ⚡ IMPROVED: Use MomentService to handle photo reception properly
@@ -306,7 +303,7 @@ class RealtimeService {
         );
 
         if (isFromPartner) {
-          log.debug('Verified photo is from paired partner');
+          Logger.debug('Verified photo is from paired partner');
 
           // ⚡ SIMPLE: Use MomentService.onMomentAvailable for simple flow
           const MomentService = (await import('./MomentService')).default;
@@ -317,14 +314,14 @@ class RealtimeService {
             partnerName: data.senderName,
           });
 
-          console.log('✅ Moment notification processed via MomentService');
+          Logger.info('✅ Moment notification processed via MomentService');
 
           // 🔥 WIDGET FIX: Notify widget of new moment
           try {
             const WidgetUtils = (await import('../utils/WidgetUtils')).default;
             await WidgetUtils.notifyNewMoment();
           } catch (widgetError) {
-            console.warn('⚠️ Widget notification failed:', widgetError);
+            Logger.warn('⚠️ Widget notification failed:', widgetError);
           }
 
           // ⚡ SIMPLE: Trigger event for UI update
@@ -333,57 +330,55 @@ class RealtimeService {
           // ⚡ SIMPLE: Trigger moment_available event for Recent Moments update
           // (Already triggered above - no need to duplicate)
         } else {
-          console.warn('⚠️ Received photo from non-paired user - ignoring');
-          console.warn('Sender:', data.senderId, 'Partner:', partner?.clerkId, partner?.id);
+          Logger.warn('⚠️ Received photo from non-paired user - ignoring');
         }
       } catch (error) {
-        console.error('Error verifying photo sender:', error);
+        Logger.error('Error verifying photo sender:', error);
         // Still trigger event in case of error (fail open)
         this.triggerEvent('moment_available', data);
       }
     });
 
-    // ... (rest of handlers)
 
     // Photo delivered confirmation
     this.socket.on('photo_delivered', (data: any) => {
-      // console.log('✅ Photo delivered to partner'); // Reduced log
+      // Logger.debug('✅ Photo delivered to partner'); // Reduced log
       this.triggerEvent('photo_delivered', data);
     });
 
     // Photo reaction received
     this.socket.on('photo_reaction', (data: any) => {
-      console.log('❤️ Reaction received:', data.reaction);
+      Logger.info('❤️ Reaction received:', data.reaction);
       this.triggerEvent('photo_reaction', data);
     });
 
     // Partner connected
     this.socket.on('partner_connected', (data: any) => {
-      console.log('🎉 Partner connected event received:', data);
+      Logger.info('🎉 Partner connected event received:', data);
       this.triggerEvent('partner_connected', data);
     });
 
     // Pairing success
     this.socket.on('pairing_success', (data: any) => {
-      console.log('🎉 Pairing success event received:', data);
+      Logger.info('🎉 Pairing success event received:', data);
       this.triggerEvent('pairing_success', data);
     });
 
     // Partner disconnected
     this.socket.on('partner_disconnected', (data: any) => {
-      console.log('Partner disconnected:', data);
+      Logger.info('Partner disconnected:', data);
       this.triggerEvent('partner_disconnected', data);
     });
 
     // Partner updated profile
     this.socket.on('partner_updated', (data: any) => {
-      console.log('Partner updated:', data);
+      Logger.debug('Partner updated:', data);
       this.triggerEvent('partner_updated', data);
     });
 
     // Partner presence (online/offline)
     this.socket.on('partner_presence', (data: any) => {
-      console.log('Partner presence:', data.isOnline ? '🟢 Online' : '⚫ Offline');
+      Logger.debug('Partner presence: ' + (data.isOnline ? '🟢 Online' : '⚫ Offline'));
       this.triggerEvent('partner_presence', data);
     });
 
@@ -394,7 +389,7 @@ class RealtimeService {
 
     // ⚡ FIXED: Note received from partner
     this.socket.on('receive_note', async (data: any) => {
-      console.log('📝 [NOTE] Received from:', data.senderName);
+      Logger.info('📝 [NOTE] Received from:', data.senderName);
 
       // Show push notification
       try {
@@ -403,9 +398,9 @@ class RealtimeService {
           data.senderName || 'Partner',
           data.noteContent
         );
-        console.log('✅ [NOTE] Notification shown');
+        Logger.info('✅ [NOTE] Notification shown');
       } catch (error) {
-        console.error('Error showing note notification:', error);
+        Logger.error('Error showing note notification:', error);
       }
 
       this.triggerEvent('receive_note', data);
@@ -414,19 +409,19 @@ class RealtimeService {
 
     // Time-lock message unlocked
     this.socket.on('timelock_unlocked', (data: any) => {
-      console.log('🔓 Time-lock message unlocked:', data.content);
+      Logger.info('🔓 Time-lock message unlocked:', data.content);
       this.triggerEvent('timelock_unlocked', data);
     });
 
     // 🔥 Meeting countdown set by partner
     this.socket.on('meeting_countdown_set', async (data: any) => {
-      console.log('⏰ Meeting countdown set by partner:', data.meetingDate);
+      Logger.info('⏰ Meeting countdown set by partner:', data.meetingDate);
 
       // Save to local storage
       try {
         const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
         await AsyncStorage.setItem('@pairly_meeting_date', data.meetingDate);
-        console.log('✅ Meeting date saved locally');
+        Logger.debug('✅ Meeting date saved locally');
 
         // Update widget
         const { NativeModules } = require('react-native');
@@ -435,10 +430,10 @@ class RealtimeService {
           await SharedPrefsModule.setString('meeting_date', data.meetingDate);
           await SharedPrefsModule.setString('partner_name_for_meet', data.setBy);
           await SharedPrefsModule.notifyWidgetUpdate();
-          console.log('✅ Widget updated with countdown');
+          Logger.debug('✅ Widget updated with countdown');
         }
       } catch (error) {
-        console.error('Error saving meeting date:', error);
+        Logger.error('Error saving meeting date:', error);
       }
 
       this.triggerEvent('meeting_countdown_set', data);
@@ -446,7 +441,7 @@ class RealtimeService {
 
     // 🔥 Meeting countdown cleared by partner
     this.socket.on('meeting_countdown_cleared', async (data: any) => {
-      console.log('⏰ Meeting countdown cleared by partner');
+      Logger.info('⏰ Meeting countdown cleared by partner');
 
       try {
         const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
@@ -461,7 +456,7 @@ class RealtimeService {
           await SharedPrefsModule.notifyWidgetUpdate();
         }
       } catch (error) {
-        console.error('Error clearing meeting date:', error);
+        Logger.error('Error clearing meeting date:', error);
       }
 
       this.triggerEvent('meeting_countdown_cleared', data);
@@ -469,7 +464,7 @@ class RealtimeService {
 
     // Disconnection
     this.socket.on('disconnect', async (reason: string) => {
-      console.log('⚠️ Socket.IO disconnected:', reason);
+      Logger.warn('⚠️ Socket.IO disconnected:', reason);
       this.isConnected = false;
 
       // Record connection drop
@@ -485,13 +480,13 @@ class RealtimeService {
 
     // Reconnection attempt
     this.socket.on('reconnect_attempt', (attemptNumber: number) => {
-      console.log('Reconnection attempt:', attemptNumber);
+      Logger.verbose('Reconnection attempt:', attemptNumber);
       this.reconnectAttempts = attemptNumber;
     });
 
     // Reconnection successful
     this.socket.on('reconnect', async (attemptNumber: number) => {
-      console.log('✅ Reconnected after', attemptNumber, 'attempts');
+      Logger.info('✅ Reconnected after ' + attemptNumber + ' attempts');
       this.isConnected = true;
       this.reconnectAttempts = 0;
 
@@ -501,9 +496,9 @@ class RealtimeService {
       // Process any queued moments after reconnection
       try {
         // ⚡ SIMPLE: No queue processing needed (direct upload to backend)
-        console.log('✅ Realtime reconnected - simple upload flow active');
+        Logger.debug('✅ Realtime reconnected - simple upload flow active');
       } catch (error) {
-        console.error('Error processing queued moments:', error);
+        Logger.error('Error processing queued moments:', error);
       }
 
       this.triggerEvent('reconnect', { attemptNumber });
@@ -511,7 +506,7 @@ class RealtimeService {
 
     // Reconnection failed
     this.socket.on('reconnect_failed', () => {
-      console.error('Reconnection failed after max attempts');
+      Logger.error('Reconnection failed after max attempts');
       this.triggerEvent('reconnect_failed', {});
     });
 
@@ -534,7 +529,7 @@ class RealtimeService {
       const toRemove = idsArray.slice(0, idsArray.length - this.maxProcessedIds);
       toRemove.forEach(id => this.processedMessageIds.delete(id));
 
-      console.log(`🧹 Cleaned old message IDs, kept last ${this.maxProcessedIds}`);
+      Logger.verbose(`🧹 Cleaned old message IDs, kept last ${this.maxProcessedIds}`);
     }
   }
 
@@ -559,7 +554,7 @@ class RealtimeService {
       this.socket.disconnect();
       this.socket = null;
       this.isConnected = false;
-      console.log('Socket.IO disconnected manually');
+      Logger.debug('Socket.IO disconnected manually');
     }
 
     // Clear processed IDs
@@ -614,26 +609,26 @@ class RealtimeService {
     try {
       if (this.socket && this.isConnected) {
         this.socket.emit(event, data);
-        log.debug(`📤 Emitted ${event}`);
+        Logger.verbose(`📤 Emitted ${event}`);
       } else {
-        console.warn(`⚠️ Cannot emit ${event}, socket not connected`);
+        Logger.warn(`⚠️ Cannot emit ${event}, socket not connected`);
 
         // Try to reconnect if not connected
         if (this.socket && !this.isConnected) {
-          console.log('🔄 Attempting to reconnect socket...');
+          Logger.debug('🔄 Attempting to reconnect socket...');
           this.socket.connect();
 
           // Retry emit after short delay
           setTimeout(() => {
             if (this.socket && this.isConnected) {
               this.socket.emit(event, data);
-              log.debug(`📤 Emitted ${event} after reconnect`);
+              Logger.verbose(`📤 Emitted ${event} after reconnect`);
             }
           }, 1000);
         }
       }
     } catch (error: any) {
-      console.error(`❌ Error emitting ${event}:`, error.message);
+      Logger.error(`❌ Error emitting ${event}:`, error.message);
       // Don't throw - fail gracefully
     }
   }
@@ -650,7 +645,7 @@ class RealtimeService {
 
         // Set timeout for acknowledgment
         const timeoutId = setTimeout(() => {
-          console.warn(`⏱️ Acknowledgment timeout for ${event}`);
+          Logger.warn(`⏱️ Acknowledgment timeout for ${event}`);
           callback({ success: false, error: 'Timeout' });
         }, timeout);
 
@@ -659,13 +654,13 @@ class RealtimeService {
           callback(response);
         });
 
-        log.debug(`📤 Emitted ${event} with ack and messageId: ${messageId}`);
+        Logger.debug(`📤 Emitted ${event} with ack and messageId: ${messageId}`);
       } else {
-        console.warn(`⚠️ Cannot emit ${event}, socket not connected`);
+        Logger.warn(`⚠️ Cannot emit ${event}, socket not connected`);
         callback({ success: false, error: 'Not connected' });
       }
     } catch (error: any) {
-      console.error(`❌ Error emitting ${event}:`, error.message);
+      Logger.error(`❌ Error emitting ${event}:`, error.message);
       callback({ success: false, error: error.message });
     }
   }
@@ -701,7 +696,7 @@ class RealtimeService {
       }
     }, 30000);
 
-    console.log('💓 Heartbeat started (FAST - 30s)');
+    Logger.verbose('💓 Heartbeat (FAST)');
 
     // Send one immediately
     if (this.isConnected) this.sendHeartbeat(userId);
@@ -720,18 +715,18 @@ class RealtimeService {
     this.heartbeatInterval = setInterval(() => {
       if (this.isConnected) {
         this.sendHeartbeat(userId);
-        console.log('💤💓 Background heartbeat sent');
+        Logger.verbose('💤💓 Background heartbeat sent');
       }
     }, 240000); // 4 minutes
 
-    console.log('💤💓 Heartbeat switched to BACKGROUND (SLOW - 4m)');
+    Logger.verbose('💤💓 Heartbeat switched to BACKGROUND (SLOW - 4m)');
   }
 
   stopHeartbeat(): void {
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
       this.heartbeatInterval = null;
-      console.log('💔 Heartbeat stopped');
+      Logger.debug('💔 Heartbeat stopped');
     }
   }
 }

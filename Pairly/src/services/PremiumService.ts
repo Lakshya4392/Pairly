@@ -180,24 +180,12 @@ class PremiumService {
   }
 
   /**
-   * Start free trial (7 days)
+   * Start free trial (30 days) - Delegates to PremiumCheckService
    */
   async startTrial(): Promise<void> {
     try {
-      const trialEndDate = new Date();
-      trialEndDate.setDate(trialEndDate.getDate() + 7); // 7 days trial
-
-      const status: PremiumStatus = {
-        isPremium: true,
-        plan: 'monthly',
-        expiresAt: trialEndDate.toISOString(),
-        trialEndsAt: trialEndDate.toISOString(),
-        dailyMomentsCount: 0,
-        dailyMomentsLimit: this.DAILY_LIMIT_PREMIUM,
-      };
-
-      await AsyncStorage.setItem(this.STORAGE_KEY, JSON.stringify(status));
-      console.log('✅ Trial started - expires:', trialEndDate);
+      const PremiumCheckService = (await import('./PremiumCheckService')).default;
+      await PremiumCheckService.start30DayTrial(new Date());
     } catch (error) {
       console.error('Error starting trial:', error);
     }

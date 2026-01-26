@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { User, AuthResponse, ApiResponse } from '@types';
 import apiClient from '../utils/apiClient';
 import { API_CONFIG } from '../config/api.config';
+import Logger from '../utils/Logger';
 
 const TOKEN_KEY = 'pairly_auth_token';
 const USER_KEY = 'pairly_user';
@@ -177,7 +178,7 @@ class AuthService {
    */
   async authenticateWithBackend(clerkToken: string, retryCount: number = 0): Promise<AuthResponse> {
     try {
-      console.log('🔐 Sending Clerk token to backend...');
+      Logger.debug('🔐 Sending Clerk token to backend...');
 
       const data = await apiClient.post<ApiResponse<AuthResponse>>(
         '/auth/google',
@@ -189,7 +190,7 @@ class AuthService {
         throw new Error('Invalid response from backend');
       }
 
-      console.log('✅ Received backend JWT token');
+      Logger.debug('✅ Received backend JWT token');
 
       // Store token and user
       await this.storeToken(data.data.token);

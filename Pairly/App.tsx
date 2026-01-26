@@ -8,6 +8,7 @@ import { PaperProvider } from 'react-native-paper';
 import { ClerkProvider } from '@clerk/clerk-expo';
 import * as SecureStore from 'expo-secure-store';
 import * as Linking from 'expo-linking';
+import Logger from './src/utils/Logger';
 import {
   useFonts,
   Inter_400Regular,
@@ -188,9 +189,9 @@ export default function App() {
         // ⚡ CRASH FIX: Initialize connection manager with error boundary
         const ConnectionManager = (await import('./src/utils/ConnectionManager')).default;
         ConnectionManager.initialize();
-        console.log('✅ ConnectionManager initialized');
+        Logger.debug('✅ ConnectionManager initialized');
       } catch (error) {
-        console.error('❌ ConnectionManager init failed:', error);
+        Logger.error('❌ ConnectionManager init failed:', error);
       }
 
       // ⚡ CRASH FIX: Initialize services with longer delay
@@ -198,9 +199,9 @@ export default function App() {
         try {
           const MomentService = (await import('./src/services/MomentService')).default;
           await MomentService.initialize();
-          console.log('✅ SimpleMomentService initialized');
+          Logger.debug('✅ SimpleMomentService initialized');
         } catch (error) {
-          console.error('❌ Error initializing SimpleMomentService:', error);
+          Logger.error('❌ Error initializing SimpleMomentService:', error);
         }
       }, 2000); // Longer delay to prevent crashes
 
@@ -209,22 +210,22 @@ export default function App() {
       const hasPermission = await NotificationService.requestPermissions();
 
       if (hasPermission) {
-        console.log('✅ Notification permissions granted');
+        Logger.debug('✅ Notification permissions granted');
 
         // Setup notification listeners (non-blocking)
         NotificationService.setupListeners(
           (notification) => {
             // Notification received while app is open
-            console.log('📬 Notification received:', notification.request.content.title);
+            Logger.info('📬 Notification received:', notification.request.content.title);
           },
           (response) => {
             // Notification tapped
-            console.log('👆 Notification tapped:', response.notification.request.content.data);
+            Logger.info('👆 Notification tapped:', response.notification.request.content.data);
             // TODO: Navigate to relevant screen based on notification type
           }
         );
       } else {
-        console.warn('⚠️ Notification permissions denied');
+        Logger.warn('⚠️ Notification permissions denied');
       }
 
       // ⚡ NEW: Check premium status on app launch
@@ -234,19 +235,19 @@ export default function App() {
           const status = await PremiumCheckService.checkPremiumStatus();
 
           if (status.isPremium) {
-            console.log(`⭐ Premium active: ${status.daysRemaining} days remaining`);
+            Logger.info(`⭐ Premium active: ${status.daysRemaining} days remaining`);
           } else {
-            console.log(`⏰ Premium expired. Referrals: ${status.referralCount}/3`);
+            Logger.info(`⏰ Premium expired. Referrals: ${status.referralCount}/3`);
           }
 
           // Check if we should show an alert
           const alert = await PremiumCheckService.getPremiumStatusAlert();
           if (alert.show) {
-            console.log(`📢 Premium alert: ${alert.title} - ${alert.message}`);
+            Logger.info(`📢 Premium alert: ${alert.title} - ${alert.message}`);
             // TODO: Show alert to user (can be implemented in HomeScreen)
           }
         } catch (error) {
-          console.error('❌ Error checking premium status:', error);
+          Logger.error('❌ Error checking premium status:', error);
         }
       }, 2000); // Check after 2 seconds to not block app startup
     };
