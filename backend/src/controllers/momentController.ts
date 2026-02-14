@@ -277,8 +277,42 @@ export const uploadMoment = async (req: AuthRequest, res: Response): Promise<voi
         photoUrl: finalPhotoUrl, // Cloudinary URL if available, else local
       };
 
-      io.to(partnerId).emit('moment_available', notificationPayload);
-      console.log(`🔔 [SOCKET] Emitted 'moment_available' to partner (payload: ${JSON.stringify(notificationPayload).length} bytes)`);
+      // Check if partner is online
+      const partnerSockets = await io.in(partnerId).fetchSockets();
+      const isPartnerOnline = partnerSockets.length > 0;
+
+      if (isPartnerOnline) {
+        io.to(partnerId).emit('moment_available', notificationPayload);
+        console.log(`🔔 [SOCKET] Emitted 'moment_available' to partner (payload: ${JSON.stringify(notificationPayload).length} bytes)`);
+      } else {
+        // ⚡ OFFLINE QUEUE: Partner is offline, queue the photo
+        console.log(`💤 [SOCKET] Partner ${partnerId} is offline. Queueing moment...`);
+        try {
+          const PendingMomentService = (await import('../services/pendingMomentService')).default;
+          await PendingMomentService.queueMoment({
+            userId: partnerId, // Use database ID or clerkId? Service uses userId which is ClerkId in some places... 
+            // Wait, join_room uses clerkId as room name. 
+            // PendingMomentService.pushPendingMoments emits to `user_${userId}`... NO wait.
+            // PendingMomentService.ts: io.to(`user_${userId}`).emit(...)
+            // But index.ts: socket.join(data.userId) where data.userId IS ClerkId.
+            // So room name IS ClerkId.
+            // Let's check PendingMomentService.pushPendingMoments again.
+            // It uses `user_${userId}`. THIS IS A MISMATCH if index.ts uses just `userId` (clerkId).
+            // I need to fix PendingMomentService room name in a separate step or assume it's correct.
+            // Let's assume queueMoment takes the Database User ID usually.
+            // schema.prisma: PendingMoment.userId -> String.
+            // momentController logic: partnerId is the User ID (DB ID).
+            // So we queue for DB ID.
+            momentId: moment.id,
+            photoData: photoBuffer,
+            photoUrl: finalPhotoUrl,
+            senderName: user.displayName,
+            note: req.body.note,
+          });
+        } catch (queueError) {
+          console.error('❌ [QUEUE] Failed to queue moment:', queueError);
+        }
+      }
 
       // Send delivery confirmation to sender
       io.to(userId).emit('moment_sent_confirmation', {

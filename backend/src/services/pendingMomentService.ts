@@ -74,15 +74,26 @@ class PendingMomentService {
         return 0;
       }
 
-      console.log(`📤 Pushing ${pending.length} pending moments to user: ${userId}`);
+      // Fetch user to get Clerk ID (Socket Room Name)
+      const user = await prismaWithPending.user.findUnique({
+        where: { id: userId },
+        select: { clerkId: true }
+      });
+
+      if (!user || !user.clerkId) {
+        console.error(`❌ Cannot push moments: User ${userId} has no Clerk ID`);
+        return 0;
+      }
+
+      console.log(`📤 Pushing ${pending.length} pending moments to user: ${userId} (Clerk: ${user.clerkId})`);
 
       let successCount = 0;
 
       for (const moment of pending) {
         try {
-          // Emit to user's socket room
-          const userRoom = `user_${userId}`;
-          
+          // Emit to user's socket room (Room Name = Clerk ID)
+          const userRoom = user.clerkId;
+
           io.to(userRoom).emit('moment_available', {
             photoId: moment.momentId,
             photoData: Buffer.from(moment.photoData).toString('base64'),

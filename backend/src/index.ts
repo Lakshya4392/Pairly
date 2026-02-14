@@ -94,6 +94,10 @@ prisma.$connect().then(() => {
 });
 
 // Middleware
+// 🔒 TRUST PROXY: Required for Rate Limiting on Render/Heroku
+app.set('trust proxy', 1);
+
+// Middleware
 app.use(cors());
 app.use(express.json({ limit: '10mb' })); // Limit JSON payload size
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -181,24 +185,25 @@ app.use((req, res, next) => {
 
 // Health check endpoint
 app.get('/health', (req, res) => {
+  // ⚡ LIGHTWEIGHT: No DB query here to allow Neon to sleep
   res.json({
     status: 'ok',
-    message: 'Pairly API is running - v2.1 (Production Ready)',
+    message: 'Pairly API is running - v2.2 (Optimized)',
     timestamp: new Date().toISOString(),
     uptime: process.uptime()
   });
 });
 
-// Keep-alive endpoint for cron jobs (prevents Render cold starts)
+// Keep-alive endpoint for external pinger (cron-job.org)
 app.get('/keep-alive', (req, res) => {
   const timestamp = new Date().toISOString();
-  console.log(`🏓 Keep-alive ping received at ${timestamp}`);
+  console.log(`🏓 External Keep-alive ping received at ${timestamp}`);
 
   res.json({
     status: 'alive',
     timestamp,
     uptime: process.uptime(),
-    message: 'Backend is awake and ready!'
+    message: 'Backend is awake! (DB sleeping)'
   });
 });
 
@@ -245,18 +250,18 @@ io.on('connection', (socket) => {
         socket.emit('room_joined', { userId: data.userId });
 
         // ✅ PUSH PENDING MOMENTS: Send queued moments to user
-        // TODO: Enable after database migration
-        // try {
-        //   const PendingMomentService = (await import('./services/pendingMomentService')).default;
-        //   const pushedCount = await PendingMomentService.pushPendingMoments(user.id);
+        try {
+          const PendingMomentService = (await import('./services/pendingMomentService')).default;
+          // Only push/delete from queue if we successfully query
+          const pushedCount = await PendingMomentService.pushPendingMoments(user.id);
 
-        //   if (pushedCount > 0) {
-        //     console.log(`✅ Pushed ${pushedCount} pending moments to ${user.displayName}`);
-        //   }
-        // } catch (error) {
-        //   console.error('⚠️ Error pushing pending moments:', error);
-        //   // Non-critical - don't break connection
-        // }
+          if (pushedCount > 0) {
+            console.log(`✅ Pushed ${pushedCount} pending moments to ${user.displayName}`);
+          }
+        } catch (error) {
+          console.error('⚠️ Error pushing pending moments:', error);
+          // Non-critical - don't break connection
+        }
 
         // Notify partner that user is online
         const pair = await prisma.user.findUnique({
@@ -505,45 +510,31 @@ io.on('connection', (socket) => {
 // Export io for use in other modules
 export { io };
 
-// NOTE: Scheduled moments are processed in the 1-minute cron below (line 518)
+// NOTE: Scheduled moments are processed in the 1-minute cron below
 // Removed duplicate 5-minute cron to prevent multiple FCM sends
 
 // ⏰ CRON JOB 2: Cleanup expired pending moments (every hour)
-// Disabled until database migration - will enable in production
+// Enabled for offline reliability
 cron.schedule('0 * * * *', async () => {
   try {
-    // TODO: Enable after database migration to production
-    // const PendingMomentService = (await import('./services/pendingMomentService')).default;
-    // const cleaned = await PendingMomentService.cleanupExpired();
-    // if (cleaned > 0) {
-    //   console.log(`🧹 Cleaned up ${cleaned} expired pending moments`);
-    // }
+    const PendingMomentService = (await import('./services/pendingMomentService')).default;
+    const cleaned = await PendingMomentService.cleanupExpired();
+    if (cleaned > 0) {
+      console.log(`🧹 Cleaned up ${cleaned} expired pending moments`);
+    }
   } catch (error) {
     console.error('❌ Error in pending moment cleanup cron:', error);
   }
 });
 
-console.log('⏰ Cron: Pending moment cleanup (every hour) - Currently disabled');
+console.log('⏰ Cron: Pending moment cleanup (every hour) - Enabled');
+// Note: Internal Keep-Alive cron removed to save Neon CPU. Use external pinger on /keep-alive instead.
 
-// ⏰ CRON JOB 3: Keep-Alive Ping (every 10 minutes)
-// Prevents Render free tier from sleeping after 15 minutes of inactivity
-cron.schedule('*/10 * * * *', async () => {
+// ⏰ CRON JOB 4: Process Scheduled Moments, Time-Locks & Reminders (every 15 minutes)
+// ⚡ OPTIMIZED: Reduced from 1-minute to allow Neon DB to sleep
+cron.schedule('*/15 * * * *', async () => {
   try {
-    const uptime = Math.floor(process.uptime());
-    const hours = Math.floor(uptime / 3600);
-    const minutes = Math.floor((uptime % 3600) / 60);
-    console.log(`💓 Keep-Alive: Backend running for ${hours}h ${minutes}m`);
-  } catch (error) {
-    console.error('❌ Error in keep-alive cron:', error);
-  }
-});
-
-console.log('⏰ Cron: Keep-Alive ping (every 10 minutes)');
-
-// ⏰ CRON JOB 4: Process Scheduled Moments, Time-Locks & Reminders (every minute)
-cron.schedule('* * * * *', async () => {
-  try {
-    console.log('⏰ [CRON] Processing scheduled moments and time-locks...');
+    console.log('⏰ [CRON] Processing scheduled moments (15-min check)...');
     const result = await ScheduledMomentService.processScheduledMoments();
     if (result.delivered > 0) {
       console.log(`✅ [CRON] Delivered ${result.delivered} scheduled items`);
@@ -557,7 +548,7 @@ cron.schedule('* * * * *', async () => {
   }
 });
 
-console.log('⏰ Cron: Scheduled Moments & Time-Locks (every minute)');
+console.log('⏰ Cron: Scheduled Moments & Time-Locks (every 15 minutes)');
 
 // Start server
 const PORT = process.env.PORT || 3000;
