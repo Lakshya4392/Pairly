@@ -14,8 +14,9 @@ import { PremiumScreen } from '../screens/PremiumScreen';
 import { ManagePremiumScreen } from '../screens/ManagePremiumScreen';
 import { GalleryScreen } from '../screens/GalleryScreen';
 import { SocketTestScreen } from '../screens/SocketTestScreen';
-import { ReferralScreen } from '../screens/ReferralScreen';
+
 import { API_CONFIG } from '../config/api.config';
+import Logger from '../utils/Logger';
 
 type Screen =
   | 'splash'
@@ -29,7 +30,7 @@ type Screen =
   | 'managePremium'
   | 'gallery'
   | 'socketTest'
-  | 'inviteFriend';
+  | 'socketTest';
 
 interface AppNavigatorProps {
   // Add any props if needed
@@ -55,41 +56,41 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
     try {
       const FCMService = (await import('../services/FCMService')).default;
       await FCMService.initialize();
-      console.log('✅ FCM initialized');
+      Logger.info('✅ FCM initialized');
     } catch (error) {
-      console.error('❌ FCM initialization failed:', error);
+      Logger.error('❌ FCM initialization failed:', error);
     }
   };
 
   const authenticateWithBackend = async () => {
     try {
-      console.log('🔐 Authenticating with backend...');
+      Logger.info('🔐 Authenticating with backend...');
       const clerkToken = await getToken();
 
       if (!clerkToken) {
-        console.error('❌ No Clerk token available');
+        Logger.error('❌ No Clerk token available');
         return;
       }
 
       const AuthService = (await import('../services/AuthService')).default;
       const authResponse = await AuthService.authenticateWithBackend(clerkToken);
 
-      console.log('✅ Backend authentication successful');
-      console.log('👤 User:', authResponse.user.displayName);
-      console.log('🔑 JWT token stored');
+      Logger.info('✅ Backend authentication successful');
+      Logger.debug('👤 User:', authResponse.user.displayName);
+      Logger.debug('🔑 JWT token stored');
 
       // 🔥 FIX: Register FCM token now that we have a user
       const FCMService = (await import('../services/FCMService')).default;
       await FCMService.registerUser();
 
     } catch (error: any) {
-      console.error('❌ Backend authentication failed:', error.message);
+      Logger.error('❌ Backend authentication failed:', error.message);
     }
   };
 
   const initializeWidgetService = async () => {
     if (Platform.OS !== 'android') {
-      console.log('⚠️ Widget not available on this platform');
+      Logger.info('⚠️ Widget not available on this platform');
       return;
     }
 
@@ -100,10 +101,10 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
 
       if (WidgetService && typeof WidgetService.initialize === 'function') {
         await WidgetService.initialize();
-        console.log('✅ Simple widget service initialized');
+        Logger.info('✅ Simple widget service initialized');
       }
     } catch (error) {
-      console.error('❌ Error initializing widget service:', error);
+      Logger.error('❌ Error initializing widget service:', error);
     }
   };
 
@@ -114,7 +115,7 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
       const clerkToken = await getToken();
       if (clerkToken) {
         await AsyncStorage.setItem('auth_token', clerkToken);
-        console.log('✅ Auth token stored for socket connection');
+        Logger.debug('✅ Auth token stored for socket connection');
 
         // 🔥 WIDGET FIX: Also store in SharedPreferences for widget access
         try {
@@ -124,10 +125,10 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
           if (SharedPrefsModule) {
             await SharedPrefsModule.setString('auth_token', clerkToken);
             await SharedPrefsModule.setString('user_id', user.id);
-            console.log('✅ Auth token also stored in SharedPreferences for widget');
+            Logger.debug('✅ Auth token also stored in SharedPreferences for widget');
           }
         } catch (widgetError) {
-          console.warn('⚠️ Could not store auth token for widget:', widgetError);
+          Logger.warn('⚠️ Could not store auth token for widget:', widgetError);
         }
       }
 
@@ -136,24 +137,24 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
       const MomentService = (await import('../services/MomentService')).default;
 
       if (SocketConnectionService.isConnected()) {
-        console.log('✅ Already connected to socket');
+        Logger.debug('✅ Already connected to socket');
       } else {
         await SocketConnectionService.initialize(user.id);
-        console.log('✅ Socket connection initialized');
+        Logger.info('✅ Socket connection initialized');
       }
 
       if (!RealtimeService.getConnectionStatus()) {
         await RealtimeService.connect(user.id);
-        console.log('✅ Realtime connected');
+        Logger.info('✅ Realtime connected');
 
         RealtimeService.startHeartbeat(user.id);
-        console.log('✅ Heartbeat started');
+        Logger.debug('✅ Heartbeat started');
 
         // ⚡ SIMPLE: No queue processing needed (direct upload to backend)
-        console.log('✅ Simple upload flow active - no queue processing needed');
+        Logger.debug('✅ Simple upload flow active - no queue processing needed');
       }
     } catch (error) {
-      console.log('⚠️ Realtime connection error (backend may be offline):', error);
+      Logger.warn('⚠️ Realtime connection error (backend may be offline):', error);
     }
   };
 
@@ -166,7 +167,7 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
 
       // Partner Connected
       RealtimeService.on('partner_connected', async (data: any) => {
-        console.log('🎉 Partner connected:', data);
+        Logger.info('🎉 Partner connected:', data);
 
         if (data.partner) {
           const partnerInfo: any = {
@@ -187,7 +188,7 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
           };
 
           await PairingService.storePair(pair);
-          console.log('✅ Pair data stored from socket event');
+          Logger.info('✅ Pair data stored from socket event');
         }
 
         if (currentScreen === 'pairingConnection' && connectionData) {
@@ -199,7 +200,7 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
               partnerName: partner?.displayName || data.partner?.displayName || 'Partner',
             });
           } catch (error) {
-            console.error('Error getting partner info:', error);
+            Logger.error('Error getting partner info:', error);
             setConnectionData({
               ...connectionData,
               mode: 'connected',
@@ -211,7 +212,7 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
 
       // ⚡ SIMPLE: Moment Available (lightweight notification only)
       RealtimeService.on('moment_available', async (data: any) => {
-        console.log('📥 Moment available:', data.momentId);
+        Logger.info('📥 Moment available:', data.momentId);
 
         try {
           // Just show notification - widget will poll backend for photo
@@ -228,59 +229,59 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
           if (Platform.OS === 'android' && data.photoUrl) {
             try {
               const { WidgetUpdateService } = await import('../services/WidgetUpdateService');
-              console.log('📥 [Socket] Updating widget via Service...');
+              Logger.debug('📥 [Socket] Updating widget via Service...');
               await WidgetUpdateService.updateWidgetWithPhoto(data.photoUrl, data.partnerName || 'Partner');
             } catch (widgetError) {
-              console.log('⚠️ Widget update failed:', widgetError);
+              Logger.warn('⚠️ Widget update failed:', widgetError);
             }
           }
 
-          console.log('✅ Notification sent, gallery and widget refreshing');
+          Logger.info('✅ Notification sent, gallery and widget refreshing');
         } catch (error) {
-          console.error('Error handling moment_available:', error);
+          Logger.error('Error handling moment_available:', error);
         }
       });
 
       // Moment Sent Confirmation
       RealtimeService.on('moment_sent_confirmation', async (data: any) => {
-        console.log('✅ Moment sent to', data.partnerName);
+        Logger.info('✅ Moment sent to', data.partnerName);
         try {
           const EnhancedNotificationService = (await import('../services/EnhancedNotificationService')).default;
           await EnhancedNotificationService.showMomentSentNotification(data.partnerName || 'Partner');
         } catch (error) {
-          console.error('Error showing notification:', error);
+          Logger.error('Error showing notification:', error);
         }
       });
 
       // Moment Delivered
       RealtimeService.on('moment_delivered', async (data: any) => {
-        console.log('✅ Moment delivered via', data.deliveryMethod);
+        Logger.info('✅ Moment delivered via', data.deliveryMethod);
         try {
           const EnhancedNotificationService = (await import('../services/EnhancedNotificationService')).default;
           await EnhancedNotificationService.showDeliveryNotification(data.partnerName || 'Partner');
         } catch (error) {
-          console.error('Error showing notification:', error);
+          Logger.error('Error showing notification:', error);
         }
       });
 
       // Moment Received Ack
       RealtimeService.on('moment_received_ack', async (data: any) => {
-        console.log('✅ Partner received moment at', data.receivedAt);
+        Logger.debug('✅ Partner received moment at', data.receivedAt);
       });
 
       // Shared Note
       RealtimeService.on('shared_note', async (data: any) => {
-        console.log('📝 Shared note received:', data.content);
+        Logger.debug('📝 Shared note received:', data.content);
       });
 
       // Timelock Unlocked
       RealtimeService.on('timelock_unlocked', async (data: any) => {
-        console.log('🔓 Time-lock message unlocked:', data.content);
+        Logger.debug('🔓 Time-lock message unlocked:', data.content);
       });
 
-      console.log('✅ Realtime listeners setup');
+      Logger.info('✅ Realtime listeners setup');
     } catch (error) {
-      console.error('❌ Error setting up realtime listeners:', error);
+      Logger.error('❌ Error setting up realtime listeners:', error);
     }
   };
 
@@ -288,9 +289,9 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
     try {
       const BackgroundSyncService = (await import('../services/BackgroundSyncService')).default;
       await BackgroundSyncService.loadQueue();
-      console.log('✅ Background sync queue loaded');
+      Logger.info('✅ Background sync queue loaded');
     } catch (error) {
-      console.error('❌ Error loading sync queue:', error);
+      Logger.error('❌ Error loading sync queue:', error);
     }
   };
 
@@ -299,7 +300,7 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
       const seen = await AsyncStorage.getItem('hasSeenOnboarding');
       setHasSeenOnboarding(seen === 'true');
     } catch (error) {
-      console.error('Error checking onboarding status:', error);
+      Logger.error('Error checking onboarding status:', error);
       setHasSeenOnboarding(false);
     }
   };
@@ -315,7 +316,7 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
       const PremiumCheckService = (await import('../services/PremiumCheckService')).default;
       const status = await PremiumCheckService.getLocalPremiumStatus();
 
-      console.log('💎 Premium status (waitlist):', status.isPremium, 'Days:', status.daysRemaining);
+      Logger.info('💎 Premium status (waitlist):', status.isPremium, 'Days:', status.daysRemaining);
       setIsPremium(status.isPremium);
 
       // Also update old PremiumService for backward compatibility
@@ -333,10 +334,10 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
           const diffTime = Math.abs(now.getTime() - createdAt.getTime());
           const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-          console.log(`👤 User age: ${diffDays} days`);
+          Logger.debug(`👤 User age: ${diffDays} days`);
 
           if (diffDays <= 30) {
-            console.log('🎁 User is new (< 30 days), enforcing 30-day trial...');
+            Logger.info('🎁 User is new (< 30 days), enforcing 30-day trial...');
             await PremiumCheckService.start30DayTrial(createdAt);
 
             // Refresh local status immediately to update UI
@@ -347,7 +348,7 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
         }
       }
     } catch (error) {
-      console.error('Error checking premium status:', error);
+      Logger.error('Error checking premium status:', error);
       setIsPremium(false);
     }
   };
@@ -368,16 +369,16 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
     try {
       await AsyncStorage.setItem('hasSeenOnboarding', 'true');
       setHasSeenOnboarding(true);
-      console.log('✅ Onboarding completed');
+      Logger.info('✅ Onboarding completed');
       setCurrentScreen('auth');
     } catch (error) {
-      console.error('Error saving onboarding status:', error);
+      Logger.error('Error saving onboarding status:', error);
       setCurrentScreen('auth');
     }
   };
 
   const handleAuthSuccess = async () => {
-    console.log('✅ Auth successful, navigating to pairing...');
+    Logger.info('✅ Auth successful, navigating to pairing...');
     setCurrentScreen('pairing');
   };
 
@@ -435,16 +436,16 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
 
   const handlePremiumPurchase = async (plan: 'monthly' | 'yearly') => {
     try {
-      console.log('💎 Activating premium:', plan);
+      Logger.info('💎 Activating premium:', plan);
 
       setIsPremium(true);
       await AsyncStorage.setItem('isPremium', 'true');
-      console.log('✅ Premium activated locally');
+      Logger.debug('✅ Premium activated locally');
 
       if (user) {
         try {
           const token = await getToken();
-          console.log('🌐 Syncing with backend...');
+          Logger.debug('🌐 Syncing with backend...');
           const response = await fetch(`${API_CONFIG.baseUrl}/users/premium`, {
             method: 'PUT',
             headers: {
@@ -460,12 +461,12 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
 
           if (response.ok) {
             const data = await response.json();
-            console.log('✅ Backend sync successful:', data);
+            Logger.info('✅ Backend sync successful:', data);
           } else {
-            console.log('⚠️ Backend sync failed:', response.status);
+            Logger.warn('⚠️ Backend sync failed:', response.status);
           }
         } catch (syncError: any) {
-          console.log('⚠️ Backend sync error:', syncError.message);
+          Logger.error('⚠️ Backend sync error:', syncError.message);
         }
       }
 
@@ -473,7 +474,7 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
       checkPremiumStatus();
       setCurrentScreen('upload');
     } catch (error) {
-      console.error('❌ Error handling premium purchase:', error);
+      Logger.error('❌ Error handling premium purchase:', error);
     }
   };
 
@@ -494,15 +495,15 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
     try {
       const NetworkMonitor = (await import('../services/NetworkMonitor')).default;
       await NetworkMonitor.initialize();
-      console.log('✅ Network Monitor initialized');
+      Logger.info('✅ Network Monitor initialized');
 
       // Listen for network changes
       NetworkMonitor.onChange((isOnline) => {
-        console.log(`🌐 Network status changed: ${isOnline ? 'Online' : 'Offline'}`);
+        Logger.info(`🌐 Network status changed: ${isOnline ? 'Online' : 'Offline'}`);
         // You can show a toast/banner here if needed
       });
     } catch (error) {
-      console.error('❌ Error initializing Network Monitor:', error);
+      Logger.error('❌ Error initializing Network Monitor:', error);
     }
   };
 
@@ -537,7 +538,7 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
 
       // User logged out - redirect to auth
       if (!isSignedIn && currentScreen !== 'splash' && currentScreen !== 'onboarding') {
-        console.log('🚪 User logged out, redirecting to auth');
+        Logger.info('🚪 User logged out, redirecting to auth');
         setCurrentScreen('auth');
         setIsPremium(false);
         setHasConnected(false); // Reset connection flag
@@ -546,7 +547,7 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
 
       // User signed in - redirect to upload
       if (isSignedIn && user && currentScreen === 'auth') {
-        console.log('✅ User signed in, redirecting to upload');
+        Logger.info('✅ User signed in, redirecting to upload');
         setCurrentScreen('upload');
         checkPremiumStatus();
       }
@@ -569,7 +570,7 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextAppState) => {
       if (nextAppState === 'active' && isSignedIn && user) {
-        console.log('🔄 App foregrounded - refreshing backend auth...');
+        Logger.debug('🔄 App foregrounded - refreshing backend auth...');
         authenticateWithBackend();
         checkPremiumStatus();
       }
@@ -592,7 +593,6 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
           return true; // Prevent default behavior (Exit)
 
         case 'managePremium':
-        case 'inviteFriend':
           setCurrentScreen('settings'); // Go back to Settings
           return true;
 
@@ -675,17 +675,17 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
             onBack={handleBackToUpload}
             isPremium={isPremium}
             onUpgradeToPremium={() => {
-              console.log('🔵 Premium button tapped, isPremium:', isPremium);
+              Logger.debug('🔵 Premium button tapped, isPremium:', isPremium.toString());
               if (isPremium) {
-                console.log('🔵 Navigating to managePremium screen');
+                Logger.debug('🔵 Navigating to managePremium screen');
                 setCurrentScreen('managePremium');
               } else {
-                console.log('🔵 Navigating to premium screen');
+                Logger.debug('🔵 Navigating to premium screen');
                 setCurrentScreen('premium');
               }
             }}
             onNavigateToPairing={handleNavigateToPairing}
-            onNavigateToInvite={() => setCurrentScreen('inviteFriend')}
+
           />
         );
 
@@ -715,12 +715,7 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
           />
         );
 
-      case 'inviteFriend':
-        return (
-          <ReferralScreen
-            onBack={() => setCurrentScreen('settings')}
-          />
-        );
+
 
       default:
         return <SplashScreen onComplete={handleSplashComplete} />;

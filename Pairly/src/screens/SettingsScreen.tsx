@@ -30,7 +30,7 @@ interface SettingsScreenProps {
   isPremium?: boolean;
   onUpgradeToPremium?: () => void;
   onNavigateToPairing?: () => void;
-  onNavigateToInvite?: () => void;
+
 }
 
 type TabType = 'account' | 'notifications' | 'appearance' | 'about';
@@ -40,7 +40,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   isPremium = false,
   onUpgradeToPremium,
   onNavigateToPairing,
-  onNavigateToInvite
+
 }) => {
   const { colors, isDarkMode, toggleDarkMode: toggleTheme } = useTheme();
   const styles = React.useMemo(() => createStyles(colors), [colors]);
@@ -802,24 +802,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           )}
         </View>
 
-        <SectionHeader title="INVITE & EARN" />
-        <View style={styles.section}>
-          <SettingItem
-            icon="gift"
-            title="Invite Friends"
-            subtitle="Get 1 month Premium FREE for each friend who joins!"
-            onPress={() => {
-              console.log('🎁 Invite Friends tapped');
-              if (onNavigateToInvite) {
-                onNavigateToInvite();
-              } else {
-                setSuccessMessage('Invite feature coming soon!');
-                setShowSuccessAlert(true);
-              }
-            }}
-            isLast
-          />
-        </View>
+
 
         <SectionHeader title="PARTNER" />
         <View style={styles.section}>

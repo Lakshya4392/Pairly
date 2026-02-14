@@ -30,7 +30,7 @@ class SocketConnectionService {
    */
   async initialize(userId: string): Promise<void> {
     if (this.isConnecting) {
-      console.log('🔄 Socket connection already in progress');
+      Logger.debug('🔄 Socket connection already in progress');
       return;
     }
 
@@ -46,29 +46,29 @@ class SocketConnectionService {
         const isOnline = ConnectionManager.isConnected();
 
         if (!isOnline) {
-          console.log('⏳ Waiting for internet connection...');
+          Logger.info('⏳ Waiting for internet connection...');
           const connected = await ConnectionManager.waitForConnection(10000);
           if (!connected) {
-            console.warn('⚠️ No internet connection, will retry later');
+            Logger.warn('⚠️ No internet connection, will retry later');
             this.isConnecting = false;
             return;
           }
         }
       } catch (error) {
-        console.warn('⚠️ ConnectionManager not available, proceeding anyway');
+        Logger.warn('⚠️ ConnectionManager not available, proceeding anyway');
       }
 
       // ⚡ IMPROVED: Get auth token for secure connection
       const token = await AsyncStorage.getItem('auth_token');
       if (!token) {
-        console.warn('⚠️ No auth token found, socket may not authenticate properly');
+        Logger.warn('⚠️ No auth token found, socket may not authenticate properly');
       } else {
-        console.log('✅ Auth token found for socket connection');
+        Logger.debug('✅ Auth token found for socket connection');
       }
 
       // ⚡ BULLETPROOF: Check backend health first
       try {
-        console.log('🏥 Checking backend health...');
+        Logger.debug('🏥 Checking backend health...');
         const healthResponse = await fetch(`${API_CONFIG.baseUrl}/health`, {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' },
@@ -76,12 +76,12 @@ class SocketConnectionService {
         });
 
         if (healthResponse.ok) {
-          console.log('✅ Backend is healthy and ready');
+          Logger.debug('✅ Backend is healthy and ready');
         } else {
-          console.warn('⚠️ Backend health check failed, but proceeding anyway');
+          Logger.warn('⚠️ Backend health check failed, but proceeding anyway');
         }
       } catch (healthError) {
-        console.warn('⚠️ Backend health check failed (cold start?), proceeding anyway');
+        Logger.warn('⚠️ Backend health check failed (cold start?), proceeding anyway');
         // Wait a bit for backend to wake up
         await new Promise(resolve => setTimeout(resolve, 2000));
       }
@@ -93,8 +93,8 @@ class SocketConnectionService {
       }
 
       // Create new socket connection with BULLETPROOF settings for APK
-      console.log('🔌 Creating socket with URL:', API_CONFIG.baseUrl);
-      console.log('🔑 Auth token present:', !!token);
+      Logger.debug('🔌 Creating socket with URL:', API_CONFIG.baseUrl);
+      Logger.debug('🔑 Auth token present:', !!token);
 
       this.socket = io(API_CONFIG.baseUrl, {
         // ⚡ BULLETPROOF: Auth with token
@@ -134,9 +134,9 @@ class SocketConnectionService {
 
       this.isConnecting = false;
 
-      console.log('✅ Socket connection initialized');
+      Logger.info('✅ Socket connection initialized');
     } catch (error) {
-      console.error('❌ Socket initialization failed:', error);
+      Logger.error('❌ Socket initialization failed:', error);
       this.isConnecting = false;
       throw error;
     }
@@ -149,26 +149,26 @@ class SocketConnectionService {
     }
 
     this.appStateSubscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
-      console.log(`📱 App state changed: ${this.lastAppState} → ${nextAppState}`);
+      Logger.debug(`📱 App state changed: ${this.lastAppState} → ${nextAppState}`);
 
       // App came to foreground from background
       if (this.lastAppState.match(/inactive|background/) && nextAppState === 'active') {
-        console.log('🔄 App came to foreground - checking socket connection...');
+        Logger.debug('🔄 App came to foreground - checking socket connection...');
 
         // Check if socket is disconnected and reconnect
         if (this.socket && !this.socket.connected && this.userId) {
-          console.log('⚡ Socket disconnected in background - reconnecting...');
+          Logger.info('⚡ Socket disconnected in background - reconnecting...');
           this.reconnect();
 
           // Also restart heartbeat
           setTimeout(() => {
             if (this.socket?.connected) {
               this.startHeartbeat();
-              console.log('✅ Socket reconnected after app foreground');
+              Logger.info('✅ Socket reconnected after app foreground');
             }
           }, 1000);
         } else if (this.socket?.connected) {
-          console.log('✅ Socket already connected');
+          Logger.debug('✅ Socket already connected');
           // Send a heartbeat to confirm connection
           if (this.userId) {
             this.socket.emit('heartbeat', { userId: this.userId });
@@ -178,7 +178,7 @@ class SocketConnectionService {
 
       // App going to background
       if (nextAppState.match(/inactive|background/)) {
-        console.log('📱 App going to background - socket will stay connected');
+        Logger.debug('📱 App going to background - socket will stay connected');
         // Don't disconnect - let it stay connected for background notifications
         // Socket.io will handle reconnection automatically when needed
       }
@@ -186,7 +186,7 @@ class SocketConnectionService {
       this.lastAppState = nextAppState;
     });
 
-    console.log('✅ App state handler setup complete');
+    Logger.debug('✅ App state handler setup complete');
   }
 
   /**
@@ -197,7 +197,7 @@ class SocketConnectionService {
 
     // Connection events
     this.socket.on('connect', () => {
-      console.log('✅ Socket connected:', this.socket?.id);
+      Logger.info('✅ Socket connected:', this.socket?.id);
       this.reconnectAttempts = 0;
 
       // Join user room immediately
@@ -211,79 +211,79 @@ class SocketConnectionService {
     });
 
     this.socket.on('disconnect', (reason) => {
-      console.log('🔌 Socket disconnected:', reason);
+      Logger.info('🔌 Socket disconnected:', reason);
       this.stopHeartbeat();
       this.notifyConnectionListeners(false);
 
       // Auto-reconnect for certain reasons
       if (reason === 'io server disconnect') {
-        console.log('🔄 Server disconnected, attempting to reconnect...');
+        Logger.info('🔄 Server disconnected, attempting to reconnect...');
         this.reconnect();
       }
     });
 
     this.socket.on('connect_error', (error) => {
-      console.error('❌ Socket connection error:', error.message);
+      Logger.error('❌ Socket connection error:', error.message);
       this.handleConnectionError();
     });
 
     this.socket.on('reconnect', async (attemptNumber) => {
-      console.log(`✅ Socket reconnected after ${attemptNumber} attempts`);
+      Logger.info(`✅ Socket reconnected after ${attemptNumber} attempts`);
       this.reconnectAttempts = 0;
 
       // Process any queued moments after reconnection
       try {
         // ⚡ SIMPLE: No queue processing needed (direct upload to backend)
-        console.log('✅ Socket reconnected - simple upload flow active');
+        Logger.info('✅ Socket reconnected - simple upload flow active');
       } catch (error) {
         // Silent - don't break reconnection flow
       }
     });
 
     this.socket.on('reconnect_error', (error) => {
-      console.error('❌ Socket reconnection error:', error.message);
+      Logger.error('❌ Socket reconnection error:', error.message);
       this.handleReconnectionError();
     });
 
     this.socket.on('reconnect_failed', () => {
-      console.error('❌ Socket reconnection failed after all attempts');
+      Logger.error('❌ Socket reconnection failed after all attempts');
       this.notifyConnectionListeners(false);
     });
 
     // Room events
     this.socket.on('room_joined', (data) => {
-      console.log('🏠 Joined room successfully:', data.userId);
+      Logger.debug('🏠 Joined room successfully:', data.userId);
     });
 
     // Pairing events - INSTANT NOTIFICATIONS
     this.socket.on('partner_connected', (data) => {
-      console.log('🤝 Partner connected:', data);
+      Logger.info('🤝 Partner connected:', data);
       this.notifyPairingListeners({ type: 'partner_connected', ...data });
     });
 
     this.socket.on('pairing_success', (data) => {
-      console.log('🎉 Pairing successful:', data);
+      Logger.info('🎉 Pairing successful:', data);
       this.notifyPairingListeners({ type: 'pairing_success', ...data });
     });
 
     this.socket.on('code_used', (data) => {
-      console.log('✅ Your code was used by partner:', data);
+      Logger.info('✅ Your code was used by partner:', data);
       this.notifyPairingListeners({ type: 'code_used', ...data });
     });
 
     this.socket.on('partner_disconnected', (data) => {
-      console.log('💔 Partner disconnected:', data);
+      Logger.warn('💔 Partner disconnected:', data);
       this.notifyPairingListeners({ type: 'partner_disconnected', ...data });
     });
 
     // Presence events
     this.socket.on('partner_presence', (data) => {
-      console.log('👁️ Partner presence update:', data);
+      Logger.debug('👁️ Partner presence update:', data);
     });
 
     // Photo events
     this.socket.on('new_photo', (data) => {
-      console.log('📸 New photo received via socket:', data);
+      Logger.info('📸 New photo received via socket:', data);
     });
   }
 
@@ -295,7 +295,7 @@ class SocketConnectionService {
 
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
-        console.log(`🏠 Joining room for user ${this.userId} (attempt ${attempt})`);
+        Logger.debug(`🏠 Joining room for user ${this.userId} (attempt ${attempt})`);
 
         this.socket.emit('join_room', { userId: this.userId });
 
@@ -311,13 +311,13 @@ class SocketConnectionService {
           });
         });
 
-        console.log('✅ Successfully joined user room');
+        Logger.debug('✅ Successfully joined user room');
         return;
       } catch (error) {
-        console.error(`❌ Room join attempt ${attempt} failed:`, error);
+        Logger.warn(`❌ Room join attempt ${attempt} failed:`, error);
 
         if (attempt === retries) {
-          console.error('❌ Failed to join room after all attempts');
+          Logger.error('❌ Failed to join room after all attempts');
         } else {
           // Faster retry - 500ms instead of 1s per attempt
           await new Promise(resolve => setTimeout(resolve, 500 * attempt));
@@ -325,6 +325,7 @@ class SocketConnectionService {
       }
     }
   }
+
 
   /**
    * Start heartbeat to maintain connection
@@ -361,13 +362,13 @@ class SocketConnectionService {
       // Exponential backoff: 1s, 2s, 4s
       const baseDelay = 1000;
       const delay = Math.min(baseDelay * Math.pow(2, this.reconnectAttempts - 1), this.maxReconnectDelay);
-      console.log(`🔄 Retrying connection in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+      Logger.debug(`🔄 Retrying connection in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
 
       setTimeout(() => {
         this.reconnect();
       }, delay);
     } else {
-      console.log('⚠️ Max reconnection attempts reached - will retry when network changes');
+      Logger.warn('⚠️ Max reconnection attempts reached - will retry when network changes');
       this.notifyConnectionListeners(false);
     }
   }
@@ -376,7 +377,7 @@ class SocketConnectionService {
    * Handle reconnection errors
    */
   private handleReconnectionError(): void {
-    console.log('⚠️ Reconnection error, will keep trying...');
+    Logger.warn('⚠️ Reconnection error, will keep trying...');
   }
 
   /**
@@ -384,10 +385,10 @@ class SocketConnectionService {
    */
   reconnect(): void {
     if (this.socket && !this.socket.connected && this.userId) {
-      console.log('🔄 Attempting manual reconnection...');
+      Logger.info('🔄 Attempting manual reconnection...');
       this.socket.connect();
     } else if (!this.socket && this.userId) {
-      console.log('🔄 Socket not initialized, reinitializing...');
+      Logger.info('🔄 Socket not initialized, reinitializing...');
       this.initialize(this.userId);
     }
   }
@@ -430,7 +431,7 @@ class SocketConnectionService {
       try {
         listener(connected);
       } catch (error) {
-        console.error('Error in connection listener:', error);
+        Logger.error('Error in connection listener:', error);
       }
     });
   }
@@ -443,7 +444,7 @@ class SocketConnectionService {
       try {
         listener(data);
       } catch (error) {
-        console.error('Error in pairing listener:', error);
+        Logger.error('Error in pairing listener:', error);
       }
     });
   }
@@ -485,7 +486,7 @@ class SocketConnectionService {
             this.socket!.emit(event, data, (response: any) => {
               clearTimeout(timeout);
               if (response?.success !== false) {
-                console.log(`📤 Emitted ${event} successfully with ack`);
+                Logger.debug(`📤 Emitted ${event} successfully with ack`);
                 resolve();
               } else {
                 reject(new Error(response?.error || 'Server rejected event'));
@@ -496,7 +497,7 @@ class SocketConnectionService {
         } else {
           // If not connected, try to reconnect quickly
           if (attempt < retries && this.userId) {
-            console.log(`⚡ Socket not connected, attempting quick reconnect...`);
+            Logger.info(`⚡ Socket not connected, attempting quick reconnect...`);
             this.reconnect();
             await new Promise(resolve => setTimeout(resolve, 500)); // Wait 500ms for reconnection
           } else {
@@ -504,7 +505,7 @@ class SocketConnectionService {
           }
         }
       } catch (error) {
-        console.error(`❌ Emit attempt ${attempt} failed:`, error);
+        Logger.error(`❌ Emit attempt ${attempt} failed:`, error);
 
         if (attempt === retries) {
           throw new Error(`Failed to emit ${event} after ${retries} attempts`);
@@ -521,15 +522,15 @@ class SocketConnectionService {
    */
   emitFireAndForget(event: string, data: any): void {
     if (!this.socket) {
-      console.warn('Socket not initialized');
+      Logger.warn('Socket not initialized');
       return;
     }
 
     if (this.socket.connected) {
       this.socket.emit(event, data);
-      console.log(`📤 Emitted ${event} (fire and forget)`);
+      Logger.debug(`📤 Emitted ${event} (fire and forget)`);
     } else {
-      console.warn(`⚠️ Cannot emit ${event}, socket not connected`);
+      Logger.warn(`⚠️ Cannot emit ${event}, socket not connected`);
     }
   }
 
@@ -537,7 +538,7 @@ class SocketConnectionService {
    * Disconnect socket
    */
   disconnect(): void {
-    console.log('🔌 Disconnecting socket...');
+    Logger.info('🔌 Disconnecting socket...');
 
     this.stopHeartbeat();
 
@@ -557,7 +558,7 @@ class SocketConnectionService {
     this.connectionListeners = [];
     this.pairingListeners = [];
 
-    console.log('✅ Socket disconnected');
+    Logger.info('✅ Socket disconnected');
   }
 
   /**
@@ -565,7 +566,7 @@ class SocketConnectionService {
    */
   async forceReconnect(): Promise<void> {
     if (this.userId) {
-      console.log('🔄 Force reconnecting socket...');
+      Logger.info('🔄 Force reconnecting socket...');
       this.disconnect();
       await this.initialize(this.userId);
     }

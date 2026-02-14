@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_CONFIG } from '../config/api.config';
 import * as FileSystem from 'expo-file-system';
 import * as Notifications from 'expo-notifications';
+import Logger from '../utils/Logger';
 
 const { SharedPrefsModule } = NativeModules;
 
@@ -15,7 +16,7 @@ class FCMService {
    */
   async initialize(): Promise<void> {
     if (Platform.OS !== 'android') {
-      console.log('⚠️ FCM only available on Android');
+      Logger.debug('⚠️ FCM only available on Android');
       return;
     }
 
@@ -27,7 +28,7 @@ class FCMService {
         authStatus === messaging.AuthorizationStatus.PROVISIONAL;
 
       if (!enabled) {
-        console.log('❌ FCM permission denied');
+        Logger.warn('❌ FCM permission denied');
         return;
       }
 
@@ -40,13 +41,13 @@ class FCMService {
           vibrationPattern: [0, 250, 250, 250],
           lightColor: '#FF231F7C',
         });
-        console.log('✅ Notification Channel created');
+        Logger.debug('✅ Notification Channel created');
       }
 
       // Get FCM token
       const token = await messaging().getToken();
       this.fcmToken = token;
-      console.log('✅ FCM Token:', token);
+      Logger.debug('✅ FCM Token found');
 
       // Save token locally
       await AsyncStorage.setItem('fcmToken', token);
@@ -57,7 +58,7 @@ class FCMService {
       // Setup message handlers
       this.setupMessageHandlers();
     } catch (error) {
-      console.error('❌ FCM initialization error:', error);
+      Logger.error('❌ FCM initialization error:', error);
     }
   }
   /**
@@ -81,13 +82,13 @@ class FCMService {
           clerkId = user.clerkId; // ⚡ Use clerkId for consistency
           userId = user.id;       // Fallback: database ID
         } catch (e) {
-          console.log('⚠️ Failed to parse user JSON');
+          Logger.warn('⚠️ Failed to parse user JSON');
         }
       }
 
       // Must have at least one identifier
       if (!clerkId && !userId) {
-        console.log('⚠️ No user identifier found, skipping FCM registration');
+        Logger.debug('⚠️ No user identifier found, skipping FCM registration');
         return;
       }
 
@@ -108,24 +109,24 @@ class FCMService {
       });
 
       if (response.ok) {
-        console.log('✅ FCM token registered for:', clerkId || userId);
+        Logger.info('✅ FCM token registered for:', clerkId || userId);
       } else {
         const errorText = await response.text();
-        console.log('⚠️ Failed to register FCM token:', response.status, errorText);
+        Logger.warn('⚠️ Failed to register FCM token:', response.status, errorText);
 
         // 🔧 RETRY: If server error (5xx) or network issue, retry
         if ((response.status >= 500 || response.status === 0) && retryCount < MAX_RETRIES) {
-          console.log(`🔄 Retrying FCM registration (${retryCount + 1}/${MAX_RETRIES})...`);
+          Logger.info(`🔄 Retrying FCM registration (${retryCount + 1}/${MAX_RETRIES})...`);
           await new Promise(r => setTimeout(r, RETRY_DELAYS[retryCount]));
           return this.registerTokenWithBackend(token, retryCount + 1);
         }
       }
     } catch (error) {
-      console.log('⚠️ Backend offline, FCM token not registered');
+      Logger.warn('⚠️ Backend offline, FCM token not registered');
 
       // 🔧 RETRY: On network error, retry
       if (retryCount < MAX_RETRIES) {
-        console.log(`🔄 Retrying FCM registration (${retryCount + 1}/${MAX_RETRIES})...`);
+        Logger.info(`🔄 Retrying FCM registration (${retryCount + 1}/${MAX_RETRIES})...`);
         await new Promise(r => setTimeout(r, RETRY_DELAYS[retryCount]));
         return this.registerTokenWithBackend(token, retryCount + 1);
       }
@@ -137,7 +138,7 @@ class FCMService {
    * Should be called after successful login
    */
   public async registerUser(): Promise<void> {
-    console.log('🔄 Manually registering user for FCM...');
+    Logger.debug('🔄 Manually registering user for FCM...');
 
     // Ensure we have a token
     if (!this.fcmToken) {
@@ -148,7 +149,7 @@ class FCMService {
           await AsyncStorage.setItem('fcmToken', token);
         }
       } catch (e) {
-        console.log('⚠️ Failed to get FCM token for manual registration');
+        Logger.warn('⚠️ Failed to get FCM token for manual registration');
         return;
       }
     }
@@ -156,7 +157,7 @@ class FCMService {
     if (this.fcmToken) {
       await this.registerTokenWithBackend(this.fcmToken);
     } else {
-      console.log('⚠️ No FCM token available for registration');
+      Logger.warn('⚠️ No FCM token available for registration');
     }
   }
 
@@ -166,19 +167,19 @@ class FCMService {
   private setupMessageHandlers(): void {
     // Foreground messages
     messaging().onMessage(async (remoteMessage: any) => {
-      console.log('📥 FCM Foreground Message:', remoteMessage);
+      Logger.debug('📥 FCM Foreground Message:', remoteMessage);
       await this.handleMessage(remoteMessage);
     });
 
     // Background messages (app in background/quit)
     messaging().setBackgroundMessageHandler(async (remoteMessage: any) => {
-      console.log('📥 FCM Background Message:', remoteMessage);
+      Logger.debug('📥 FCM Background Message:', remoteMessage);
       await this.handleMessage(remoteMessage);
     });
 
     // Token refresh
     messaging().onTokenRefresh(async (token: string) => {
-      console.log('🔄 FCM Token refreshed:', token);
+      Logger.info('🔄 FCM Token refreshed');
       this.fcmToken = token;
       await AsyncStorage.setItem('fcmToken', token);
       await this.registerTokenWithBackend(token);
@@ -192,11 +193,11 @@ class FCMService {
     const { data } = remoteMessage;
 
     if (!data) {
-      console.log('⚠️ No data in FCM message');
+      Logger.warn('⚠️ No data in FCM message');
       return;
     }
 
-    console.log('📦 FCM Data:', data);
+    Logger.debug('📦 FCM Data:', data);
 
     // Handle different message types
     switch (data.type) {
@@ -219,7 +220,7 @@ class FCMService {
         await this.handleMeetingCountdown(data);
         break;
       default:
-        console.log('⚠️ Unknown FCM message type:', data.type);
+        Logger.warn('⚠️ Unknown FCM message type:', data.type);
     }
   }
 
@@ -228,16 +229,14 @@ class FCMService {
    */
   private async handleNewMoment(data: any): Promise<void> {
     try {
-      console.log('📸 [FCM] New moment notification received');
+      Logger.info('📸 [FCM] New moment notification received');
 
       const { photoUrl, momentId, partnerName } = data;
 
       // 1. Download photo if URL is provided
       if (photoUrl) {
-        console.log(`⬇️ [FCM] Downloading photo from: ${photoUrl}`);
+        Logger.debug(`⬇️ [FCM] Downloading photo from: ${photoUrl}`);
 
-        // Define local path (using Cache directory for temporary storage, or Document for persistence)
-        // For widget, we need a stable path.
         // Define local path (using Cache directory for temporary storage, or Document for persistence)
         // For widget, we need a stable path.
         const fileName = `widget_moment_latest.jpg`; // Always overwrite the same file for widget
@@ -250,7 +249,7 @@ class FCMService {
         const downloadResult = await FileSystem.downloadAsync(photoUrl, localUri);
 
         if (downloadResult.status === 200) {
-          console.log(`✅ [FCM] Photo downloaded to: ${downloadResult.uri}`);
+          Logger.debug(`✅ [FCM] Photo downloaded to: ${downloadResult.uri}`);
 
           // 2. Save path to SharedPrefs for Widget (Native Module)
           if (Platform.OS === 'android' && SharedPrefsModule) {
@@ -263,10 +262,10 @@ class FCMService {
 
             // 3. Trigger Widget Update
             await SharedPrefsModule.notifyWidgetUpdate();
-            console.log('✅ [FCM] Widget refresh triggered');
+            Logger.debug('✅ [FCM] Widget refresh triggered');
           }
         } else {
-          console.error('❌ [FCM] Download failed:', downloadResult.status);
+          Logger.error('❌ [FCM] Download failed:', downloadResult.status);
         }
       }
 
@@ -278,7 +277,7 @@ class FCMService {
       );
 
     } catch (error) {
-      console.error('❌ Error handling new moment:', error);
+      Logger.error('❌ Error handling new moment:', error);
     }
   }
 
@@ -287,7 +286,7 @@ class FCMService {
    */
   private async handleNewPhoto(data: any): Promise<void> {
     try {
-      console.log('📸 [FCM] New photo notification received (URL)');
+      Logger.info('📸 [FCM] New photo notification received (URL)');
 
       // ⚡ SIMPLE: Just show notification - widget will poll backend for photo
       const EnhancedNotificationService = (await import('./EnhancedNotificationService')).default;
@@ -297,9 +296,9 @@ class FCMService {
         data.momentId || 'new'
       );
 
-      console.log('✅ [FCM] Notification shown - widget will fetch photo from backend');
+      Logger.debug('✅ [FCM] Notification shown - widget will fetch photo from backend');
     } catch (error) {
-      console.error('❌ Error handling new photo:', error);
+      Logger.error('❌ Error handling new photo:', error);
     }
   }
 
@@ -307,7 +306,7 @@ class FCMService {
    * Handle partner connected notification
    */
   private async handlePartnerConnected(data: any): Promise<void> {
-    console.log('🎉 Partner connected via FCM:', data.partnerName);
+    Logger.info('🎉 Partner connected via FCM:', data.partnerName);
     // Show notification or update UI
   }
 
@@ -315,7 +314,7 @@ class FCMService {
    * Handle shared note notification
    */
   private async handleSharedNote(data: any): Promise<void> {
-    console.log('📝 Shared note via FCM:', data.content);
+    Logger.debug('📝 Shared note via FCM:', data.content);
     // Show notification
   }
 
@@ -324,13 +323,13 @@ class FCMService {
    * Clear all pairing data when partner disconnects
    */
   private async handlePartnerDisconnected(data: any): Promise<void> {
-    console.log('💔 [FCM] Partner disconnected notification received');
+    Logger.warn('💔 [FCM] Partner disconnected notification received');
 
     try {
       // Clear all pairing data
       const PairingService = (await import('./PairingService')).default;
       await PairingService.removePair();
-      console.log('✅ [FCM] All pairing data cleared');
+      Logger.info('✅ [FCM] All pairing data cleared');
 
       // Show notification
       const EnhancedNotificationService = (await import('./EnhancedNotificationService')).default;
@@ -339,7 +338,7 @@ class FCMService {
         'Your partner has ended the connection'
       );
     } catch (error) {
-      console.error('❌ [FCM] Error handling partner disconnect:', error);
+      Logger.error('❌ [FCM] Error handling partner disconnect:', error);
     }
   }
 
@@ -348,7 +347,7 @@ class FCMService {
    * Save meeting date locally and update widget
    */
   private async handleMeetingCountdown(data: any): Promise<void> {
-    console.log('⏰ [FCM] Meeting countdown notification received');
+    Logger.info('⏰ [FCM] Meeting countdown notification received');
 
     try {
       const { meetingDate, setBy } = data;
@@ -367,7 +366,7 @@ class FCMService {
             await SharedPrefsModule.notifyWidgetUpdate();
           }
         } catch (widgetError) {
-          console.warn('⚠️ Widget update failed:', widgetError);
+          Logger.warn('⚠️ Widget update failed:', widgetError);
         }
 
         // Show notification
@@ -385,7 +384,7 @@ class FCMService {
         );
       }
     } catch (error) {
-      console.error('❌ [FCM] Error handling meeting countdown:', error);
+      Logger.error('❌ [FCM] Error handling meeting countdown:', error);
     }
   }
   /**

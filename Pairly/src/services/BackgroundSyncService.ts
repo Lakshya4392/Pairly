@@ -5,6 +5,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import UserSyncService from './UserSyncService';
+import Logger from '../utils/Logger';
 
 interface SyncTask {
   id: string;
@@ -34,13 +35,13 @@ class BackgroundSyncService {
 
     // Remove existing task with same ID
     this.syncQueue = this.syncQueue.filter(t => t.id !== task.id);
-    
+
     // Add new task
     this.syncQueue.push(task);
-    
+
     // Save queue
     await this.saveQueue();
-    
+
     // Start processing
     this.processQueue();
   }
@@ -103,7 +104,7 @@ class BackgroundSyncService {
 
       // Check max attempts
       if (task.attempts >= this.maxAttempts) {
-        console.log(`💡 Background sync will retry later (backend offline)`);
+        Logger.debug(`💡 Background sync will retry later (backend offline)`);
         this.syncQueue.shift();
         await this.saveQueue();
         continue;
@@ -115,14 +116,14 @@ class BackgroundSyncService {
       if (success) {
         // Remove from queue
         this.syncQueue.shift();
-        console.log(`✅ Background sync completed`);
+        Logger.debug(`✅ Background sync completed`);
       } else {
         // Update attempts
         task.attempts++;
         task.lastAttempt = now;
         // Only log on first failure
         if (task.attempts === 1) {
-          console.log(`💡 Background sync queued (will retry when backend is available)`);
+          Logger.debug(`💡 Background sync queued (will retry when backend is available)`);
         }
       }
 
@@ -163,7 +164,7 @@ class BackgroundSyncService {
           return false;
       }
     } catch (error) {
-      console.error(`❌ Error executing task ${task.id}:`, error);
+      Logger.error(`❌ Error executing task ${task.id}:`, error);
       return false;
     }
   }
@@ -175,7 +176,7 @@ class BackgroundSyncService {
     try {
       await AsyncStorage.setItem('@pairly_sync_queue', JSON.stringify(this.syncQueue));
     } catch (error) {
-      console.error('Error saving sync queue:', error);
+      Logger.error('Error saving sync queue:', error);
     }
   }
 
@@ -187,11 +188,11 @@ class BackgroundSyncService {
       const queueJson = await AsyncStorage.getItem('@pairly_sync_queue');
       if (queueJson) {
         this.syncQueue = JSON.parse(queueJson);
-        console.log(`📥 Loaded ${this.syncQueue.length} pending sync tasks`);
+        Logger.debug(`📥 Loaded ${this.syncQueue.length} pending sync tasks`);
         this.processQueue();
       }
     } catch (error) {
-      console.error('Error loading sync queue:', error);
+      Logger.error('Error loading sync queue:', error);
     }
   }
 
@@ -217,7 +218,7 @@ class BackgroundSyncService {
    * Trigger immediate sync (called by NetworkMonitor)
    */
   async syncNow(): Promise<void> {
-    console.log('🔄 Triggering immediate background sync...');
+    Logger.debug('🔄 Triggering immediate background sync...');
     await this.processQueue();
   }
 }

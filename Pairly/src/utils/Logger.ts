@@ -6,11 +6,13 @@
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 class Logger {
-    // Set to 'warn' in production, 'info' in dev (silence debug noise)
+    // ⚡ PERFORMANCE: Use 'warn' in Dev if logs are slowing down app
+    // Change to 'info' or 'debug' only when debugging specific issues
     private level: LogLevel = __DEV__ ? 'info' : 'warn';
 
     private shouldLog(level: LogLevel): boolean {
         const levels: LogLevel[] = ['debug', 'info', 'warn', 'error'];
+        // If specific log level is requested, check if it's high enough
         return levels.indexOf(level) >= levels.indexOf(this.level);
     }
 

@@ -5,7 +5,7 @@ import Logger from '../utils/Logger';
 interface PremiumStatus {
   isPremium: boolean;
   daysRemaining: number;
-  referralCount: number;
+
   premiumExpiresAt?: string;
 }
 
@@ -21,7 +21,7 @@ class PremiumCheckService {
    */
   async initialize(): Promise<PremiumStatus> {
     if (this._isInitialized && this._cachedStatus) {
-      console.log('⚡ [Premium] Using cached status');
+      Logger.debug('⚡ [Premium] Using cached status');
       return this._cachedStatus;
     }
 
@@ -34,7 +34,7 @@ class PremiumCheckService {
    * Get default (free) status
    */
   private getDefaultStatus(): PremiumStatus {
-    return { isPremium: false, daysRemaining: 0, referralCount: 0 };
+    return { isPremium: false, daysRemaining: 0 };
   }
 
   /**
@@ -53,7 +53,7 @@ class PremiumCheckService {
 
       if (now > expiryDate) {
         // Premium expired - update local storage
-        console.log('⏰ [Premium] Expired locally detected');
+        Logger.debug('⏰ [Premium] Expired locally detected');
         await AsyncStorage.setItem('isPremium', 'false');
         await AsyncStorage.setItem('premiumDaysRemaining', '0');
 
@@ -86,11 +86,11 @@ class PremiumCheckService {
       const status: PremiumStatus = {
         isPremium: true,
         daysRemaining: 30,
-        referralCount: 0,
+
         premiumExpiresAt: expiresAt.toISOString()
       };
 
-      console.log('🎁 [Premium] Starting 30-day trial locally until:', expiresAt.toISOString());
+      Logger.info('🎁 [Premium] Starting 30-day trial locally until:', expiresAt.toISOString());
 
       await AsyncStorage.setItem('isPremium', 'true');
       await AsyncStorage.setItem('premiumDaysRemaining', '30');
@@ -104,10 +104,10 @@ class PremiumCheckService {
         const PremiumService = (await import('./PremiumService')).default;
         await PremiumService.setPremiumStatus(true, 'monthly', expiresAt);
       } catch (e) {
-        console.warn('Failed to sync trial with PremiumService');
+        Logger.warn('Failed to sync trial with PremiumService');
       }
     } catch (error) {
-      console.error('Error starting trial:', error);
+      Logger.error('Error starting trial:', error);
     }
   }
 
@@ -128,7 +128,7 @@ class PremiumCheckService {
       if (localStatus.isPremium && localStatus.premiumExpiresAt) {
         const expiry = new Date(localStatus.premiumExpiresAt);
         if (expiry > new Date()) {
-          console.log('⚡ [Premium] Valid local trial active, skipping backend check to prevent overwrite');
+          Logger.debug('⚡ [Premium] Valid local trial active, skipping backend check to prevent overwrite');
           this._cachedStatus = localStatus;
           this._lastCheckTime = now;
           return localStatus;
@@ -139,11 +139,11 @@ class PremiumCheckService {
       const clerkId = await AsyncStorage.getItem('clerkId');
 
       if (!email || !clerkId) {
-        console.log('⚠️ No user email/clerkId found');
+        Logger.warn('⚠️ No user email/clerkId found for premium check');
         return this.getDefaultStatus();
       }
 
-      console.log('🔍 [Premium] Checking from backend (once per session)...');
+      Logger.debug('🔍 [Premium] Checking from backend (once per session)...');
 
       const response = await fetch(
         `${API_CONFIG.baseUrl}/invites/premium-status?email=${encodeURIComponent(email)}&clerkId=${encodeURIComponent(clerkId)}`
@@ -154,7 +154,7 @@ class PremiumCheckService {
       }
 
       const data = await response.json();
-      console.log('✅ [Premium] Status:', data.isPremium ? 'PREMIUM' : 'FREE', `(${data.daysRemaining} days left)`);
+      Logger.info('✅ [Premium] Status:', data.isPremium ? 'PREMIUM' : 'FREE', `(${data.daysRemaining} days left)`);
 
       // IF backend says FREE, but we might have just started a trial locally in AppNavigator (race condition),
       // we should double check if we should really overwrite it.
@@ -165,12 +165,12 @@ class PremiumCheckService {
       await AsyncStorage.setItem('isPremium', data.isPremium ? 'true' : 'false');
       await AsyncStorage.setItem('premiumDaysRemaining', data.daysRemaining?.toString() || '0');
       await AsyncStorage.setItem('premiumExpiresAt', data.premiumExpiresAt || '');
-      await AsyncStorage.setItem('referralCount', data.referralCount?.toString() || '0');
+
 
       const status: PremiumStatus = {
         isPremium: data.isPremium,
         daysRemaining: data.daysRemaining || 0,
-        referralCount: data.referralCount || 0,
+
         premiumExpiresAt: data.premiumExpiresAt,
       };
 
@@ -187,14 +187,14 @@ class PremiumCheckService {
         } else {
           await PremiumService.setPremiumStatus(false);
         }
-        console.log('✅ [Premium] PremiumService synced');
+        Logger.debug('✅ [Premium] PremiumService synced');
       } catch (syncError) {
-        console.warn('⚠️ Failed to sync PremiumService:', syncError);
+        Logger.warn('⚠️ Failed to sync PremiumService:', syncError);
       }
 
       return status;
     } catch (error) {
-      console.log('⚠️ [Premium] Backend unavailable, using local cache');
+      Logger.warn('⚠️ [Premium] Backend unavailable, using local cache');
       return this.getLocalPremiumStatus();
     }
   }
@@ -206,20 +206,20 @@ class PremiumCheckService {
     try {
       const isPremiumStr = await AsyncStorage.getItem('isPremium');
       const daysRemaining = await AsyncStorage.getItem('premiumDaysRemaining');
-      const referralCount = await AsyncStorage.getItem('referralCount');
+
       const premiumExpiresAt = await AsyncStorage.getItem('premiumExpiresAt');
 
       const status: PremiumStatus = {
         isPremium: isPremiumStr === 'true',
         daysRemaining: parseInt(daysRemaining || '0'),
-        referralCount: parseInt(referralCount || '0'),
+
         premiumExpiresAt: premiumExpiresAt || undefined,
       };
 
       // Check expiry locally
       return this.checkExpiryLocally(status);
     } catch (error) {
-      console.error('❌ Error getting local premium status:', error);
+      Logger.error('❌ Error getting local premium status:', error);
       return this.getDefaultStatus();
     }
   }
@@ -237,13 +237,12 @@ class PremiumCheckService {
       const status = await this.checkPremiumStatus();
 
       // Premium expired
-      if (!status.isPremium && status.referralCount < 3) {
-        const needed = 3 - status.referralCount;
+      if (!status.isPremium) {
         return {
           show: true,
           type: 'expired',
           title: '⏰ Premium Expired',
-          message: `Your 30-day premium has expired.\n\n🎁 Refer ${needed} more friend${needed > 1 ? 's' : ''} to unlock 3 months of premium!`,
+          message: `Your 30-day premium has expired.\n\nSubscribe to continue enjoying premium features!`,
         };
       }
 
@@ -253,7 +252,7 @@ class PremiumCheckService {
           show: true,
           type: 'expiring',
           title: '⏰ Premium Expiring Soon',
-          message: `You have ${status.daysRemaining} day${status.daysRemaining > 1 ? 's' : ''} of premium left.\n\nRefer friends to extend your premium!`,
+          message: `You have ${status.daysRemaining} day${status.daysRemaining > 1 ? 's' : ''} of premium left.`,
         };
       }
 
@@ -267,23 +266,12 @@ class PremiumCheckService {
 
       return { show: false };
     } catch (error) {
-      console.error('❌ Error getting premium alert:', error);
+      Logger.error('❌ Error getting premium alert:', error);
       return { show: false };
     }
   }
 
-  /**
-   * Get referral code
-   */
-  async getReferralCode(): Promise<string> {
-    try {
-      const code = await AsyncStorage.getItem('referralCode');
-      return code || '';
-    } catch (error) {
-      console.error('❌ Error getting referral code:', error);
-      return '';
-    }
-  }
+
 
   /**
    * Check if user has premium (fast check with local expiry detection)
