@@ -10,7 +10,8 @@ import { Platform } from 'react-native';
 // You need to set these in your .env file:
 // EXPO_PUBLIC_REVENUECAT_API_KEY_ANDROID
 // EXPO_PUBLIC_REVENUECAT_API_KEY_IOS
-const API_KEY_ANDROID = process.env.EXPO_PUBLIC_REVENUECAT_API_KEY_ANDROID;
+// Hardcoded for debugging to rule out Env var issues
+const API_KEY_ANDROID = 'goog_ZovrCOooNXJpHlQnGyFqmqUgrRk'; // process.env.EXPO_PUBLIC_REVENUECAT_API_KEY_ANDROID;
 const API_KEY_IOS = process.env.EXPO_PUBLIC_REVENUECAT_API_KEY_IOS;
 
 class RevenueCatService {

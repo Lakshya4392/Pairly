@@ -165,7 +165,7 @@ import timeLockRoutes from './routes/timeLockRoutes';
 import dualCameraRoutes from './routes/dualCameraRoutes';
 import widgetRoutes from './routes/widgetRoutes';
 // import inviteRoutes from './routes/inviteRoutes'; // DEPRECATED: RevenueCat is now source of truth
-import configRoutes from './routes/configRoutes';
+// import configRoutes from './routes/configRoutes'; // DEPRECATED
 import reminderRoutes from './routes/reminderRoutes';
 import pingRoutes from './routes/pingRoutes';
 import meetingRoutes from './routes/meetingRoutes';
@@ -219,7 +219,7 @@ app.use('/timelock', timeLockRoutes);
 app.use('/dual-moments', uploadLimiter, dualCameraRoutes); // Upload rate limit
 app.use('/widget', widgetLimiter, widgetRoutes); // 🔥 Widget-specific generous limit
 // app.use('/invites', authLimiter, inviteRoutes); // DEPRECATED
-app.use('/config', configRoutes);
+// app.use('/config', configRoutes); // DEPRECATED
 app.use('/reminders', reminderRoutes);
 app.use('/ping', pingRoutes);
 app.use('/meeting', meetingRoutes);
