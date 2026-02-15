@@ -291,7 +291,8 @@ io.on('connection', (socket) => {
           }
         }
       } else {
-        console.error(`❌ User not found for clerkId: ${data.userId}`);
+        // This is expected if the user just signed up and hasn't synced yet
+        console.warn(`⚠️ User not found for clerkId: ${data.userId} (Sync pending?)`);
       }
     } catch (error) {
       console.error('Error in join_room:', error);
