@@ -321,30 +321,19 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
 
       // Also update old PremiumService for backward compatibility
       if (status.isPremium) {
-        const PremiumService = (await import('../services/PremiumService')).default;
-        const expiryDate = status.premiumExpiresAt ? new Date(status.premiumExpiresAt) : undefined;
-        // Use 'monthly' as default plan type for waitlist users
-        await PremiumService.setPremiumStatus(true, 'monthly', expiryDate);
+        // PremiumService legacy sync removed.
+        // RevenueCatService & PremiumCheckService are the sources of truth now.
       } else {
-        // 🔥 FIX: If user is not premium but is NEW (< 30 days old), give them a trial
-        // This fixes the issue where backend returns FREE for waitlist users
-        if (user.createdAt) {
-          const createdAt = new Date(user.createdAt);
-          const now = new Date();
-          const diffTime = Math.abs(now.getTime() - createdAt.getTime());
-          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-          Logger.debug(`👤 User age: ${diffDays} days`);
-
-          if (diffDays <= 30) {
-            Logger.info('🎁 User is new (< 30 days), enforcing 30-day trial...');
-            await PremiumCheckService.start30DayTrial(createdAt);
-
-            // Refresh local status immediately to update UI
-            const newStatus = await PremiumCheckService.getLocalPremiumStatus();
-            setIsPremium(newStatus.isPremium);
-            return;
-          }
+        // ⚡ FIX: Removed automatic 30-day trial for new users to allow RevenueCat testing.
+        // CLEANUP: If user has "stuck" local premium from previous auto-grant, clear it.
+        const isLocalPremium = await AsyncStorage.getItem('isPremium');
+        if (isLocalPremium === 'true') {
+          Logger.info('🧹 Clearing stuck local premium status for testing...');
+          await AsyncStorage.removeItem('isPremium');
+          await AsyncStorage.removeItem('premiumExpiresAt');
+          await AsyncStorage.removeItem('premiumDaysRemaining');
+          // Update state immediately
+          setIsPremium(false);
         }
       }
     } catch (error) {

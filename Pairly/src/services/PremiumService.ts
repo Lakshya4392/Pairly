@@ -11,28 +11,24 @@ interface PremiumStatus {
 }
 
 class PremiumService {
-  private STORAGE_KEY = '@pairly_premium_status';
   private DAILY_LIMIT_FREE = 3;
   private DAILY_LIMIT_PREMIUM = 999999; // Unlimited
 
-  // ⚡ CACHE: Reduce AsyncStorage hits for render loops
-  private _cachedStatus: PremiumStatus | null = null;
-  private _lastCacheTime: number = 0;
-  private CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-
   /**
    * Check if user has premium access
-   * 🔥 SINGLE SOURCE: Uses PremiumCheckService as the source of truth
+   * 🔥 SOURCE OF TRUTH: RevenueCat
    */
   async isPremium(): Promise<boolean> {
     try {
-      // 🔥 SINGLE SOURCE: Use PremiumCheckService (handles waitlist, backend, expiry)
-      const PremiumCheckService = (await import('./PremiumCheckService')).default;
-      const status = await PremiumCheckService.getLocalPremiumStatus();
-      return status.isPremium;
+      const RevenueCatService = (await import('./RevenueCatService')).default;
+      const isPremium = await RevenueCatService.getCustomerStatus();
+
+      // Sync to local storage for offline fallback? 
+      // RevenueCat SDK handles caching, so we rely on it.
+      return isPremium;
     } catch (error) {
       console.error('Error checking premium status:', error);
-      return false;
+      return false; // Default to free on error
     }
   }
 
@@ -40,70 +36,17 @@ class PremiumService {
    * Get full premium status
    */
   async getPremiumStatus(): Promise<PremiumStatus> {
-    // ⚡ CHECK CACHE: Return in-memory cache if valid
-    const now = Date.now();
-    if (this._cachedStatus && (now - this._lastCacheTime < this.CACHE_TTL)) {
-      return this._cachedStatus;
-    }
+    const isPremium = await this.isPremium();
 
-    try {
-      const data = await AsyncStorage.getItem(this.STORAGE_KEY);
-      if (data) {
-        const status = JSON.parse(data);
-        // Update cache
-        this._cachedStatus = status;
-        this._lastCacheTime = now;
-        return status;
-      }
-    } catch (error) {
-      console.error('Error getting premium status:', error);
-    }
-
-    // Default free status
-    const defaultStatus: PremiumStatus = {
-      isPremium: false,
-      plan: 'free',
-      expiresAt: null,
+    // For now, we simplify the status since RevenueCat handles the complexity
+    return {
+      isPremium,
+      plan: isPremium ? 'yearly' : 'free', // We might want to fetch actual plan from RC if needed
+      expiresAt: null, // RevenueCat handles expiry
       trialEndsAt: null,
-      dailyMomentsCount: 0,
-      dailyMomentsLimit: this.DAILY_LIMIT_FREE,
+      dailyMomentsCount: 0, // We calculate this separately
+      dailyMomentsLimit: isPremium ? this.DAILY_LIMIT_PREMIUM : this.DAILY_LIMIT_FREE,
     };
-
-    // Cache default too
-    this._cachedStatus = defaultStatus;
-    this._lastCacheTime = now;
-
-    return defaultStatus;
-  }
-
-  /**
-   * Set premium status (after purchase or sync)
-   */
-  async setPremiumStatus(
-    isPremium: boolean,
-    plan: 'monthly' | 'yearly' = 'monthly',
-    expiresAt?: Date
-  ): Promise<void> {
-    try {
-      const status: PremiumStatus = {
-        isPremium,
-        plan: isPremium ? plan : 'free',
-        expiresAt: expiresAt ? expiresAt.toISOString() : null,
-        trialEndsAt: null,
-        dailyMomentsCount: 0,
-        dailyMomentsLimit: isPremium ? this.DAILY_LIMIT_PREMIUM : this.DAILY_LIMIT_FREE,
-      };
-
-      await AsyncStorage.setItem(this.STORAGE_KEY, JSON.stringify(status));
-
-      // ⚡ UPDATE CACHE
-      this._cachedStatus = status;
-      this._lastCacheTime = Date.now();
-
-      console.log('✅ Premium status updated:', status);
-    } catch (error) {
-      console.error('Error setting premium status:', error);
-    }
   }
 
   /**
@@ -116,7 +59,6 @@ class PremiumService {
     upgradeRequired: boolean;
   }> {
     try {
-      // ⚡ Use isPremium() method which includes waitlist premium check
       const isPremiumUser = await this.isPremium();
 
       // Premium users have unlimited
@@ -130,6 +72,7 @@ class PremiumService {
       }
 
       // Check if we need to reset daily counter
+      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
       const today = new Date().toDateString();
       const lastDate = await AsyncStorage.getItem('@pairly_last_moment_date');
 
@@ -170,6 +113,7 @@ class PremiumService {
    */
   async incrementMomentCount(): Promise<void> {
     try {
+      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
       const countStr = await AsyncStorage.getItem('@pairly_daily_count');
       const count = countStr ? parseInt(countStr, 10) : 0;
       await AsyncStorage.setItem('@pairly_daily_count', (count + 1).toString());
@@ -180,43 +124,11 @@ class PremiumService {
   }
 
   /**
-   * Start free trial (30 days) - Delegates to PremiumCheckService
-   */
-  async startTrial(): Promise<void> {
-    try {
-      const PremiumCheckService = (await import('./PremiumCheckService')).default;
-      await PremiumCheckService.start30DayTrial(new Date());
-    } catch (error) {
-      console.error('Error starting trial:', error);
-    }
-  }
-
-  /**
-   * Sync premium status with backend
+   * Sync premium status with backend (Legacy/Fallback)
+   * With RevenueCat, the app is the source of truth, but we might want to tell backend about it.
    */
   async syncWithBackend(): Promise<void> {
-    try {
-      const data = await apiClient.get<{
-        success: boolean;
-        data: { isPremium: boolean; premiumPlan: 'monthly' | 'yearly'; premiumExpiry: string };
-      }>('/users/me/premium');
-
-      if (data.success && data.data) {
-        if (data.data.isPremium) {
-          await this.setPremiumStatus(
-            true,
-            data.data.premiumPlan,
-            data.data.premiumExpiry ? new Date(data.data.premiumExpiry) : undefined
-          );
-        } else {
-          await this.setPremiumStatus(false);
-        }
-        console.log('✅ Premium status synced with backend');
-      }
-    } catch (error) {
-      console.warn('Could not sync premium status:', error);
-      // Don't throw - fail silently and use local cache
-    }
+    // Optional: Send RevenueCat ID to backend if needed
   }
 
   /**
@@ -224,8 +136,6 @@ class PremiumService {
    */
   async hasFeature(feature: PremiumFeature): Promise<boolean> {
     const isPremium = await this.isPremium();
-
-    // All premium features require premium
     return isPremium;
   }
 
@@ -252,14 +162,7 @@ class PremiumService {
    * Clear premium status (on logout)
    */
   async clearPremiumStatus(): Promise<void> {
-    try {
-      await AsyncStorage.removeItem(this.STORAGE_KEY);
-      await AsyncStorage.removeItem('@pairly_daily_count');
-      await AsyncStorage.removeItem('@pairly_last_moment_date');
-      console.log('✅ Premium status cleared');
-    } catch (error) {
-      console.error('Error clearing premium status:', error);
-    }
+    // RevenueCat handles logout separately via RevenueCatService.logout()
   }
 }
 

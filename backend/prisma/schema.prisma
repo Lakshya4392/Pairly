@@ -30,7 +30,7 @@ model User {
   premiumSince       DateTime?
   premiumExpiry      DateTime?
   revenueCatId       String?   // RevenueCat customer ID
-  trialEndsAt        DateTime? // 7-day trial tracking
+  // trialEndsAt        DateTime? // DEPRECATED: Removed to force RevenueCat source of truth
   
   // Daily limits (for free users)
   dailyMomentsCount  Int       @default(0)
@@ -226,47 +226,4 @@ model DualMoment {
   @@index([createdAt])
 }
 
-// Whitelist System - "Invite-Only Access Control"
-model InvitedUser {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  phoneNumber   String?   @unique
-  invitedBy     String?   // User ID who sent the invite
-  status        String    @default("pending") // 'pending' | 'joined' | 'expired'
-  inviteCode    String    @unique @default(cuid())
-  invitedAt     DateTime  @default(now())
-  joinedAt      DateTime?
-  expiresAt     DateTime? // Optional expiry for invite
-  
-  // Metadata
-  source        String?   // 'website', 'app', 'referral', etc.
-  name          String?   // Optional name
-  
-  // Reward tracking
-  rewardGranted Boolean   @default(false)
-  rewardType    String?   // 'premium_month' | 'premium_3months' | etc.
-  
-  // App integration (STRICT)
-  clerkId       String?   @unique
-  referralCount Int       @default(0)
-  
-  // Premium tracking (STRICT - Time-based premium)
-  premiumGrantedAt  DateTime? // When premium was first granted
-  premiumExpiresAt  DateTime? // When premium expires
-  premiumDays       Int       @default(30) // Total premium days earned
-  
-  @@index([email])
-  @@index([phoneNumber])
-  @@index([invitedBy])
-  @@index([status])
-  @@index([clerkId])
-}
-
-// App Configuration - Launch date and waitlist control
-model AppConfig {
-  id              String   @id @default(cuid())
-  launchDate      DateTime // Public launch date
-  isWaitlistOnly  Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-}
+// Whitelist / Config tables DELETED to support RevenueCat only mode.

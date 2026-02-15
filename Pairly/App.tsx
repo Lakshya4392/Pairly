@@ -205,7 +205,16 @@ export default function App() {
         }
       }, 2000); // Longer delay to prevent crashes
 
-      // Request notification permissions (fast)
+      // ⚡ REVENUECAT: Initialize In-App Purchases
+      setTimeout(async () => {
+        try {
+          const RevenueCatService = (await import('./src/services/RevenueCatService')).default;
+          await RevenueCatService.init(); // Initialize SDK
+          Logger.debug('✅ RevenueCat Service initialized');
+        } catch (error) {
+          Logger.error('❌ Error initializing RevenueCat:', error);
+        }
+      }, 2500);
       const NotificationService = (await import('./src/services/NotificationService')).default;
       const hasPermission = await NotificationService.requestPermissions();
 
@@ -237,7 +246,7 @@ export default function App() {
           if (status.isPremium) {
             Logger.info(`⭐ Premium active: ${status.daysRemaining} days remaining`);
           } else {
-            Logger.info(`⏰ Premium expired. Referrals: ${status.referralCount}/3`);
+            Logger.info(`⏰ Premium expired.`);
           }
 
           // Check if we should show an alert

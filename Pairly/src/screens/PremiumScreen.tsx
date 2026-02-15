@@ -6,15 +6,18 @@ import {
   ScrollView,
   TouchableOpacity,
   StatusBar,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { CustomAlert } from '../components/CustomAlert';
 import { useTheme } from '../contexts/ThemeContext';
-import { colors as defaultColors, gradients } from '../theme/colorsIOS';
+import { colors as defaultColors } from '../theme/colorsIOS';
 import { spacing, borderRadius, layout } from '../theme/spacingIOS';
 import { shadows } from '../theme/shadowsIOS';
-import PremiumService from '../services/PremiumService';
+import RevenueCatService from '../services/RevenueCatService';
+import { PurchasesPackage } from 'react-native-purchases';
 
 interface PremiumScreenProps {
   onBack: () => void;
@@ -24,28 +27,97 @@ interface PremiumScreenProps {
 export const PremiumScreen: React.FC<PremiumScreenProps> = ({ onBack, onPurchase }) => {
   const { colors } = useTheme();
   const styles = React.useMemo(() => createStyles(colors), [colors]);
-  
-  const [isPremium, setIsPremium] = useState(false);
-  const [premiumPlan, setPremiumPlan] = useState<'free' | 'monthly' | 'yearly'>('free');
-  const [expiresAt, setExpiresAt] = useState<string | null>(null);
 
-  // Load premium status
+  const [isPremium, setIsPremium] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [offerings, setOfferings] = useState<PurchasesPackage[]>([]);
+  const [selectedPackage, setSelectedPackage] = useState<PurchasesPackage | null>(null);
+
+  const [isPurchasing, setIsPurchasing] = useState(false);
+  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
+
+  // Load RevenueCat Data
   useEffect(() => {
-    loadPremiumStatus();
+    loadData();
   }, []);
 
-  const loadPremiumStatus = async () => {
+  const loadData = async () => {
     try {
-      const status = await PremiumService.getPremiumStatus();
-      setIsPremium(status.isPremium);
-      setPremiumPlan(status.plan);
-      setExpiresAt(status.expiresAt);
-      console.log('💎 Premium status loaded:', status);
+      setIsLoading(true);
+
+      // 1. Check Status
+      const premiumActive = await RevenueCatService.getCustomerStatus();
+      setIsPremium(premiumActive);
+
+      // 2. Load Offerings
+      const currentOffering = await RevenueCatService.getOfferings();
+      if (currentOffering && currentOffering.availablePackages.length > 0) {
+        setOfferings(currentOffering.availablePackages);
+
+        // Default to Yearly if available (usually better value)
+        const yearly = currentOffering.availablePackages.find(p => p.packageType === 'ANNUAL');
+        const monthly = currentOffering.availablePackages.find(p => p.packageType === 'MONTHLY');
+
+        // Select logic: Yearly -> Monthly -> First Available
+        setSelectedPackage(yearly || monthly || currentOffering.availablePackages[0]);
+      }
     } catch (error) {
-      console.error('Error loading premium status:', error);
+      console.error('Error loading RevenueCat data:', error);
+      // Don't alert on load error to avoid spamming user if offline, just show fallback UI
+    } finally {
+      setIsLoading(false);
     }
   };
-  
+
+  const handlePurchase = async () => {
+    if (!selectedPackage) return;
+
+    try {
+      setIsPurchasing(true);
+      const { isPremium: newStatus } = await RevenueCatService.purchasePackage(selectedPackage);
+
+      if (newStatus) {
+        setIsPremium(true);
+        setShowSuccessAlert(true);
+
+        // ⚡ SYNC: Update backend immediately
+        try {
+          const plan = selectedPackage.packageType === 'ANNUAL' ? 'yearly' : 'monthly';
+          const UserSyncService = (await import('../services/UserSyncService')).default;
+          await UserSyncService.updatePremiumStatus(true, plan);
+          console.log('✅ Premium status synced to backend');
+        } catch (err) {
+          console.error('⚠️ Failed to sync premium to backend:', err);
+        }
+
+        onPurchase?.(selectedPackage.packageType === 'ANNUAL' ? 'yearly' : 'monthly');
+      }
+    } catch (error: any) {
+      if (!error.userCancelled) {
+        Alert.alert('Purchase Failed', error.message || 'Something went wrong');
+      }
+    } finally {
+      setIsPurchasing(false);
+    }
+  };
+
+  const handleRestore = async () => {
+    try {
+      setIsPurchasing(true);
+      const restored = await RevenueCatService.restorePurchases();
+      if (restored) {
+        setIsPremium(true);
+        Alert.alert('Restored', 'Your premium purchases have been restored!');
+      } else {
+        Alert.alert('No Subscription Found', 'We definitively could not find a premium subscription for your account.');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to restore purchases.');
+    } finally {
+      setIsPurchasing(false);
+    }
+  };
+
   // Premium features with emotional copy
   const premiumFeatures = [
     {
@@ -53,128 +125,52 @@ export const PremiumScreen: React.FC<PremiumScreenProps> = ({ onBack, onPurchase
       title: 'Unlimited Moments',
       description: 'Share as many moments as your heart desires',
       color: colors.secondary,
-      isNew: false,
     },
     {
       icon: 'chatbubble-ellipses',
       title: 'Shared Love Notes',
       description: 'Send notes that appear like magic on their screen',
       color: '#FF6B9D',
-      isNew: false,
     },
     {
       icon: 'time',
       title: 'Time-Lock Messages',
       description: 'Send love to your future selves',
       color: '#9B59B6',
-      isNew: false,
     },
     {
       icon: 'people',
       title: 'Live Presence',
       description: 'Feel close, even when miles apart',
       color: '#3498DB',
-      isNew: false,
-    },
-    {
-      icon: 'hourglass',
-      title: 'Relationship Timer',
-      description: 'Track every beautiful moment together',
-      color: '#E74C3C',
-      isNew: true,
     },
     {
       icon: 'lock-closed',
       title: 'Secret Vault',
       description: 'Some memories are just for you two',
       color: '#1ABC9C',
-      isNew: false,
-    },
-    {
-      icon: 'moon',
-      title: 'Dark Mode & Themes',
-      description: 'Beautiful themes for every mood',
-      color: colors.primary,
-      isNew: false,
-    },
-    {
-      icon: 'shield-checkmark',
-      title: 'App Lock & Privacy',
-      description: 'PIN/Fingerprint protection',
-      color: '#34495E',
-      isNew: false,
     },
   ];
-  const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('yearly');
-  const [showConfirmAlert, setShowConfirmAlert] = useState(false);
-  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
 
-  const handlePurchase = () => {
-    setShowConfirmAlert(true);
-  };
+  const PlanCard = ({ pack }: { pack: PurchasesPackage }) => {
+    const isSelected = selectedPackage?.identifier === pack.identifier;
+    const isYearly = pack.packageType === 'ANNUAL';
 
-  const confirmPurchase = async () => {
-    try {
-      // Start trial or activate premium
-      if (selectedPlan === 'yearly') {
-        // 1 year premium
-        const expiryDate = new Date();
-        expiryDate.setFullYear(expiryDate.getFullYear() + 1);
-        await PremiumService.setPremiumStatus(true, 'yearly', expiryDate);
-      } else {
-        // 1 month premium
-        const expiryDate = new Date();
-        expiryDate.setMonth(expiryDate.getMonth() + 1);
-        await PremiumService.setPremiumStatus(true, 'monthly', expiryDate);
-      }
-      
-      // Reload premium status
-      await loadPremiumStatus();
-      
-      // Update local subscription
-      onPurchase?.(selectedPlan);
-      
-      setShowConfirmAlert(false);
-      setShowSuccessAlert(true);
-      
-      console.log('✅ Premium activated:', selectedPlan);
-    } catch (error) {
-      console.error('❌ Error activating premium:', error);
-      setShowConfirmAlert(false);
-      setShowSuccessAlert(true);
-    }
-  };
-
-  const PlanCard = ({ 
-    plan, 
-    price, 
-    period, 
-    savings, 
-    isPopular 
-  }: { 
-    plan: 'monthly' | 'yearly'; 
-    price: string; 
-    period: string; 
-    savings?: string;
-    isPopular?: boolean;
-  }) => {
-    const isSelected = selectedPlan === plan;
-    
     return (
       <TouchableOpacity
         style={[
           styles.planCard,
           isSelected && styles.planCardSelected,
         ]}
-        onPress={() => setSelectedPlan(plan)}
+        onPress={() => setSelectedPackage(pack)}
         activeOpacity={0.7}
       >
-        {isPopular && (
+        {isYearly && (
           <View style={styles.popularBadge}>
-            <Text style={styles.popularText}>MOST POPULAR</Text>
+            <Text style={styles.popularText}>BEST VALUE</Text>
           </View>
         )}
-        
+
         <View style={styles.planContent}>
           <View style={styles.planLeft}>
             <View style={[styles.radioButton, isSelected && styles.radioButtonSelected]}>
@@ -182,20 +178,20 @@ export const PremiumScreen: React.FC<PremiumScreenProps> = ({ onBack, onPurchase
             </View>
             <View style={styles.planInfo}>
               <Text style={[styles.planName, isSelected && styles.planNameSelected]}>
-                {period}
+                {isYearly ? 'Yearly' : 'Monthly'}
               </Text>
-              {savings && (
-                <Text style={styles.planSavings}>{savings}</Text>
+              {isYearly && (
+                <Text style={styles.planSavings}>Maximum Savings</Text>
               )}
             </View>
           </View>
-          
+
           <View style={styles.planRight}>
             <Text style={[styles.planPrice, isSelected && styles.planPriceSelected]}>
-              {price}
+              {pack.product.priceString}
             </Text>
             <Text style={styles.planPeriod}>
-              /{plan === 'monthly' ? 'mo' : 'yr'}
+              /{isYearly ? 'yr' : 'mo'}
             </Text>
           </View>
         </View>
@@ -203,29 +199,14 @@ export const PremiumScreen: React.FC<PremiumScreenProps> = ({ onBack, onPurchase
     );
   };
 
-  const FeatureItem = ({ 
-    icon, 
-    title, 
-    description,
-    color,
-    isNew 
-  }: { 
-    icon: string; 
-    title: string; 
-    description: string;
-    color: string;
-    isNew?: boolean;
-  }) => (
+  const FeatureItem = ({ icon, title, description, color }: any) => (
     <View style={styles.featureCard}>
       <View style={[styles.featureIconContainer, { backgroundColor: color + '15' }]}>
-        <Ionicons name={icon as any} size={24} color={color} />
-        {isNew && (
-          <View style={styles.newDot} />
-        )}
+        <Ionicons name={icon} size={24} color={color} />
       </View>
       <View style={styles.featureTextContainer}>
-        <Text style={styles.featureTitle} numberOfLines={1}>{title}</Text>
-        <Text style={styles.featureDescription} numberOfLines={2}>{description}</Text>
+        <Text style={styles.featureTitle}>{title}</Text>
+        <Text style={styles.featureDescription}>{description}</Text>
       </View>
     </View>
   );
@@ -233,8 +214,8 @@ export const PremiumScreen: React.FC<PremiumScreenProps> = ({ onBack, onPurchase
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={colors.secondary} />
-      
-      {/* Compact Header */}
+
+      {/* Header */}
       <LinearGradient
         colors={[colors.secondary, colors.secondaryLight]}
         style={styles.header}
@@ -244,131 +225,125 @@ export const PremiumScreen: React.FC<PremiumScreenProps> = ({ onBack, onPurchase
         <TouchableOpacity onPress={onBack} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="white" />
         </TouchableOpacity>
-        
+
         <View style={styles.headerContent}>
           <Ionicons name="diamond" size={32} color="white" style={styles.headerIcon} />
           <Text style={styles.headerTitle}>Pairly Premium</Text>
         </View>
+
+        {!isPremium && (
+          <TouchableOpacity onPress={handleRestore} style={styles.restoreButton}>
+            <Text style={styles.restoreText}>Restore</Text>
+          </TouchableOpacity>
+        )}
       </LinearGradient>
 
-      <ScrollView 
-        style={styles.scrollView} 
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {/* Premium Status Banner */}
-        {isPremium && (
-          <View style={styles.premiumBanner}>
-            <LinearGradient
-              colors={['#FFD700', '#FFA500']}
-              style={styles.premiumBannerGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-            >
-              <Ionicons name="checkmark-circle" size={24} color="white" />
-              <View style={styles.premiumBannerText}>
-                <Text style={styles.premiumBannerTitle}>Premium Active</Text>
-                <Text style={styles.premiumBannerSubtitle}>
-                  {premiumPlan === 'yearly' ? 'Yearly Plan' : 'Monthly Plan'}
-                  {expiresAt && ` • Expires ${new Date(expiresAt).toLocaleDateString()}`}
-                </Text>
-              </View>
-            </LinearGradient>
-          </View>
-        )}
-
-        {/* Features Grid */}
-        <View style={styles.featuresContainer}>
-          <View style={styles.featuresGrid}>
-            {premiumFeatures.map((feature, index) => (
-              <FeatureItem key={index} {...feature} />
-            ))}
-          </View>
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.secondary} />
+          <Text style={styles.loadingText}>Loading premium options...</Text>
         </View>
+      ) : (
+        <ScrollView
+          style={styles.scrollView}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
+          {/* Premium Status Banner */}
+          {isPremium && (
+            <View style={styles.premiumBanner}>
+              <LinearGradient
+                colors={['#FFD700', '#FFA500']}
+                style={styles.premiumBannerGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+              >
+                <Ionicons name="checkmark-circle" size={24} color="white" />
+                <View style={styles.premiumBannerText}>
+                  <Text style={styles.premiumBannerTitle}>Premium Active</Text>
+                  <Text style={styles.premiumBannerSubtitle}>
+                    You have access to all premium features!
+                  </Text>
+                </View>
+              </LinearGradient>
+            </View>
+          )}
 
-        {/* Pricing Plans - Only for free users */}
-        {!isPremium && (
-          <View style={styles.pricingContainer}>
-            <PlanCard
-              plan="yearly"
-              price="$39.99"
-              period="Yearly"
-              savings="Save 17%"
-              isPopular
-            />
-            
-            <PlanCard
-              plan="monthly"
-              price="$3.99"
-              period="Monthly"
-            />
-            
-            <Text style={styles.trialText}>
-              7-day free trial • Cancel anytime
-            </Text>
+          {/* Features Grid */}
+          <View style={styles.featuresContainer}>
+            <View style={styles.featuresGrid}>
+              {premiumFeatures.map((feature, index) => (
+                <FeatureItem key={index} {...feature} />
+              ))}
+            </View>
           </View>
-        )}
-      </ScrollView>
 
-      {/* Purchase Button - Only for free users */}
-      {!isPremium && (
-        <View style={styles.footer}>
-          <TouchableOpacity
-            style={styles.purchaseButton}
-            onPress={handlePurchase}
-            activeOpacity={0.8}
-          >
-            <LinearGradient
-              colors={[colors.secondary, colors.secondaryLight]}
-              style={styles.purchaseButtonGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-            >
-            <Ionicons name="diamond" size={24} color="white" />
-            <Text style={styles.purchaseButtonText}>
-              Start Free Trial
-            </Text>
-          </LinearGradient>
-        </TouchableOpacity>
-        
-        <Text style={styles.footerNote}>
-          {selectedPlan === 'yearly' ? '$39.99/year' : '$4.99/month'} after trial ends
-        </Text>
-      </View>
+          {/* Pricing Plans - Only for free users */}
+          {!isPremium && offerings.length > 0 && (
+            <View style={styles.pricingContainer}>
+              {offerings.map(pack => (
+                <PlanCard key={pack.identifier} pack={pack} />
+              ))}
+
+              <Text style={styles.trialText}>
+                Secure payment via Google Play
+              </Text>
+            </View>
+          )}
+
+          {!isPremium && offerings.length === 0 && (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>No subscriptions available.</Text>
+              <Text style={styles.errorSubText}>Check your internet or try again later.</Text>
+            </View>
+          )}
+        </ScrollView>
       )}
 
-      {/* Confirm Purchase Alert */}
-      <CustomAlert
-        visible={showConfirmAlert}
-        title="Start Free Trial?"
-        message={`You'll get 7 days free, then ${selectedPlan === 'monthly' ? '$4.99/month' : '$39.99/year'}. Cancel anytime.`}
-        icon="diamond"
-        iconColor={colors.secondary}
-        buttons={[
-          {
-            text: 'Cancel',
-            style: 'cancel',
-            onPress: () => setShowConfirmAlert(false),
-          },
-          {
-            text: 'Start Trial',
-            style: 'default',
-            onPress: confirmPurchase,
-          },
-        ]}
-        onClose={() => setShowConfirmAlert(false)}
-      />
+      {/* Purchase Button - Only for free users */}
+      {!isPremium && !isLoading && (
+        <View style={styles.footer}>
+          <TouchableOpacity
+            style={[styles.purchaseButton, isPurchasing && styles.disabledButton]}
+            onPress={handlePurchase}
+            activeOpacity={0.8}
+            disabled={isPurchasing || offerings.length === 0}
+          >
+            <LinearGradient
+              colors={isPurchasing ? [colors.border, colors.border] : [colors.secondary, colors.secondaryLight]}
+              style={styles.purchaseButtonGradient}
+            >
+              {isPurchasing ? (
+                <ActivityIndicator color="white" />
+              ) : (
+                <>
+                  <Ionicons name="diamond" size={24} color="white" />
+                  <Text style={styles.purchaseButtonText}>
+                    {selectedPackage?.packageType === 'ANNUAL' ? 'Start Yearly Plan' : 'Start Monthly Plan'}
+                  </Text>
+                </>
+              )}
+            </LinearGradient>
+          </TouchableOpacity>
+
+          <Text style={styles.footerNote}>
+            {selectedPackage
+              ? `Recurring billing. Cancel anytime.`
+              : 'Select a plan to continue'}
+          </Text>
+        </View>
+      )}
 
       {/* Success Alert */}
       <CustomAlert
         visible={showSuccessAlert}
-        title="Trial Started! 🎉"
-        message="You now have 7 days of premium access. Enjoy unlimited moments, shared notes, time-lock messages, and more!"
+        title="Welcome to Premium! 🎉"
+        message="You now have unlimited access to all features. Thank you for supporting Pairly!"
         icon="checkmark-circle"
         iconColor={colors.success}
         buttons={[
           {
-            text: 'Let\'s Go!',
+            text: 'Awesome!',
             style: 'default',
             onPress: () => {
               setShowSuccessAlert(false);
@@ -390,7 +365,29 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: spacing.md,
+    color: colors.textSecondary,
+    fontFamily: 'Inter-Medium',
+  },
+  errorContainer: {
+    padding: spacing.xl,
+    alignItems: 'center',
+  },
+  errorText: {
+    color: colors.error,
+    fontFamily: 'Inter-Bold',
+  },
+  errorSubText: {
+    color: colors.textSecondary,
+    marginTop: spacing.sm,
+  },
+
   // Compact Header
   header: {
     paddingTop: spacing.huge,
@@ -407,6 +404,17 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  restoreButton: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    borderRadius: borderRadius.md,
+  },
+  restoreText: {
+    color: 'white',
+    fontFamily: 'Inter-Medium',
+    fontSize: 12,
   },
   headerContent: {
     flex: 1,
@@ -463,7 +471,7 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
 
   // Trial Text
   trialText: {
-    fontSize: 14,
+    fontSize: 12,
     color: colors.textSecondary,
     textAlign: 'center',
     marginTop: spacing.lg,
@@ -494,17 +502,6 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     alignItems: 'center',
     position: 'relative',
     flexShrink: 0,
-  },
-  newDot: {
-    position: 'absolute',
-    top: 2,
-    right: 2,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.secondary,
-    borderWidth: 2,
-    borderColor: colors.surface,
   },
   featureTextContainer: {
     flex: 1,
@@ -608,11 +605,11 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
   planSavings: {
     fontFamily: 'Inter-SemiBold',
     fontSize: 11,
-    color: colors.secondary,
+    color: colors.success,
   },
   planPrice: {
     fontFamily: 'Inter-Bold',
-    fontSize: 24,
+    fontSize: 20,
     color: colors.text,
   },
   planPriceSelected: {
@@ -623,8 +620,6 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     color: colors.textSecondary,
     marginLeft: spacing.xs,
   },
-
-
 
   // Footer
   footer: {
@@ -638,6 +633,9 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     borderRadius: borderRadius.full,
     overflow: 'hidden',
     ...shadows.lg,
+  },
+  disabledButton: {
+    opacity: 0.7,
   },
   purchaseButtonGradient: {
     flexDirection: 'row',

@@ -164,7 +164,7 @@ import noteRoutes from './routes/noteRoutes';
 import timeLockRoutes from './routes/timeLockRoutes';
 import dualCameraRoutes from './routes/dualCameraRoutes';
 import widgetRoutes from './routes/widgetRoutes';
-import inviteRoutes from './routes/inviteRoutes';
+// import inviteRoutes from './routes/inviteRoutes'; // DEPRECATED: RevenueCat is now source of truth
 import configRoutes from './routes/configRoutes';
 import reminderRoutes from './routes/reminderRoutes';
 import pingRoutes from './routes/pingRoutes';
@@ -209,7 +209,7 @@ app.get('/keep-alive', (req, res) => {
 
 // API routes with specific rate limits
 app.use('/auth', authLimiter, authRoutes); // Strict rate limit for auth
-app.use('/auth', authLimiter, inviteRoutes); // Invite routes also under auth
+// app.use('/auth', authLimiter, inviteRoutes); // DEPRECATED
 app.use('/pairs', pairingLimiter, pairRoutes); // Pairing rate limit
 app.use('/moments', uploadLimiter, momentRoutes); // Moments rate limit (all operations)
 app.use('/test', testRoutes);
@@ -218,7 +218,7 @@ app.use('/notes', noteRoutes);
 app.use('/timelock', timeLockRoutes);
 app.use('/dual-moments', uploadLimiter, dualCameraRoutes); // Upload rate limit
 app.use('/widget', widgetLimiter, widgetRoutes); // 🔥 Widget-specific generous limit
-app.use('/invites', authLimiter, inviteRoutes);
+// app.use('/invites', authLimiter, inviteRoutes); // DEPRECATED
 app.use('/config', configRoutes);
 app.use('/reminders', reminderRoutes);
 app.use('/ping', pingRoutes);

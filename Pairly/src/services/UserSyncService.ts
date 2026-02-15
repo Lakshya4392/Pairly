@@ -22,33 +22,29 @@ class UserSyncService {
   }> {
     try {
       console.log('🌐 Syncing user with backend...');
-      
+
       const data = await apiClient.post<{ success: boolean; user: any }>(
         '/auth/sync',
         userData
       );
 
       console.log('✅ User synced with backend:', data.user.id);
-      
+
       // Store user ID locally
       await AsyncStorage.setItem('@pairly_user_id', data.user.id);
       await AsyncStorage.setItem('user_id', data.user.id); // For widget access
-      
+
       // Sync premium status with local storage
       if (data.user.isPremium) {
-        const expiryDate = data.user.premiumExpiry 
-          ? new Date(data.user.premiumExpiry) 
+        const expiryDate = data.user.premiumExpiry
+          ? new Date(data.user.premiumExpiry)
           : undefined;
-        
-        await PremiumService.setPremiumStatus(
-          true,
-          data.user.premiumPlan || 'monthly',
-          expiryDate
-        );
-        
-        console.log('✅ Premium status synced to local storage');
+
+        // Premium status is now handled by RevenueCatService and verified on app start.
+        // We do not need to manually set it here anymore.
+        console.log('✅ Premium status checked in sync');
       }
-      
+
       return { success: true, user: data.user };
     } catch (error: any) {
       // Silent fail - backend offline is normal for free tier
@@ -113,20 +109,20 @@ class UserSyncService {
   async checkPremiumStatus(): Promise<boolean> {
     try {
       const user = await this.getUserFromBackend();
-      
+
       if (!user) return false;
 
       // Check if premium is still valid
       if (user.isPremium && user.premiumExpiry) {
         const expiry = new Date(user.premiumExpiry);
         const now = new Date();
-        
+
         if (now > expiry) {
           // Premium expired
           await this.updatePremiumStatus(false);
           return false;
         }
-        
+
         return true;
       }
 

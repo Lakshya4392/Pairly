@@ -52,37 +52,19 @@ export const ManagePremiumScreen: React.FC<ManagePremiumScreenProps> = ({
 
   const handleCancelSubscription = async () => {
     try {
-      console.log('🚫 Canceling premium subscription...');
+      console.log('🔗 Opening subscription management...');
 
-      // Cancel premium locally
-      await PremiumService.setPremiumStatus(false);
+      const RevenueCatService = (await import('../services/RevenueCatService')).default;
+      const managementUrl = await RevenueCatService.getManagementURL();
 
-      // Sync with backend
-      try {
-        const { useUser } = await import('@clerk/clerk-expo');
-        const user = useUser().user;
-
-        if (user) {
-          const UserSyncService = (await import('../services/UserSyncService')).default;
-          await UserSyncService.updatePremiumStatus(false);
-          console.log('✅ Premium canceled in backend');
-        }
-      } catch (syncError) {
-        console.log('⚠️ Backend sync skipped (offline)');
+      if (managementUrl) {
+        const { Linking } = await import('react-native');
+        await Linking.openURL(managementUrl);
       }
 
       setShowCancelAlert(false);
-      setShowSuccessAlert(true);
-
-      console.log('✅ Premium subscription canceled');
-
-      // Navigate back after showing success
-      setTimeout(() => {
-        onCancelSubscription?.();
-        onBack();
-      }, 2000);
     } catch (error) {
-      console.error('Error canceling subscription:', error);
+      console.error('Error opening management URL:', error);
     }
   };
 

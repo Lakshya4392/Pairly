@@ -99,13 +99,8 @@ class PremiumCheckService {
       this._cachedStatus = status;
       this._lastCheckTime = Date.now();
 
-      // Sync with legacy service
-      try {
-        const PremiumService = (await import('./PremiumService')).default;
-        await PremiumService.setPremiumStatus(true, 'monthly', expiresAt);
-      } catch (e) {
-        Logger.warn('Failed to sync trial with PremiumService');
-      }
+      // Trial started locally. RevenueCat will pick up actual purchases.
+      Logger.info('✅ Local trial started');
     } catch (error) {
       Logger.error('Error starting trial:', error);
     }
@@ -114,88 +109,39 @@ class PremiumCheckService {
   /**
    * Check premium status - uses cache if available
    */
+  /**
+   * Check premium status - REVENUECAT AUTHORITATIVE
+   */
   async checkPremiumStatus(): Promise<PremiumStatus> {
-    // ⚡ CHECK CACHE: Return cached if valid (less than 30 min old)
-    const now = Date.now();
-    if (this._cachedStatus && (now - this._lastCheckTime < this.CACHE_TTL)) {
-      // ⚡ LOCAL EXPIRY CHECK: Don't call backend, just check locally
-      return this.checkExpiryLocally(this._cachedStatus);
-    }
-
     try {
-      // First check if we have a valid LOCAL trial that shouldn't be overwritten
-      const localStatus = await this.getLocalPremiumStatus();
-      if (localStatus.isPremium && localStatus.premiumExpiresAt) {
-        const expiry = new Date(localStatus.premiumExpiresAt);
-        if (expiry > new Date()) {
-          Logger.debug('⚡ [Premium] Valid local trial active, skipping backend check to prevent overwrite');
-          this._cachedStatus = localStatus;
-          this._lastCheckTime = now;
-          return localStatus;
-        }
+      Logger.debug('🔍 [Premium] Checking status via RevenueCat...');
+
+      // ⚡ REVENUECAT IS THE ONLY AUTHORITY
+      const RevenueCatService = (await import('./RevenueCatService')).default;
+      const isRcPremium = await RevenueCatService.getCustomerStatus();
+
+      if (isRcPremium) {
+        Logger.info('✅ [Premium] RevenueCat says PREMIUM');
+        await AsyncStorage.setItem('isPremium', 'true');
+
+        this._cachedStatus = { isPremium: true, daysRemaining: 30 };
+        this._lastCheckTime = Date.now();
+        return this._cachedStatus;
       }
 
-      const email = await AsyncStorage.getItem('userEmail');
-      const clerkId = await AsyncStorage.getItem('clerkId');
+      // If RevenueCat says FREE, we force FREE.
+      // We explicitly ignore any "local" or "backend" flags that might be stuck.
+      Logger.info('📉 [Premium] RevenueCat says FREE. Enforcing FREE status.');
+      await AsyncStorage.setItem('isPremium', 'false');
+      await AsyncStorage.setItem('premiumDaysRemaining', '0');
 
-      if (!email || !clerkId) {
-        Logger.warn('⚠️ No user email/clerkId found for premium check');
-        return this.getDefaultStatus();
-      }
+      this._cachedStatus = { isPremium: false, daysRemaining: 0 };
+      this._lastCheckTime = Date.now();
+      return this._cachedStatus;
 
-      Logger.debug('🔍 [Premium] Checking from backend (once per session)...');
-
-      const response = await fetch(
-        `${API_CONFIG.baseUrl}/invites/premium-status?email=${encodeURIComponent(email)}&clerkId=${encodeURIComponent(clerkId)}`
-      );
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const data = await response.json();
-      Logger.info('✅ [Premium] Status:', data.isPremium ? 'PREMIUM' : 'FREE', `(${data.daysRemaining} days left)`);
-
-      // IF backend says FREE, but we might have just started a trial locally in AppNavigator (race condition),
-      // we should double check if we should really overwrite it.
-      // But since we did the localStatus check at the start of this function, we are relatively safe.
-      // However, if the user is TRULY free (expired), we accept it.
-
-      // Save to local storage
-      await AsyncStorage.setItem('isPremium', data.isPremium ? 'true' : 'false');
-      await AsyncStorage.setItem('premiumDaysRemaining', data.daysRemaining?.toString() || '0');
-      await AsyncStorage.setItem('premiumExpiresAt', data.premiumExpiresAt || '');
-
-
-      const status: PremiumStatus = {
-        isPremium: data.isPremium,
-        daysRemaining: data.daysRemaining || 0,
-
-        premiumExpiresAt: data.premiumExpiresAt,
-      };
-
-      // ⚡ UPDATE CACHE
-      this._cachedStatus = status;
-      this._lastCheckTime = now;
-
-      // 🔥 SYNC: Update PremiumService to keep all sources in sync
-      try {
-        const PremiumService = (await import('./PremiumService')).default;
-        if (status.isPremium) {
-          const expiryDate = status.premiumExpiresAt ? new Date(status.premiumExpiresAt) : undefined;
-          await PremiumService.setPremiumStatus(true, 'monthly', expiryDate);
-        } else {
-          await PremiumService.setPremiumStatus(false);
-        }
-        Logger.debug('✅ [Premium] PremiumService synced');
-      } catch (syncError) {
-        Logger.warn('⚠️ Failed to sync PremiumService:', syncError);
-      }
-
-      return status;
     } catch (error) {
-      Logger.warn('⚠️ [Premium] Backend unavailable, using local cache');
-      return this.getLocalPremiumStatus();
+      Logger.warn('⚠️ [Premium] Check failed, defaulting to FREE for safety', error);
+      return this.getDefaultStatus();
     }
   }
 
