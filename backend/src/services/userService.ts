@@ -86,229 +86,226 @@ class UserService {
               // Default to FREE (RevenueCat handles premium)
               isPremium: false,
               premiumPlan: null,
-              trialEndsAt: null,
               premiumExpiry: null,
             },
-          },
           });
+        }
       }
-    }
 
       console.log('✅ User synced:', user.id);
-    console.log('📊 Premium status:', {
-      isPremium: user.isPremium,
-      plan: user.premiumPlan,
-      expiresAt: user.premiumExpiry,
-      trialEndsAt: user.trialEndsAt,
-    });
+      console.log('📊 Premium status:', {
+        isPremium: user.isPremium,
+        plan: user.premiumPlan,
+        expiresAt: user.premiumExpiry,
+      });
 
-    return user;
-  } catch(error) {
-    console.error('❌ Error syncing user:', error);
-    throw error;
+      return user;
+    } catch (error) {
+      console.error('❌ Error syncing user:', error);
+      throw error;
+    }
   }
-}
 
   /**
    * Get user by Clerk ID
    */
   async getUserByClerkId(clerkId: string) {
-  try {
-    const user = await prisma.user.findUnique({
-      where: { clerkId },
-      include: {
-        pairAsUser1: true,
-        pairAsUser2: true,
-      },
-    });
+    try {
+      const user = await prisma.user.findUnique({
+        where: { clerkId },
+        include: {
+          pairAsUser1: true,
+          pairAsUser2: true,
+        },
+      });
 
-    return user;
-  } catch (error) {
-    console.error('❌ Error getting user:', error);
-    throw error;
+      return user;
+    } catch (error) {
+      console.error('❌ Error getting user:', error);
+      throw error;
+    }
   }
-}
 
   /**
    * Get user by ID
    */
   async getUserById(id: string) {
-  try {
-    const user = await prisma.user.findUnique({
-      where: { id },
-      include: {
-        pairAsUser1: true,
-        pairAsUser2: true,
-      },
-    });
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id },
+        include: {
+          pairAsUser1: true,
+          pairAsUser2: true,
+        },
+      });
 
-    return user;
-  } catch (error) {
-    console.error('❌ Error getting user:', error);
-    throw error;
+      return user;
+    } catch (error) {
+      console.error('❌ Error getting user:', error);
+      throw error;
+    }
   }
-}
 
   /**
    * Update user
    */
   async updateUser(clerkId: string, data: UpdateUserData) {
-  try {
-    const user = await prisma.user.update({
-      where: { clerkId },
-      data: {
-        ...data,
-        updatedAt: new Date(),
-      },
-    });
+    try {
+      const user = await prisma.user.update({
+        where: { clerkId },
+        data: {
+          ...data,
+          updatedAt: new Date(),
+        },
+      });
 
-    console.log('✅ User updated:', user.id);
-    return user;
-  } catch (error) {
-    console.error('❌ Error updating user:', error);
-    throw error;
+      console.log('✅ User updated:', user.id);
+      return user;
+    } catch (error) {
+      console.error('❌ Error updating user:', error);
+      throw error;
+    }
   }
-}
 
   /**
    * Update premium status
    */
   async updatePremiumStatus(
-  clerkId: string,
-  isPremium: boolean,
-  plan ?: 'monthly' | 'yearly'
-) {
-  try {
-    const data: any = {
-      isPremium,
-      updatedAt: new Date(),
-    };
+    clerkId: string,
+    isPremium: boolean,
+    plan?: 'monthly' | 'yearly'
+  ) {
+    try {
+      const data: any = {
+        isPremium,
+        updatedAt: new Date(),
+      };
 
-    if (isPremium && plan) {
-      data.premiumPlan = plan;
-      data.premiumSince = new Date();
+      if (isPremium && plan) {
+        data.premiumPlan = plan;
+        data.premiumSince = new Date();
 
-      // Calculate expiry
-      const expiry = new Date();
-      if (plan === 'monthly') {
-        expiry.setMonth(expiry.getMonth() + 1);
+        // Calculate expiry
+        const expiry = new Date();
+        if (plan === 'monthly') {
+          expiry.setMonth(expiry.getMonth() + 1);
+        } else {
+          expiry.setFullYear(expiry.getFullYear() + 1);
+        }
+        data.premiumExpiry = expiry;
       } else {
-        expiry.setFullYear(expiry.getFullYear() + 1);
+        data.premiumPlan = null;
+        data.premiumSince = null;
+        data.premiumExpiry = null;
       }
-      data.premiumExpiry = expiry;
-    } else {
-      data.premiumPlan = null;
-      data.premiumSince = null;
-      data.premiumExpiry = null;
+
+      const user = await prisma.user.update({
+        where: { clerkId },
+        data,
+      });
+
+      console.log('✅ Premium status updated:', user.id, isPremium);
+      return user;
+    } catch (error) {
+      console.error('❌ Error updating premium status:', error);
+      throw error;
     }
-
-    const user = await prisma.user.update({
-      where: { clerkId },
-      data,
-    });
-
-    console.log('✅ Premium status updated:', user.id, isPremium);
-    return user;
-  } catch (error) {
-    console.error('❌ Error updating premium status:', error);
-    throw error;
   }
-}
 
   /**
    * Update user settings
    */
   async updateSettings(
-  clerkId: string,
-  settings: {
-  notificationsEnabled?: boolean;
-  soundEnabled?: boolean;
-  vibrationEnabled?: boolean;
-}
-) {
-  try {
-    const user = await prisma.user.update({
-      where: { clerkId },
-      data: {
-        ...settings,
-        updatedAt: new Date(),
-      },
-    });
+    clerkId: string,
+    settings: {
+      notificationsEnabled?: boolean;
+      soundEnabled?: boolean;
+      vibrationEnabled?: boolean;
+    }
+  ) {
+    try {
+      const user = await prisma.user.update({
+        where: { clerkId },
+        data: {
+          ...settings,
+          updatedAt: new Date(),
+        },
+      });
 
-    console.log('✅ Settings updated:', user.id);
-    return user;
-  } catch (error) {
-    console.error('❌ Error updating settings:', error);
-    throw error;
+      console.log('✅ Settings updated:', user.id);
+      return user;
+    } catch (error) {
+      console.error('❌ Error updating settings:', error);
+      throw error;
+    }
   }
-}
 
   /**
    * Update last active timestamp
    */
   async updateLastActive(clerkId: string) {
-  try {
-    await prisma.user.update({
-      where: { clerkId },
-      data: { lastActiveAt: new Date() },
-    });
-  } catch (error) {
-    console.error('❌ Error updating last active:', error);
+    try {
+      await prisma.user.update({
+        where: { clerkId },
+        data: { lastActiveAt: new Date() },
+      });
+    } catch (error) {
+      console.error('❌ Error updating last active:', error);
+    }
   }
-}
 
   /**
    * Delete user
    */
   async deleteUser(clerkId: string) {
-  try {
-    await prisma.user.delete({
-      where: { clerkId },
-    });
+    try {
+      await prisma.user.delete({
+        where: { clerkId },
+      });
 
-    console.log('✅ User deleted:', clerkId);
-  } catch (error) {
-    console.error('❌ Error deleting user:', error);
-    throw error;
+      console.log('✅ User deleted:', clerkId);
+    } catch (error) {
+      console.error('❌ Error deleting user:', error);
+      throw error;
+    }
   }
-}
 
   /**
    * Get user's partner
    */
   async getUserPartner(clerkId: string) {
-  try {
-    const user = await prisma.user.findUnique({
-      where: { clerkId },
-      include: {
-        pairAsUser1: {
-          include: {
-            user2: true,
+    try {
+      const user = await prisma.user.findUnique({
+        where: { clerkId },
+        include: {
+          pairAsUser1: {
+            include: {
+              user2: true,
+            },
+          },
+          pairAsUser2: {
+            include: {
+              user1: true,
+            },
           },
         },
-        pairAsUser2: {
-          include: {
-            user1: true,
-          },
-        },
-      },
-    });
+      });
 
-    if (!user) return null;
+      if (!user) return null;
 
-    // Return partner
-    if (user.pairAsUser1) {
-      return user.pairAsUser1.user2;
-    } else if (user.pairAsUser2) {
-      return user.pairAsUser2.user1;
+      // Return partner
+      if (user.pairAsUser1) {
+        return user.pairAsUser1.user2;
+      } else if (user.pairAsUser2) {
+        return user.pairAsUser2.user1;
+      }
+
+      return null;
+    } catch (error) {
+      console.error('❌ Error getting partner:', error);
+      throw error;
     }
-
-    return null;
-  } catch (error) {
-    console.error('❌ Error getting partner:', error);
-    throw error;
   }
-}
 }
 
 export default new UserService();

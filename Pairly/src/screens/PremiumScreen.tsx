@@ -63,7 +63,7 @@ export const PremiumScreen: React.FC<PremiumScreenProps> = ({ onBack, onPurchase
       }
     } catch (error) {
       console.error('Error loading RevenueCat data:', error);
-      // Don't alert on load error to avoid spamming user if offline, just show fallback UI
+      Alert.alert('RevenueCat Error', (error as any).message || 'Failed to load offerings');
     } finally {
       setIsLoading(false);
     }

@@ -13,9 +13,9 @@ router.post('/sync', async (req: Request, res: Response) => {
     const { clerkId, email, displayName, firstName, lastName, photoUrl, phoneNumber } = req.body;
 
     if (!clerkId || !email) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Missing required fields' 
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields'
       });
     }
 
@@ -30,8 +30,8 @@ router.post('/sync', async (req: Request, res: Response) => {
     });
 
     // Return user with premium status
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       user: {
         id: user.id,
         clerkId: user.clerkId,
@@ -44,16 +44,15 @@ router.post('/sync', async (req: Request, res: Response) => {
         isPremium: user.isPremium,
         premiumPlan: user.premiumPlan,
         premiumExpiry: user.premiumExpiry,
-        trialEndsAt: user.trialEndsAt,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
       }
     });
   } catch (error: any) {
     console.error('Error syncing user:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
+    res.status(500).json({
+      success: false,
+      error: error.message
     });
   }
 });
