@@ -34,32 +34,63 @@ class UserService {
    */
   async syncUserFromClerk(clerkData: CreateUserData) {
     try {
-      const user = await prisma.user.upsert({
+      // ⚡ FIX: Check for existing user by Clerk ID OR Email to prevent unique constraint errors
+      let user = await prisma.user.findUnique({
         where: { clerkId: clerkData.clerkId },
-        update: {
-          email: clerkData.email,
-          displayName: clerkData.displayName,
-          firstName: clerkData.firstName,
-          lastName: clerkData.lastName,
-          photoUrl: clerkData.photoUrl,
-          phoneNumber: clerkData.phoneNumber,
-          lastActiveAt: new Date(),
-        },
-        create: {
-          clerkId: clerkData.clerkId,
-          email: clerkData.email,
-          displayName: clerkData.displayName,
-          firstName: clerkData.firstName,
-          lastName: clerkData.lastName,
-          photoUrl: clerkData.photoUrl,
-          phoneNumber: clerkData.phoneNumber,
-          // Set 7-day trial for new users
-          isPremium: true,
-          premiumPlan: 'monthly',
-          trialEndsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
-          premiumExpiry: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-        },
       });
+
+      if (user) {
+        // User exists by Clerk ID - just update
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            email: clerkData.email,
+            displayName: clerkData.displayName,
+            firstName: clerkData.firstName,
+            lastName: clerkData.lastName,
+            photoUrl: clerkData.photoUrl,
+            phoneNumber: clerkData.phoneNumber,
+            lastActiveAt: new Date(),
+          },
+        });
+      } else {
+        // User not found by Clerk ID - check by Email (Account Recovery)
+        const existingEmailUser = await prisma.user.findUnique({
+          where: { email: clerkData.email },
+        });
+
+        if (existingEmailUser) {
+          console.log(`⚠️ User found by email but different Clerk ID. Merging accounts... (Old: ${existingEmailUser.clerkId}, New: ${clerkData.clerkId})`);
+          // Recover account: Update Clerk ID to match new login
+          user = await prisma.user.update({
+            where: { id: existingEmailUser.id },
+            data: {
+              clerkId: clerkData.clerkId, // ⚡ CRITICAL FIX: Update Clerk ID
+              displayName: clerkData.displayName,
+              photoUrl: clerkData.photoUrl,
+              lastActiveAt: new Date(),
+            },
+          });
+        } else {
+          // New User - Create
+          user = await prisma.user.create({
+            data: {
+              clerkId: clerkData.clerkId,
+              email: clerkData.email,
+              displayName: clerkData.displayName,
+              firstName: clerkData.firstName,
+              lastName: clerkData.lastName,
+              photoUrl: clerkData.photoUrl,
+              phoneNumber: clerkData.phoneNumber,
+              // Set 7-day trial for new users
+              isPremium: true,
+              premiumPlan: 'monthly',
+              trialEndsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+              premiumExpiry: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            },
+          });
+        }
+      }
 
       console.log('✅ User synced:', user.id);
       console.log('📊 Premium status:', {
@@ -68,7 +99,7 @@ class UserService {
         expiresAt: user.premiumExpiry,
         trialEndsAt: user.trialEndsAt,
       });
-      
+
       return user;
     } catch (error) {
       console.error('❌ Error syncing user:', error);
@@ -154,7 +185,7 @@ class UserService {
       if (isPremium && plan) {
         data.premiumPlan = plan;
         data.premiumSince = new Date();
-        
+
         // Calculate expiry
         const expiry = new Date();
         if (plan === 'monthly') {

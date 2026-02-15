@@ -87,30 +87,18 @@ export const authenticateWithGoogle = async (
       return;
     }
 
-    // Create or update user in database
-    let user = await prisma.user.findUnique({
-      where: { clerkId: clerkUser.id },
-    });
+    // ⚡ FIX: Use robust sync logic from UserService
+    const UserService = (await import('../services/userService')).default;
 
-    if (!user) {
-      user = await prisma.user.create({
-        data: {
-          clerkId: clerkUser.id,
-          email: primaryEmail.emailAddress,
-          displayName: `${clerkUser.firstName || ''} ${clerkUser.lastName || ''}`.trim() || 'User',
-          photoUrl: clerkUser.imageUrl,
-        },
-      });
-    } else {
-      // Update user info
-      user = await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          displayName: `${clerkUser.firstName || ''} ${clerkUser.lastName || ''}`.trim() || user.displayName,
-          photoUrl: clerkUser.imageUrl,
-        },
-      });
-    }
+    // Create or update user (handles email collisions automatically)
+    const user = await UserService.syncUserFromClerk({
+      clerkId: clerkUser.id,
+      email: primaryEmail.emailAddress,
+      displayName: `${clerkUser.firstName || ''} ${clerkUser.lastName || ''}`.trim() || 'User',
+      firstName: clerkUser.firstName || undefined,
+      lastName: clerkUser.lastName || undefined,
+      photoUrl: clerkUser.imageUrl,
+    });
 
     // Generate JWT token
     const token = jwt.sign(
@@ -120,7 +108,10 @@ export const authenticateWithGoogle = async (
         email: user.email,
       },
       JWT_SECRET,
-      { expiresIn: JWT_EXPIRES_IN as any }
+      {
+        expiresIn: JWT_EXPIRES_IN as any,
+        algorithm: 'HS256' // ⚡ Explicitly use HS256
+      }
     );
 
     // Return user and token

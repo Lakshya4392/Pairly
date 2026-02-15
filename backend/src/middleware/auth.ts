@@ -44,6 +44,7 @@ export const authenticate = async (
     try {
       const decoded = jwt.verify(token, SECRET_KEY, {
         ignoreExpiration: false, // Strict expiry check
+        algorithms: ['HS256'], // ⚡ Explicitly check for HS256
       }) as JWTPayload;
 
       // Verify user exists in database
