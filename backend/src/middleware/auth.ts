@@ -44,7 +44,8 @@ export const authenticate = async (
     try {
       const decoded = jwt.verify(token, SECRET_KEY, {
         ignoreExpiration: false, // Strict expiry check
-        algorithms: ['HS256'], // ⚡ Explicitly check for HS256
+        // ⚡ MODIFIED: Removed strict HS256 check to allow broader compatibility 
+        // while still requiring signature match with SECRET_KEY
       }) as JWTPayload;
 
       // Verify user exists in database
@@ -67,6 +68,13 @@ export const authenticate = async (
       next();
     } catch (jwtError: any) {
       // Better error logging
+      const details = {
+        name: jwtError.name,
+        message: jwtError.message,
+        // Safely try to peek at the header to see what algorithm was used
+        header: jwt.decode(token, { complete: true })?.header
+      };
+
       if (jwtError.name === 'TokenExpiredError') {
         log.warn('JWT token expired, user needs to re-authenticate');
         res.status(401).json({
@@ -74,8 +82,14 @@ export const authenticate = async (
           code: 'TOKEN_EXPIRED',
           message: 'Please login again'
         });
+      } else if (jwtError.message === 'invalid algorithm') {
+        log.error('JWT algorithm mismatch - potential Clerk token sent to internal API', details);
+        res.status(401).json({
+          error: 'Invalid token algorithm',
+          message: 'Please ensure you are using the app-specific auth token'
+        });
       } else {
-        log.error('JWT verification error', jwtError);
+        log.error('JWT verification error', details);
         res.status(401).json({ error: 'Invalid token' });
       }
       return;

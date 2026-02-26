@@ -1,30 +1,32 @@
-const { withAndroidManifest, withAndroidAppBuildGradle, withProjectBuildGradle, AndroidConfig, withMainApplication } = require('@expo/config-plugins');
+const { withAndroidManifest, withMainApplication, AndroidConfig } = require('@expo/config-plugins');
 const fs = require('fs');
 const path = require('path');
 
-const { Manifest, MainActivity } = AndroidConfig;
-
 const withAndroidWidget = (config) => {
-    // 1. Add Receiver to AndroidManifest.xml
+    // 1. Add Receivers to AndroidManifest.xml
     config = withAndroidManifest(config, async (config) => {
         const mainApplication = AndroidConfig.Manifest.getMainApplicationOrThrow(config.modResults);
 
-        // Add receiver for widget
         if (!mainApplication.receiver) {
             mainApplication.receiver = [];
         }
 
+        // Main Widget
         mainApplication.receiver.push({
             $: {
                 'android:name': '.widget.PairlyWidget',
                 'android:exported': 'true',
                 'android:label': 'Pairly Widget',
+                'android:enabled': 'true',
             },
             'intent-filter': [
                 {
                     $: {},
                     action: [
                         { $: { 'android:name': 'android.appwidget.action.APPWIDGET_UPDATE' } },
+                        { $: { 'android:name': 'android.appwidget.action.APPWIDGET_CONFIGURE' } },
+                        { $: { 'android:name': 'com.pairly.app.widget.ACTION_REFRESH' } },
+                        { $: { 'android:name': 'com.pairly.app.widget.ACTION_EXPIRE' } },
                     ],
                 },
             ],
@@ -38,53 +40,85 @@ const withAndroidWidget = (config) => {
             ],
         });
 
+        // Polaroid Widget
+        mainApplication.receiver.push({
+            $: {
+                'android:name': '.widget.PairlyPolaroidWidget',
+                'android:exported': 'true',
+                'android:label': 'Pairly Polaroid',
+                'android:enabled': 'true',
+            },
+            'intent-filter': [
+                {
+                    $: {},
+                    action: [
+                        { $: { 'android:name': 'android.appwidget.action.APPWIDGET_UPDATE' } },
+                        { $: { 'android:name': 'com.pairly.app.widget.POLAROID_REFRESH' } },
+                        { $: { 'android:name': 'com.pairly.app.widget.POLAROID_REACT' } },
+                        { $: { 'android:name': 'com.pairly.app.widget.POLAROID_EXPIRE' } },
+                    ],
+                },
+            ],
+            'meta-data': [
+                {
+                    $: {
+                        'android:name': 'android.appwidget.provider',
+                        'android:resource': '@xml/pairly_widget_polaroid_info',
+                    },
+                },
+            ],
+        });
+
         return config;
     });
 
-    // 2. Copy Resource Files (Layouts, XMLs, Java)
-    // We use a dangerous mod to copy files because standard plugins don't easy copy arbitrary files
     config = withMainApplication(config, async (config) => {
-        // Determine target paths
         const androidRoot = path.join(config.modRequest.platformProjectRoot, 'app/src/main');
         const resRoot = path.join(androidRoot, 'res');
         const javaRoot = path.join(androidRoot, 'java/com/pairly/app/widget');
 
-        // Source paths (from our local plugins folder)
         const sourceRoot = path.resolve(__dirname, 'widget/android/src/main');
 
-        // Copy XML config
+        // Copy XML configs
         const targetXml = path.join(resRoot, 'xml');
         if (!fs.existsSync(targetXml)) fs.mkdirSync(targetXml, { recursive: true });
-        fs.copyFileSync(
-            path.join(sourceRoot, 'res/xml/pairly_widget_info.xml'),
-            path.join(targetXml, 'pairly_widget_info.xml')
-        );
+        
+        ['pairly_widget_info.xml', 'pairly_widget_polaroid_info.xml'].forEach(file => {
+            const src = path.join(sourceRoot, `res/xml/${file}`);
+            if (fs.existsSync(src)) fs.copyFileSync(src, path.join(targetXml, file));
+        });
 
         // Copy Drawables
         const targetDrawable = path.join(resRoot, 'drawable');
         if (!fs.existsSync(targetDrawable)) fs.mkdirSync(targetDrawable, { recursive: true });
-
-        ['widget_background.xml', 'widget_placeholder.xml', 'rounded_background.xml', 'widget_preview.xml'].forEach(file => {
-            fs.copyFileSync(
-                path.join(sourceRoot, `res/drawable/${file}`),
-                path.join(targetDrawable, file)
-            );
+        
+        ['widget_background.xml', 'rounded_background.xml', 'widget_preview.xml', 'widget_card_rounded.xml'].forEach(file => {
+            const src = path.join(sourceRoot, `res/drawable/${file}`);
+            if (fs.existsSync(src)) fs.copyFileSync(src, path.join(targetDrawable, file));
         });
+        
+        // Copy non-dpi drawables (like polaroid placeholder)
+        const targetDrawableNoDpi = path.join(resRoot, 'drawable-nodpi');
+        if (!fs.existsSync(targetDrawableNoDpi)) fs.mkdirSync(targetDrawableNoDpi, { recursive: true });
+        const placeholderSrc = path.join(sourceRoot, 'res/drawable-nodpi/widget_placeholder.png');
+        if (fs.existsSync(placeholderSrc)) fs.copyFileSync(placeholderSrc, path.join(targetDrawableNoDpi, 'widget_placeholder.png'));
 
-        // Copy Layout
+        // Copy Layouts
         const targetLayout = path.join(resRoot, 'layout');
         if (!fs.existsSync(targetLayout)) fs.mkdirSync(targetLayout, { recursive: true });
-        fs.copyFileSync(
-            path.join(sourceRoot, 'res/layout/pairly_widget.xml'),
-            path.join(targetLayout, 'pairly_widget.xml')
-        );
+        
+        ['pairly_widget_simple.xml', 'pairly_widget_polaroid.xml', 'pairly_widget.xml'].forEach(file => {
+            const src = path.join(sourceRoot, `res/layout/${file}`);
+            if (fs.existsSync(src)) fs.copyFileSync(src, path.join(targetLayout, file));
+        });
 
-        // Copy Kotlin Class
+        // Copy Kotlin Classes
         if (!fs.existsSync(javaRoot)) fs.mkdirSync(javaRoot, { recursive: true });
-        fs.copyFileSync(
-            path.join(sourceRoot, 'java/com/pairly/widget/PairlyWidget.kt'),
-            path.join(javaRoot, 'PairlyWidget.kt')
-        );
+        
+        ['PairlyWidget.kt', 'PairlyPolaroidWidget.kt', 'ReactionPickerActivity.kt', 'ReactionService.kt', 'WidgetTapReceiver.kt'].forEach(file => {
+            const src = path.join(sourceRoot, `java/com/pairly/widget/${file}`);
+            if (fs.existsSync(src)) fs.copyFileSync(src, path.join(javaRoot, file));
+        });
 
         return config;
     });

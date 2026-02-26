@@ -63,7 +63,11 @@ export const PremiumScreen: React.FC<PremiumScreenProps> = ({ onBack, onPurchase
       }
     } catch (error) {
       console.error('Error loading RevenueCat data:', error);
-      Alert.alert('RevenueCat Error', (error as any).message || 'Failed to load offerings');
+      const err = error as any;
+      Alert.alert(
+        'RevenueCat Error (' + (err.code || 'Unknown') + ')',
+        err.message + '\n\n' + (err.userInfo?.readableErrorCode || '') + '\n' + (err.userInfo?.underlyingErrorMessage || '')
+      );
     } finally {
       setIsLoading(false);
     }

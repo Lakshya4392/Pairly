@@ -129,19 +129,23 @@ class PremiumCheckService {
         return this._cachedStatus;
       }
 
-      // If RevenueCat says FREE, we force FREE.
-      // We explicitly ignore any "local" or "backend" flags that might be stuck.
-      Logger.info('📉 [Premium] RevenueCat says FREE. Enforcing FREE status.');
-      await AsyncStorage.setItem('isPremium', 'false');
-      await AsyncStorage.setItem('premiumDaysRemaining', '0');
+      // ⚡ FALLBACK: If RevenueCat says FREE (or check failed), 
+      // check local status (Waitlist system) instead of forcing FREE.
+      const localStatus = await this.getLocalPremiumStatus();
+      if (localStatus.isPremium) {
+        Logger.info('💎 [Premium] RevenueCat says FREE, but local (Waitlist) is PREMIUM. Respecting local.');
+        this._cachedStatus = localStatus;
+      } else {
+        Logger.info('📉 [Premium] Both RevenueCat and local are FREE.');
+        this._cachedStatus = { isPremium: false, daysRemaining: 0 };
+      }
 
-      this._cachedStatus = { isPremium: false, daysRemaining: 0 };
       this._lastCheckTime = Date.now();
       return this._cachedStatus;
 
     } catch (error) {
-      Logger.warn('⚠️ [Premium] Check failed, defaulting to FREE for safety', error);
-      return this.getDefaultStatus();
+      Logger.warn('⚠️ [Premium] Check failed, falling back to local status', error);
+      return this.getLocalPremiumStatus();
     }
   }
 

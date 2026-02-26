@@ -10,8 +10,12 @@ import { Platform } from 'react-native';
 // You need to set these in your .env file:
 // EXPO_PUBLIC_REVENUECAT_API_KEY_ANDROID
 // EXPO_PUBLIC_REVENUECAT_API_KEY_IOS
-// Hardcoded for debugging to rule out Env var issues
-const API_KEY_ANDROID = 'goog_ZovrCOooNXJpHlQnGyFqmqUgrRk'; // process.env.EXPO_PUBLIC_REVENUECAT_API_KEY_ANDROID;
+// 🔑 API KEYS (Ideally from .env, using placeholders for now if not set)
+// You need to set these in your .env file:
+// EXPO_PUBLIC_REVENUECAT_API_KEY_ANDROID
+// EXPO_PUBLIC_REVENUECAT_API_KEY_IOS
+
+const API_KEY_ANDROID = process.env.EXPO_PUBLIC_REVENUECAT_API_KEY_ANDROID;
 const API_KEY_IOS = process.env.EXPO_PUBLIC_REVENUECAT_API_KEY_IOS;
 
 class RevenueCatService {
@@ -43,6 +47,8 @@ class RevenueCatService {
             android: API_KEY_ANDROID,
             ios: API_KEY_IOS,
         });
+
+        console.log(`configured apiKey: '${apiKey}' (length: ${apiKey?.length})`);
 
         if (!apiKey) {
             console.warn('⚠️ RevenueCat API Key not found! Premium features may not work.');
@@ -97,19 +103,19 @@ class RevenueCatService {
     async getOfferings(): Promise<PurchasesOffering | null> {
         try {
             if (!this.isInitialized) {
-                console.warn('⚠️ RevenueCat not initialized');
-                return null;
+                throw new Error('RevenueCat not initialized');
             }
 
             const offerings = await Purchases.getOfferings();
             if (offerings.current !== null) {
                 return offerings.current;
             }
-            console.warn('⚠️ No current offering found in RevenueCat');
-            return null;
+
+            // Explicitly throw if no offering is current
+            throw new Error('No current offering found. Check RevenueCat Dashboard > Offerings > Select "Current".');
         } catch (error) {
             console.error('❌ Error fetching offerings:', error);
-            return null;
+            throw error; // Rethrow so UI can show Alert
         }
     }
 

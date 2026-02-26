@@ -447,14 +447,31 @@ export const getAllMoments = async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
+    // ⚡ ETAG CACHING IMPLEMENTATION
+    // Generate an ETag based on the total count and the newest moment's updated time
+    const latestMoment = moments[0];
+    const eTagData = `${moments.length}-${latestMoment.id}-${latestMoment.uploadedAt.getTime()}`;
+    const eTag = require('crypto').createHash('md5').update(eTagData).digest('hex');
+
+    // Check if client has the same ETag
+    if (req.headers['if-none-match'] === eTag) {
+      console.log(`✅ [GET ALL] 304 Not Modified (ETag Match) for pair ${pair.id.substring(0, 8)}...`);
+      res.status(304).end();
+      return;
+    }
+
+    // Set cache headers
+    res.setHeader('ETag', eTag);
+    res.setHeader('Cache-Control', 'public, max-age=15'); // 15 seconds client cache
+
     // ⚡ FAST: Return Cloudinary URLs instead of base64
     const momentsData = moments.map((moment: any) => {
       const partner = moment.uploaderId === pair.user1Id ? pair.user1 : pair.user2;
       const isFromMe = moment.uploaderId === userId;
 
-      // Prefer Cloudinary URL (fast CDN), fallback to generated URL
+      // Construct URL - FORCE HTTPS for Render (detects by hostname)
       const host = req.get('host') || '';
-      const isRender = host.includes('onrender.com');
+      const isRender = host.includes('onrender.com') || host.includes('render.com');
       const protocol = isRender ? 'https' : req.protocol;
       const baseUrl = process.env.API_URL || `${protocol}://${host}`;
       const fallbackUrl = `${baseUrl}/uploads/${moment.id}.jpg`;
@@ -549,6 +566,24 @@ export const getLatestMoment = async (req: AuthRequest, res: Response): Promise<
       return;
     }
 
+    // ⚡ ETAG CACHING IMPLEMENTATION (For widgets polling constantly)
+    const eTagData = `${moment.id}-${moment.uploadedAt.getTime()}`;
+    const eTag = require('crypto').createHash('md5').update(eTagData).digest('hex');
+
+    // Check if client has the same ETag (returns instantly if 304)
+    if (req.headers['if-none-match'] === eTag) {
+      if (isWidget) {
+        console.log(`✅ [GET LATEST] 304 Not Modified (Widget Fast Poll)`);
+      }
+      res.status(304).end();
+      return;
+    }
+
+    // Set cache headers
+    res.setHeader('ETag', eTag);
+    res.setHeader('Cache-Control', 'public, max-age=5'); // Real short 5 second API cache
+
+
     // Convert photo to base64
     const photoBase64 = Buffer.from(moment.photoData).toString('base64');
     const photoSizeKB = (photoBase64.length / 1024).toFixed(2);
@@ -581,8 +616,11 @@ export const getLatestMoment = async (req: AuthRequest, res: Response): Promise<
     };
 
     if (fs.existsSync(filePath)) {
-      // Return URL if file exists
-      const baseUrl = process.env.API_URL || `${req.protocol}://${req.get('host')}`;
+      // Construct URL - FORCE HTTPS for Render (detects by hostname)
+      const host = req.get('host') || '';
+      const isRender = host.includes('onrender.com') || host.includes('render.com');
+      const protocol = isRender ? 'https' : req.protocol;
+      const baseUrl = process.env.API_URL || `${protocol}://${host}`;
       photoResponse.photoUrl = `${baseUrl}/uploads/${fileName}`;
       // Also return base64 for fallback (or if client expects it)
       // But for "Get Latest", lightweight URL is better.

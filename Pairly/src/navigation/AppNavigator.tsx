@@ -323,18 +323,6 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
       if (status.isPremium) {
         // PremiumService legacy sync removed.
         // RevenueCatService & PremiumCheckService are the sources of truth now.
-      } else {
-        // ⚡ FIX: Removed automatic 30-day trial for new users to allow RevenueCat testing.
-        // CLEANUP: If user has "stuck" local premium from previous auto-grant, clear it.
-        const isLocalPremium = await AsyncStorage.getItem('isPremium');
-        if (isLocalPremium === 'true') {
-          Logger.info('🧹 Clearing stuck local premium status for testing...');
-          await AsyncStorage.removeItem('isPremium');
-          await AsyncStorage.removeItem('premiumExpiresAt');
-          await AsyncStorage.removeItem('premiumDaysRemaining');
-          // Update state immediately
-          setIsPremium(false);
-        }
       }
     } catch (error) {
       Logger.error('Error checking premium status:', error);

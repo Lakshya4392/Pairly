@@ -40,13 +40,6 @@
         <category android:name="android.intent.category.BROWSABLE"/>
         <data android:scheme="pairly"/>
       </intent-filter>
-      <!-- OAuth Callback Intent Filter -->
-      <intent-filter>
-        <action android:name="android.intent.action.VIEW"/>
-        <category android:name="android.intent.category.DEFAULT"/>
-        <category android:name="android.intent.category.BROWSABLE"/>
-        <data android:scheme="pairly" android:host="oauth-native-callback"/>
-      </intent-filter>
       <intent-filter android:autoVerify="true" data-generated="true">
         <action android:name="android.intent.action.VIEW"/>
         <data android:scheme="pairly"/>
@@ -54,65 +47,23 @@
         <category android:name="android.intent.category.DEFAULT"/>
       </intent-filter>
     </activity>
-    <receiver android:name=".widget.PairlyWidget" 
-              android:exported="true" 
-              android:label="Pairly Widget"
-              android:enabled="true">
+    <receiver android:name=".widget.PairlyWidget" android:exported="true" android:label="Pairly Widget">
       <intent-filter>
         <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
         <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE"/>
         <action android:name="com.pairly.app.widget.ACTION_REFRESH"/>
         <action android:name="com.pairly.app.widget.ACTION_EXPIRE"/>
       </intent-filter>
-      <meta-data android:name="android.appwidget.provider" 
-                 android:resource="@xml/pairly_widget_info"/>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/pairly_widget_info"/>
     </receiver>
-    
-    <!-- Polaroid Widget (Premium Style) -->
-    <receiver android:name=".widget.PairlyPolaroidWidget" 
-              android:exported="true" 
-              android:label="Pairly Polaroid"
-              android:enabled="true">
+    <receiver android:name=".widget.PairlyPolaroidWidget" android:exported="true" android:label="Pairly Polaroid">
       <intent-filter>
         <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
         <action android:name="com.pairly.app.widget.POLAROID_REFRESH"/>
         <action android:name="com.pairly.app.widget.POLAROID_REACT"/>
         <action android:name="com.pairly.app.widget.POLAROID_EXPIRE"/>
       </intent-filter>
-      <meta-data android:name="android.appwidget.provider" 
-                 android:resource="@xml/pairly_widget_polaroid_info"/>
-    </receiver>
-    
-    <!-- Native FCM Service for background widget updates -->
-    <service
-        android:name=".PairlyMessagingService"
-        android:exported="false">
-      <intent-filter>
-        <action android:name="com.google.firebase.MESSAGING_EVENT"/>
-      </intent-filter>
-    </service>
-    
-    <!-- Reaction Service for widget emoji reactions -->
-    <service
-        android:name=".widget.ReactionService"
-        android:exported="false"/>
-    
-    <!-- Reaction Picker Activity (transparent popup) -->
-    <activity
-        android:name=".widget.ReactionPickerActivity"
-        android:theme="@android:style/Theme.Translucent.NoTitleBar"
-        android:excludeFromRecents="true"
-        android:taskAffinity=""
-        android:exported="false"/>
-    
-    <!-- Widget Tap Receiver for double-tap detection -->
-    <receiver
-        android:name=".widget.WidgetTapReceiver"
-        android:exported="false">
-      <intent-filter>
-        <action android:name="com.pairly.app.widget.WIDGET_TAP"/>
-        <action android:name="com.pairly.app.widget.DELAYED_OPEN_APP"/>
-      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/pairly_widget_polaroid_info"/>
     </receiver>
   </application>
 </manifest>
