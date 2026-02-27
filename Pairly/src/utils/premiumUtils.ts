@@ -11,18 +11,18 @@ export const requiresPremium = async (
 ): Promise<boolean> => {
   try {
     const status = await PremiumCheckService.checkPremiumStatus();
-    
+
     if (status.isPremium) {
       // User has premium
       return true;
     }
-    
+
     // User doesn't have premium - show alert
-    const needed = Math.max(0, 3 - status.referralCount);
-    
+    const needed = 3;
+
     Alert.alert(
       '⭐ Premium Feature',
-      `${featureName} requires premium access.\n\n🎁 Refer ${needed} friend${needed !== 1 ? 's' : ''} to unlock 3 months of premium!`,
+      `${featureName} requires premium access.\n\n🎁 Refer ${needed} friends to unlock 3 months of premium!`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -35,7 +35,7 @@ export const requiresPremium = async (
         },
       ]
     );
-    
+
     return false;
   } catch (error) {
     console.error('❌ Error checking premium:', error);
@@ -49,7 +49,7 @@ export const requiresPremium = async (
 export const showPremiumExpiryWarning = async (navigation?: any): Promise<void> => {
   try {
     const alert = await PremiumCheckService.getPremiumStatusAlert();
-    
+
     if (alert.show && alert.type === 'expiring') {
       Alert.alert(
         alert.title || 'Premium Expiring',
@@ -78,7 +78,7 @@ export const showPremiumExpiryWarning = async (navigation?: any): Promise<void> 
 export const showPremiumExpiredAlert = async (navigation?: any): Promise<void> => {
   try {
     const alert = await PremiumCheckService.getPremiumStatusAlert();
-    
+
     if (alert.show && alert.type === 'expired') {
       Alert.alert(
         alert.title || 'Premium Expired',
@@ -107,7 +107,7 @@ export const showPremiumExpiredAlert = async (navigation?: any): Promise<void> =
 export const getPremiumBadgeText = async (): Promise<string> => {
   try {
     const status = await PremiumCheckService.getLocalPremiumStatus();
-    
+
     if (status.isPremium) {
       if (status.daysRemaining > 30) {
         return '⭐ Premium';
@@ -117,7 +117,7 @@ export const getPremiumBadgeText = async (): Promise<string> => {
         return `⏰ ${status.daysRemaining} days`;
       }
     }
-    
+
     return '';
   } catch (error) {
     return '';
@@ -136,6 +136,6 @@ export const isPremiumFeature = (featureName: string): boolean => {
     'Unlimited Moments',
     'Custom Themes',
   ];
-  
+
   return premiumFeatures.includes(featureName);
 };

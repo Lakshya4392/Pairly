@@ -14,6 +14,7 @@ import { PremiumScreen } from '../screens/PremiumScreen';
 import { ManagePremiumScreen } from '../screens/ManagePremiumScreen';
 import { GalleryScreen } from '../screens/GalleryScreen';
 import { SocketTestScreen } from '../screens/SocketTestScreen';
+import NotificationEffectScreen from '../screens/NotificationEffectScreen';
 
 import { API_CONFIG } from '../config/api.config';
 import Logger from '../utils/Logger';
@@ -30,7 +31,7 @@ type Screen =
   | 'managePremium'
   | 'gallery'
   | 'socketTest'
-  | 'socketTest';
+  | 'notificationEffect';
 
 interface AppNavigatorProps {
   // Add any props if needed
@@ -62,9 +63,9 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
     }
   };
 
-  const authenticateWithBackend = async () => {
+  const syncAuthentication = async () => {
     try {
-      Logger.info('🔐 Authenticating with backend...');
+      Logger.info('🔐 Syncing Clerk authentication...');
       const clerkToken = await getToken();
 
       if (!clerkToken) {
@@ -73,18 +74,34 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
       }
 
       const AuthService = (await import('../services/AuthService')).default;
-      const authResponse = await AuthService.authenticateWithBackend(clerkToken);
+      await AuthService.syncActiveToken(clerkToken);
 
-      Logger.info('✅ Backend authentication successful');
-      Logger.debug('👤 User:', authResponse.user.displayName);
-      Logger.debug('🔑 JWT token stored');
+      Logger.info('✅ Client authentication state synced');
 
-      // 🔥 FIX: Register FCM token now that we have a user
+      // 🔥 Register FCM token
       const FCMService = (await import('../services/FCMService')).default;
       await FCMService.registerUser();
 
+      // 💎 REVENUECAT: Identify user
+      if (user) {
+        try {
+          const RevenueCatService = (await import('../services/RevenueCatService')).default;
+          await RevenueCatService.login(user.id);
+          Logger.info('✅ RevenueCat user identified');
+
+          // 🔥 SYNCHRONIZE PREMIUM STATUS ACROSS DEVICES
+          const PremiumCheckService = (await import('../services/PremiumCheckService')).default;
+          const status = await PremiumCheckService.forceRefresh();
+          setIsPremium(status.isPremium);
+          Logger.info('🔄 Fetched multi-device premium status after login:', status.isPremium);
+
+        } catch (rcError) {
+          Logger.warn('⚠️ RevenueCat ID sync failed');
+        }
+      }
+
     } catch (error: any) {
-      Logger.error('❌ Backend authentication failed:', error.message);
+      Logger.error('❌ Authentication sync failed:', error.message);
     }
   };
 
@@ -502,7 +519,7 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
   const [hasConnected, setHasConnected] = useState(false);
   useEffect(() => {
     if (isSignedIn && user && !hasConnected) {
-      authenticateWithBackend();
+      syncAuthentication();
       connectRealtime();
       setHasConnected(true);
     }
@@ -520,6 +537,11 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
         setIsPremium(false);
         setHasConnected(false); // Reset connection flag
         AsyncStorage.removeItem('isPremium');
+
+        // Ensure RevenueCat is also logged out to prevent stale cache on next login
+        import('../services/RevenueCatService').then(module => {
+          module.default.logout();
+        }).catch(err => console.error(err));
       }
 
       // User signed in - redirect to upload
@@ -531,7 +553,26 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
 
       // Check premium for signed in users
       if (isSignedIn && user && currentScreen !== 'auth') {
-        checkPremiumStatus();
+        // We do not just blindly check local cache anymore; 
+        // We ask the backend as a final backup just in case RevenueCat is lagging.
+        const authStatusCheck = async () => {
+          const PremiumCheckService = (await import('../services/PremiumCheckService')).default;
+          const UserSyncService = (await import('../services/UserSyncService')).default;
+
+          // First try local storage (fastest)
+          let status = await PremiumCheckService.getLocalPremiumStatus();
+
+          // If local says free, verify with our server database (Multi-device fallback)
+          if (!status.isPremium) {
+            const serverStatus = await UserSyncService.getPremiumStatusFromServer();
+            if (serverStatus?.isPremium) {
+              Logger.info('🌐 Server confirmed premium when local said free. Forcing update.');
+              status = await PremiumCheckService.forceRefresh();
+            }
+          }
+          setIsPremium(status.isPremium);
+        };
+        authStatusCheck();
       }
     }
   }, [isLoaded, isSignedIn, user, currentScreen]);
@@ -547,8 +588,8 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextAppState) => {
       if (nextAppState === 'active' && isSignedIn && user) {
-        Logger.debug('🔄 App foregrounded - refreshing backend auth...');
-        authenticateWithBackend();
+        Logger.debug('🔄 App foregrounded - syncing authentication...');
+        syncAuthentication();
         checkPremiumStatus();
       }
     });
@@ -585,6 +626,10 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
           // Root screens - allow default behavior (Exit App or Minimize)
           return false;
 
+        case 'notificationEffect':
+          setCurrentScreen('upload'); // Stop animation and return to home
+          return true;
+
         default:
           return false;
       }
@@ -597,6 +642,20 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
 
     return () => backHandler.remove();
   }, [currentScreen]);
+
+  // --- External Navigation Exposure ---
+  // Allow index.js (Headless notification task) to force navigation to the effect screen
+  useEffect(() => {
+    const handleNotificationEffect = () => {
+      Logger.info('✨ Full-Screen Effect triggered from global event');
+      setCurrentScreen('notificationEffect');
+    };
+
+    // Listen to global event emitter for deep link-like behavior from background tasks
+    const subscription = require('react-native').DeviceEventEmitter.addListener('EXPO_NOTIFEE_SHOW_EFFECT', handleNotificationEffect);
+
+    return () => subscription.remove();
+  }, []);
 
   // --- Render ---
 
@@ -692,6 +751,8 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
           />
         );
 
+      case 'notificationEffect':
+        return <NotificationEffectScreen />;
 
 
       default:

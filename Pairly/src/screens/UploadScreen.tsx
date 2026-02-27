@@ -11,6 +11,7 @@ import {
   RefreshControl,
   Animated,
 } from 'react-native';
+import notifee, { AndroidImportance, TriggerType, TimestampTrigger } from '@notifee/react-native';
 import { CustomAlert } from '../components/CustomAlert';
 import { UpgradePrompt } from '../components/UpgradePrompt';
 import { SharedNoteModal } from '../components/SharedNoteModal';
@@ -29,6 +30,7 @@ import PremiumService from '../services/PremiumService';
 import SharedNotesService from '../services/SharedNotesService';
 import TimeLockService from '../services/TimeLockService';
 import PingService from '../services/PingService';
+import EffectService from '../services/EffectService';
 import { useAuth } from '@clerk/clerk-expo';
 
 interface UploadScreenProps {
@@ -382,6 +384,71 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
       console.error('Error sending ping:', error);
       setAlertMessage('Failed to send ping. Please try again.');
       setShowErrorAlert(true);
+    }
+  };
+
+  // Handle Full Screen Effect
+  const handleSendEffect = async () => {
+    try {
+      if (!isPartnerConnected) {
+        setAlertMessage('Please connect with your partner first 💕');
+        setShowErrorAlert(true);
+        return;
+      }
+
+      // Haptic feedback
+      const { Vibration } = await import('react-native');
+      Vibration.vibrate([0, 100, 50, 100, 50, 100]); // Thrice short
+
+      const result = await EffectService.sendEffect();
+
+      if (result.success) {
+        setAlertMessage(`Magic sent! ${partnerName}'s screen will light up ✨`);
+        setShowSuccessAlert(true);
+      } else if (result.remaining === 0) {
+        setAlertMessage('Daily limit reached! Upgrade to Premium for unlimited 💎');
+        setShowErrorAlert(true);
+      } else {
+        setAlertMessage(result.error || 'Failed to send effect');
+        setShowErrorAlert(true);
+      }
+    } catch (error) {
+      console.error('Error sending effect:', error);
+      setAlertMessage('Failed to send effect. Please try again.');
+      setShowErrorAlert(true);
+    }
+  };
+
+  // Local testing for Lock Screen Effect
+  const handleTestLocalEffect = async () => {
+    try {
+      setAlertMessage('Lock your phone NOW! The effect will appear in 5 seconds.');
+      setShowSuccessAlert(true);
+
+      const channelId = await notifee.createChannel({
+        id: 'full_screen_notes',
+        name: 'Full Screen Notes',
+        importance: AndroidImportance.HIGH,
+      });
+
+      const trigger: TimestampTrigger = {
+        type: TriggerType.TIMESTAMP,
+        timestamp: Date.now() + 5000,
+      };
+
+      await notifee.createTriggerNotification({
+        title: 'Testing Effect 💖',
+        body: 'This is a local test of the lock screen animation.',
+        android: {
+          channelId,
+          importance: AndroidImportance.HIGH,
+          fullScreenAction: {
+            id: 'default',
+          },
+        },
+      }, trigger);
+    } catch (e: any) {
+      console.log('Test effect failed:', e.message);
     }
   };
 
@@ -1004,7 +1071,6 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
               </TouchableOpacity>
 
               {/* Thinking - Light Yellow */}
-              {/* Thinking - Light Yellow */}
               <TouchableOpacity
                 style={[styles.quickActionCard, { backgroundColor: '#FFE082' }]}
                 onPress={handleSendPing}
@@ -1015,6 +1081,19 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
                   <Ionicons name="arrow-forward" size={16} color="#B0BEC5" />
                 </View>
                 <Text style={[styles.quickActionText, { color: '#1F2937' }]}>Thinking</Text>
+              </TouchableOpacity>
+
+              {/* Screen Effect - Soft Mint */}
+              <TouchableOpacity
+                style={[styles.quickActionCard, { backgroundColor: '#A7F3D0' }]}
+                onPress={handleSendEffect}
+                activeOpacity={0.7}
+              >
+                <View style={styles.quickActionTopRow}>
+                  <Ionicons name="sparkles-outline" size={24} color="#10B981" />
+                  <Ionicons name="arrow-forward" size={16} color="#B0BEC5" />
+                </View>
+                <Text style={[styles.quickActionText, { color: '#1F2937' }]}>Screen Effect</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1081,7 +1160,7 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
       />
 
       {/* Upgrade Prompt */}
-      <UpgradePrompt
+      < UpgradePrompt
         visible={showUpgradePrompt}
         onClose={() => setShowUpgradePrompt(false)}
         onUpgrade={() => {
@@ -1094,35 +1173,36 @@ export const UploadScreen: React.FC<UploadScreenProps> = ({
       />
 
       {/* Photo Options Alert */}
-      <CustomAlert
+      < CustomAlert
         visible={showPhotoOptions}
         title="Share a Moment"
         message="Choose how you want to capture this moment"
         icon="camera"
         iconColor={colors.primary}
-        buttons={[
-          {
-            text: 'Take Photo',
-            style: 'default',
-            onPress: () => {
-              setShowPhotoOptions(false);
-              handleTakePhoto();
+        buttons={
+          [
+            {
+              text: 'Take Photo',
+              style: 'default',
+              onPress: () => {
+                setShowPhotoOptions(false);
+                handleTakePhoto();
+              },
             },
-          },
-          {
-            text: 'Choose from Gallery',
-            style: 'default',
-            onPress: () => {
-              setShowPhotoOptions(false);
-              handleChooseFromGallery();
+            {
+              text: 'Choose from Gallery',
+              style: 'default',
+              onPress: () => {
+                setShowPhotoOptions(false);
+                handleChooseFromGallery();
+              },
             },
-          },
-          {
-            text: 'Cancel',
-            style: 'cancel',
-            onPress: () => setShowPhotoOptions(false),
-          },
-        ]}
+            {
+              text: 'Cancel',
+              style: 'cancel',
+              onPress: () => setShowPhotoOptions(false),
+            },
+          ]}
         onClose={() => setShowPhotoOptions(false)}
       />
 

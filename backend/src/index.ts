@@ -84,6 +84,8 @@ export const prisma = new PrismaClient({
       url: process.env.DATABASE_URL,
     },
   },
+  // Ensure we don't hold connections too long for serverless environments
+  // Neon will drop idle connections
 });
 
 // Connection pool optimization
@@ -169,6 +171,8 @@ import widgetRoutes from './routes/widgetRoutes';
 import reminderRoutes from './routes/reminderRoutes';
 import pingRoutes from './routes/pingRoutes';
 import meetingRoutes from './routes/meetingRoutes';
+import webhookRoutes from './routes/webhookRoutes';
+import subscriptionRoutes from './routes/subscriptionRoutes';
 
 // Request logging middleware
 app.use((req, res, next) => {
@@ -223,6 +227,8 @@ app.use('/widget', widgetLimiter, widgetRoutes); // 🔥 Widget-specific generou
 app.use('/reminders', reminderRoutes);
 app.use('/ping', pingRoutes);
 app.use('/meeting', meetingRoutes);
+app.use('/webhooks', webhookRoutes);
+app.use('/subscription', subscriptionRoutes);
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {

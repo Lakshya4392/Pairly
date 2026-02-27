@@ -1,24 +1,28 @@
 import { Router, Request, Response } from 'express';
-import { authenticateWithGoogle } from '../controllers/authController';
 import userService from '../services/userService';
+import { authenticate as auth, AuthRequest } from '../middleware/auth';
 
 const router = Router();
 
-// POST /auth/google - Authenticate with Google via Clerk
-router.post('/google', authenticateWithGoogle);
-
-// POST /auth/sync - Sync user from Clerk
-router.post('/sync', async (req: Request, res: Response) => {
+// POST /auth/sync - Sync user from Clerk (Called heavily on app launch)
+// 🔒 SECURE: Must pass Clerk token. Prevents identity spoofing.
+router.post('/sync', auth, async (req: AuthRequest, res: Response) => {
   try {
-    const { clerkId, email, displayName, firstName, lastName, photoUrl, phoneNumber } = req.body;
+    // 1. Get verified identity from middleware
+    const clerkId = req.user?.clerkId;
+
+    // 2. Get profile from body (Clerk UI passes this)
+    const { email, displayName, firstName, lastName, photoUrl, phoneNumber } = req.body;
 
     if (!clerkId || !email) {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
-        error: 'Missing required fields'
+        error: 'Missing required identity fields'
       });
+      return;
     }
 
+    // 3. Immediately sync user into Postgres (CREATE if not exists, UPDATE if exists)
     const user = await userService.syncUserFromClerk({
       clerkId,
       email,
@@ -29,7 +33,7 @@ router.post('/sync', async (req: Request, res: Response) => {
       phoneNumber,
     });
 
-    // Return user with premium status
+    // 4. Return user profile (immediately usable by UI)
     res.json({
       success: true,
       user: {
@@ -46,6 +50,7 @@ router.post('/sync', async (req: Request, res: Response) => {
         premiumExpiry: user.premiumExpiry,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
+        lastSyncedAt: user.lastSyncedAt, // 🆕 Return new sync timestamp
       }
     });
   } catch (error: any) {
@@ -112,9 +117,9 @@ router.put('/premium', async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { isPremium, plan } = req.body;
+    const { isPremium, plan, expiryDate } = req.body;
 
-    const user = await userService.updatePremiumStatus(clerkId, isPremium, plan);
+    const user = await userService.updatePremiumStatus(clerkId, isPremium, plan, expiryDate);
 
     res.json({ success: true, user });
   } catch (error: any) {

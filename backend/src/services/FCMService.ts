@@ -266,6 +266,26 @@ class FCMService {
       }
     );
   }
+
+  /**
+   * 💖 Send "Missing You" Full-Screen Animation Trigger
+   * Sent as pure data message so Notifee can intercept it in the background
+   */
+  async sendLockScreenAnimation(
+    fcmToken: string,
+    message: string,
+    senderName: string
+  ): Promise<boolean> {
+    return this.sendNotification(
+      fcmToken,
+      {
+        type: 'lock_screen_animation',
+        message: message || `💖 ${senderName} is missing you!`,
+        senderName,
+      }
+      // Note: No notification object attached. It must be pure data to be handled silently by Notifee.
+    );
+  }
 }
 
 export default new FCMService();

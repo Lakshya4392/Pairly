@@ -173,39 +173,52 @@ class UserService {
   async updatePremiumStatus(
     clerkId: string,
     isPremium: boolean,
-    plan?: 'monthly' | 'yearly'
+    plan?: 'monthly' | 'yearly',
+    expiryDate?: string | null
   ) {
     try {
+      const user = await prisma.user.findUnique({ where: { clerkId } });
+
+      if (!user) {
+        console.warn(`⚠️ [Premium] User not found for clerkId: ${clerkId}. Cannot sync premium status yet.`);
+        return null;
+      }
+
       const data: any = {
         isPremium,
         updatedAt: new Date(),
+        lastSyncedAt: new Date(), // Keep strictly in sync with RC Webhooks
       };
 
-      if (isPremium && plan) {
-        data.premiumPlan = plan;
+      if (isPremium) {
+        data.premiumPlan = plan || 'monthly';
         data.premiumSince = new Date();
 
-        // Calculate expiry
-        const expiry = new Date();
-        if (plan === 'monthly') {
-          expiry.setMonth(expiry.getMonth() + 1);
-        } else {
-          expiry.setFullYear(expiry.getFullYear() + 1);
+        if (expiryDate) {
+          data.premiumExpiry = new Date(expiryDate);
+        } else if (plan) {
+          // Fallback calculation
+          const expiry = new Date();
+          if (plan === 'monthly') {
+            expiry.setMonth(expiry.getMonth() + 1);
+          } else {
+            expiry.setFullYear(expiry.getFullYear() + 1);
+          }
+          data.premiumExpiry = expiry;
         }
-        data.premiumExpiry = expiry;
       } else {
         data.premiumPlan = null;
         data.premiumSince = null;
         data.premiumExpiry = null;
       }
 
-      const user = await prisma.user.update({
+      const updatedUser = await prisma.user.update({
         where: { clerkId },
         data,
       });
 
-      console.log('✅ Premium status updated:', user.id, isPremium);
-      return user;
+      console.log('✅ Premium status updated:', updatedUser.id, isPremium);
+      return updatedUser;
     } catch (error) {
       console.error('❌ Error updating premium status:', error);
       throw error;

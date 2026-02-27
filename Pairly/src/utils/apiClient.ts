@@ -24,16 +24,19 @@ class ApiClient {
     this.baseUrl = API_CONFIG.baseUrl;
     this.defaultTimeout = API_CONFIG.timeout;
     this.defaultRetries = API_CONFIG.retryAttempts;
-    
+
     console.log('🌐 ApiClient initialized with baseUrl:', this.baseUrl);
   }
 
   /**
    * Get authentication token dynamically
    */
+  /**
+   * Get authentication token dynamically.
+   * Pulls the native Clerk token synced by AuthService.
+   */
   private async getAuthToken(): Promise<string | null> {
     try {
-      // Dynamically import to avoid circular dependencies
       const AuthService = (await import('../services/AuthService')).default;
       return await AuthService.getToken();
     } catch (error) {
@@ -61,9 +64,9 @@ class ApiClient {
     // Always use fresh baseUrl from config (in case it changed)
     const currentBaseUrl = API_CONFIG.baseUrl;
     const url = `${currentBaseUrl}${endpoint}`;
-    
+
     console.log(`📡 API Request: ${method} ${url}`);
-    
+
     // Get auth token if not skipping auth
     let authHeaders: Record<string, string> = {};
     if (!skipAuth) {
@@ -75,7 +78,7 @@ class ApiClient {
         console.warn('⚠️ No auth token available for request');
       }
     }
-    
+
     let lastError: Error | null = null;
 
     for (let attempt = 0; attempt <= retries; attempt++) {
@@ -104,7 +107,7 @@ class ApiClient {
           } catch {
             errorData = { error: errorText };
           }
-          
+
           // Handle 401 - just throw error, let app handle re-auth
           if (response.status === 401) {
             console.log('⚠️ Got 401 - Token expired');
@@ -123,7 +126,7 @@ class ApiClient {
 
       } catch (error: any) {
         lastError = error;
-        
+
         // Don't retry on certain errors
         if (error.message?.includes('HTTP 4') || error.message?.includes('Authentication required')) {
           // Client errors (400-499) shouldn't be retried

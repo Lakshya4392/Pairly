@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import apiClient from '../utils/apiClient';
 import PremiumService from './PremiumService';
+import Logger from '../utils/Logger';
+import { ApiResponse } from '../types';
 
 interface UserData {
   clerkId: string;
@@ -71,10 +73,11 @@ class UserSyncService {
    */
   async updatePremiumStatus(
     isPremium: boolean,
-    plan?: 'monthly' | 'yearly'
+    plan?: 'monthly' | 'yearly',
+    expiryDate?: string | null
   ): Promise<boolean> {
     try {
-      await apiClient.put('/auth/premium', { isPremium, plan });
+      await apiClient.put('/auth/premium', { isPremium, plan, expiryDate });
       console.log('✅ Premium status updated in backend');
       return true;
     } catch (error: any) {
@@ -99,6 +102,60 @@ class UserSyncService {
       return true;
     } catch (error: any) {
       console.error('❌ Error updating settings:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Get premium status directly from backend database
+   */
+  async getPremiumStatusFromServer(): Promise<{ isPremium: boolean, expiryDate: string | null } | null> {
+    try {
+      const user = await this.getUserFromBackend();
+      if (!user) return null;
+      return {
+        isPremium: user.isPremium || false,
+        expiryDate: user.premiumExpiry || null
+      };
+    } catch (error) {
+      return null;
+    }
+  }
+
+  /**
+   * Ensure user is synchronized with backend
+   * Returns true if synced, false if it failed
+   */
+  async ensureSynced(): Promise<boolean> {
+    try {
+      // 1. Check if we already have a user in memory
+      const currentUser = await this.getUserFromBackend();
+      if (currentUser) return true;
+
+      // 2. If not, try to sync now
+      Logger.info('🔄 [Sync] User not found in DB, attempting forced sync...');
+      const AuthService = (await import('./AuthService')).default;
+      const { NativeModules } = await import('react-native'); // Need for Clerk import usually
+
+      // Need token from Clerk
+      // Since we can't get Clerk useAuth() here easily, 
+      // we check if we have a token stored from a previous session
+      const token = await AuthService.getToken();
+
+      if (token) {
+        try {
+          // Verify if it's a valid token by just getting /me
+          const response = await apiClient.get<ApiResponse<{ user: any }>>('/auth/me');
+          if (response.success) return true;
+        } catch (e) {
+          Logger.warn('⚠️ [Sync] Stored token invalid or backend unreachable');
+          return false;
+        }
+      }
+
+      return false;
+    } catch (error) {
+      Logger.error('❌ [Sync] ensureSynced failed:', error);
       return false;
     }
   }

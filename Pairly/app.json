@@ -2,7 +2,7 @@
   "expo": {
     "name": "Pairly",
     "slug": "pairly",
-    "version": "1.0.0",
+    "version": "1.0.6",
     "orientation": "portrait",
     "scheme": "pairly",
     "userInterfaceStyle": "light",
@@ -19,7 +19,7 @@
     },
     "android": {
       "package": "com.pairly.app",
-      "versionCode": 4,
+      "versionCode": 6,
       "compileSdkVersion": 34,
       "targetSdkVersion": 34,
       "buildToolsVersion": "34.0.0",

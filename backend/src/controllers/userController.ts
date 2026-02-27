@@ -84,7 +84,7 @@ export const updatePremiumStatus = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { userId, isPremium, premiumPlan } = req.body;
+    const { userId, isPremium, premiumPlan, expiryDate } = req.body;
 
     if (!userId || typeof isPremium !== 'boolean') {
       res.status(400).json({
@@ -108,7 +108,10 @@ export const updatePremiumStatus = async (
     let premiumExpiry: Date | null = null;
 
     if (isPremium) {
-      if (premiumPlan === 'monthly') {
+      if (expiryDate) {
+        // Use exact date from RevenueCat
+        premiumExpiry = new Date(expiryDate);
+      } else if (premiumPlan === 'monthly') {
         premiumExpiry = new Date(now.setMonth(now.getMonth() + 1));
       } else if (premiumPlan === 'yearly') {
         premiumExpiry = new Date(now.setFullYear(now.getFullYear() + 1));

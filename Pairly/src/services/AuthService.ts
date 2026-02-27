@@ -5,26 +5,39 @@ import apiClient from '../utils/apiClient';
 import { API_CONFIG } from '../config/api.config';
 import Logger from '../utils/Logger';
 
-const TOKEN_KEY = 'pairly_auth_token';
 const USER_KEY = 'pairly_user';
 
 class AuthService {
-  private token: string | null = null;
   private user: User | null = null;
 
   /**
-   * Store authentication token securely with AsyncStorage backup
+   * Get authentication token directly from Clerk
    */
-  async storeToken(token: string): Promise<void> {
+  async getToken(): Promise<string | null> {
     try {
-      // Store in SecureStore
-      await SecureStore.setItemAsync(TOKEN_KEY, token);
-      console.log('✅ Token stored in SecureStore');
+      const { useAuth } = await import('@clerk/clerk-expo');
 
-      // Also store in AsyncStorage as backup for APK
-      await AsyncStorage.setItem(`${TOKEN_KEY}_backup`, token);
-      await AsyncStorage.setItem('auth_token', token); // For socket auth
-      console.log('✅ Token backup stored in AsyncStorage');
+      // Note: Getting Clerk tokens outside of React components requires a workaround
+      // We will rely on apiClient.ts handling this via a passed-in token or globally accessible auth object.
+      // But for backward compatibility with Widget Sync:
+      const authToken = await AsyncStorage.getItem('auth_token');
+      if (authToken) {
+        return authToken;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error getting Clerk token:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Sync active Clerk token for background/widget tasks
+   * Called by AppNavigator whenever a new session starts
+   */
+  async syncActiveToken(token: string): Promise<void> {
+    try {
+      await AsyncStorage.setItem('auth_token', token);
 
       // Sync to SharedPreferences for widget access
       try {
@@ -34,81 +47,19 @@ class AuthService {
         console.log('⚠️ Widget auth sync failed (non-critical):', widgetError);
       }
 
-      this.token = token;
-
-      // ⚡ SIMPLE: Save token for widget (Android only)
+      // Save token for Android widget
       try {
         const { Platform, NativeModules } = await import('react-native');
         if (Platform.OS === 'android' && NativeModules.PairlyWidget) {
           await NativeModules.PairlyWidget.saveAuthToken(token);
           await NativeModules.PairlyWidget.saveBackendUrl(API_CONFIG.baseUrl);
-          console.log('✅ Token saved for widget');
+          console.log('✅ Clerk Token saved for native widget');
         }
       } catch (widgetError) {
         console.log('⚠️ Widget token save failed (non-critical):', widgetError);
       }
     } catch (error) {
-      console.error('Error storing token:', error);
-      // Try AsyncStorage as fallback
-      try {
-        await AsyncStorage.setItem(`${TOKEN_KEY}_backup`, token);
-        await AsyncStorage.setItem('auth_token', token);
-        this.token = token;
-        console.log('✅ Token stored in AsyncStorage fallback');
-      } catch (fallbackError) {
-        console.error('AsyncStorage fallback failed:', fallbackError);
-        throw error;
-      }
-    }
-  }
-
-  /**
-   * Get stored authentication token with AsyncStorage fallback
-   */
-  async getToken(): Promise<string | null> {
-    if (this.token) {
-      return this.token;
-    }
-
-    try {
-      // Try SecureStore first
-      const token = await SecureStore.getItemAsync(TOKEN_KEY);
-      if (token) {
-        this.token = token;
-        console.log('✅ Token retrieved from SecureStore');
-        return token;
-      }
-
-      // Fallback to AsyncStorage
-      const backupToken = await AsyncStorage.getItem(`${TOKEN_KEY}_backup`);
-      if (backupToken) {
-        this.token = backupToken;
-        console.log('✅ Token retrieved from AsyncStorage backup');
-        return backupToken;
-      }
-
-      // Try auth_token key
-      const authToken = await AsyncStorage.getItem('auth_token');
-      if (authToken) {
-        this.token = authToken;
-        console.log('✅ Token retrieved from auth_token');
-        return authToken;
-      }
-
-      return null;
-    } catch (error) {
-      console.error('Error getting token:', error);
-      // Try AsyncStorage as last resort
-      try {
-        const backupToken = await AsyncStorage.getItem(`${TOKEN_KEY}_backup`);
-        if (backupToken) {
-          this.token = backupToken;
-          return backupToken;
-        }
-      } catch (fallbackError) {
-        console.error('AsyncStorage fallback failed:', fallbackError);
-      }
-      return null;
+      console.error('Error syncing active token:', error);
     }
   }
 
@@ -117,11 +68,8 @@ class AuthService {
    */
   async removeToken(): Promise<void> {
     try {
-      await SecureStore.deleteItemAsync(TOKEN_KEY);
-      await AsyncStorage.removeItem(`${TOKEN_KEY}_backup`);
       await AsyncStorage.removeItem('auth_token');
-      this.token = null;
-      console.log('✅ Token removed from all storages');
+      console.log('✅ Active token reference removed');
     } catch (error) {
       console.error('Error removing token:', error);
     }
@@ -174,59 +122,17 @@ class AuthService {
   }
 
   /**
-   * Authenticate with backend using Clerk token
+   * DEPRECATED: We no longer fetch custom JWTs from the backend. 
+   * This function now simply updates local user data.
    */
-  async authenticateWithBackend(clerkToken: string, retryCount: number = 0): Promise<AuthResponse> {
+  async authenticateWithBackend(clerkToken: string, retryCount: number = 0): Promise<{ success: boolean }> {
     try {
-      Logger.debug('🔐 Sending Clerk token to backend...');
-
-      const data = await apiClient.post<ApiResponse<AuthResponse>>(
-        '/auth/google',
-        { idToken: clerkToken },
-        { skipAuth: true } // Skip automatic auth header for this endpoint
-      );
-
-      if (!data.success || !data.data) {
-        throw new Error('Invalid response from backend');
-      }
-
-      Logger.debug('✅ Received backend JWT token');
-
-      // Store token and user
-      await this.storeToken(data.data.token);
-      await this.storeUser(data.data.user);
-
-      return data.data;
+      Logger.debug('✅ Backend authentication is now native. Skipping /auth/google.');
+      // The token is pushed locally so api requests and widgets can use it
+      await this.syncActiveToken(clerkToken);
+      return { success: true };
     } catch (error: any) {
-      console.error('❌ Backend authentication error:', error.message);
-
-      // Handle token expiration - get fresh Clerk token and retry once
-      if (error.message && error.message.includes('expired') && retryCount === 0) {
-        console.log('⚠️ Token expired, getting fresh Clerk token...');
-        try {
-          // Import Clerk auth dynamically to avoid circular dependency
-          const { useAuth } = await import('@clerk/clerk-expo');
-          // Note: This won't work in service context, needs to be called from component
-          // For now, just throw the error and let the component handle refresh
-          throw new Error('TOKEN_EXPIRED');
-        } catch (refreshError) {
-          throw new Error('TOKEN_EXPIRED');
-        }
-      }
-
-      // Handle specific protocol errors
-      if (error.message && error.message.includes('protocol')) {
-        console.log('⚠️ Protocol error detected, switching to offline mode');
-        throw new Error('Network configuration error - using offline mode');
-      }
-
-      // Create a fallback user from Clerk token if backend is not available
-      if (error.name === 'TimeoutError' || (error instanceof TypeError && error.message.includes('Network request failed'))) {
-        console.log('⚠️ Backend not available, creating offline user');
-        // You can decode the Clerk token to get user info if needed
-        // For now, we'll just throw the error and let the app continue without backend auth
-      }
-
+      console.error('❌ Authentication mock error:', error.message);
       throw error;
     }
   }

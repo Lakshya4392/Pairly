@@ -14,7 +14,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { colors as defaultColors } from '../theme/colorsIOS';
 import { spacing, layout, borderRadius } from '../theme/spacingIOS';
 import { shadows } from '../theme/shadowsIOS';
-import PremiumService from '../services/PremiumService';
+import RevenueCatService from '../services/RevenueCatService';
 
 interface ManagePremiumScreenProps {
   onBack: () => void;
@@ -40,10 +40,17 @@ export const ManagePremiumScreen: React.FC<ManagePremiumScreenProps> = ({
 
   const loadPremiumDetails = async () => {
     try {
-      const status = await PremiumService.getPremiumStatus();
-      setPremiumPlan(status.plan as 'monthly' | 'yearly');
-      if (status.expiresAt) {
-        setExpiryDate(new Date(status.expiresAt));
+      const status = await RevenueCatService.getFullCustomerInfo();
+
+      const productId = status.productIdentifier?.toLowerCase() || '';
+      if (productId.includes('year') || productId.includes('annual')) {
+        setPremiumPlan('yearly');
+      } else {
+        setPremiumPlan('monthly');
+      }
+
+      if (status.expirationDate) {
+        setExpiryDate(new Date(status.expirationDate));
       }
     } catch (error) {
       console.error('Error loading premium details:', error);

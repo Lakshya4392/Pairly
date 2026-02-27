@@ -118,15 +118,53 @@ class PremiumCheckService {
 
       // ⚡ REVENUECAT IS THE ONLY AUTHORITY
       const RevenueCatService = (await import('./RevenueCatService')).default;
-      const isRcPremium = await RevenueCatService.getCustomerStatus();
+      const rcInfo = await RevenueCatService.getFullCustomerInfo();
+      const isRcPremium = rcInfo.isPremium;
 
       if (isRcPremium) {
         Logger.info('✅ [Premium] RevenueCat says PREMIUM');
         await AsyncStorage.setItem('isPremium', 'true');
 
-        this._cachedStatus = { isPremium: true, daysRemaining: 30 };
+        if (rcInfo.expirationDate) {
+          await AsyncStorage.setItem('premiumExpiresAt', rcInfo.expirationDate);
+        } else {
+          await AsyncStorage.removeItem('premiumExpiresAt');
+        }
+
+        // ⚡ SYNC: Update backend so features work everywhere
+        try {
+          const UserSyncService = (await import('./UserSyncService')).default;
+          await UserSyncService.updatePremiumStatus(true, undefined, rcInfo.expirationDate);
+        } catch (syncErr) {
+          Logger.warn('⚠️ [Premium] Backend sync failed on startup', syncErr);
+        }
+
+        this._cachedStatus = {
+          isPremium: true,
+          daysRemaining: 30, // Default for UI if date check fails
+          premiumExpiresAt: rcInfo.expirationDate || undefined
+        };
+
+        // If we have an exact date, recalculate daysRemaining
+        if (rcInfo.expirationDate) {
+          const expiryDate = new Date(rcInfo.expirationDate);
+          const now = new Date();
+          const diff = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+          this._cachedStatus.daysRemaining = Math.max(0, diff);
+        }
+
         this._lastCheckTime = Date.now();
         return this._cachedStatus;
+      }
+
+      // If RC says FREE, but we were previously premium, sync that too
+      const wasPremium = await AsyncStorage.getItem('isPremium') === 'true';
+      if (wasPremium && !isRcPremium) {
+        try {
+          const UserSyncService = (await import('./UserSyncService')).default;
+          await UserSyncService.updatePremiumStatus(false);
+          Logger.info('📉 [Premium] Synced FREE status to backend');
+        } catch (syncErr) { }
       }
 
       // ⚡ FALLBACK: If RevenueCat says FREE (or check failed), 

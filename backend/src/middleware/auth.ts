@@ -1,14 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
+import { verifyToken } from '@clerk/clerk-sdk-node';
 import { prisma } from '../index';
 import { log } from '../utils/logger';
-
-// JWT Secret - MUST be set in production
-const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET && process.env.NODE_ENV === 'production') {
-  throw new Error('CRITICAL: JWT_SECRET environment variable is not set in production!');
-}
-const SECRET_KEY = JWT_SECRET || 'dev-only-insecure-key';
 
 export interface AuthRequest extends Request {
   userId?: string;
@@ -32,7 +25,6 @@ export const authenticate = async (
 ): Promise<void> => {
   try {
     const authHeader = req.headers.authorization;
-
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       res.status(401).json({ error: 'No token provided' });
       return;
@@ -40,24 +32,32 @@ export const authenticate = async (
 
     const token = authHeader.substring(7);
 
-    // Verify JWT token
     try {
-      const decoded = jwt.verify(token, SECRET_KEY, {
-        ignoreExpiration: false, // Strict expiry check
-        // ⚡ MODIFIED: Removed strict HS256 check to allow broader compatibility 
-        // while still requiring signature match with SECRET_KEY
-      }) as JWTPayload;
-
-      // Verify user exists in database
-      const user = await prisma.user.findUnique({
-        where: { id: decoded.userId },
+      // 1. Verify the Clerk token cryptographically using their public keys
+      const decoded = await verifyToken(token, {
+        secretKey: process.env.CLERK_SECRET_KEY,
+        issuer: null,
       });
 
-      if (!user) {
-        res.status(401).json({ error: 'User not found' });
+      if (!decoded || !decoded.sub) {
+        res.status(401).json({ error: 'Invalid Clerk token structure' });
         return;
       }
 
+      const clerkId = decoded.sub;
+
+      // 2. Look up our internal user ID using the verified Clerk ID
+      const user = await prisma.user.findUnique({
+        where: { clerkId: clerkId },
+      });
+
+      if (!user) {
+        log.warn(`Verified Clerk token for ${clerkId}, but user not found in Postgres. Sync might be pending.`);
+        res.status(401).json({ error: 'User not fully registered in backend yet' });
+        return;
+      }
+
+      // 3. Attach internal user context to the request
       req.userId = user.id;
       req.user = {
         id: user.id,
@@ -67,35 +67,21 @@ export const authenticate = async (
 
       next();
     } catch (jwtError: any) {
-      // Better error logging
-      const details = {
-        name: jwtError.name,
-        message: jwtError.message,
-        // Safely try to peek at the header to see what algorithm was used
-        header: jwt.decode(token, { complete: true })?.header
-      };
-
-      if (jwtError.name === 'TokenExpiredError') {
-        log.warn('JWT token expired, user needs to re-authenticate');
+      if (jwtError.message?.includes('expired')) {
+        log.warn('Clerk token expired');
         res.status(401).json({
           error: 'Token expired',
           code: 'TOKEN_EXPIRED',
           message: 'Please login again'
         });
-      } else if (jwtError.message === 'invalid algorithm') {
-        log.error('JWT algorithm mismatch - potential Clerk token sent to internal API', details);
-        res.status(401).json({
-          error: 'Invalid token algorithm',
-          message: 'Please ensure you are using the app-specific auth token'
-        });
       } else {
-        log.error('JWT verification error', details);
+        log.error('Clerk token verification failed:', jwtError.message);
         res.status(401).json({ error: 'Invalid token' });
       }
       return;
     }
   } catch (error) {
-    log.error('Authentication error', error);
+    log.error('Authentication pipeline error', error);
     res.status(500).json({ error: 'Authentication failed' });
   }
 };

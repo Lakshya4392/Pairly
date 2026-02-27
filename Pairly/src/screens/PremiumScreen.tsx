@@ -1,23 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  StatusBar,
-  ActivityIndicator,
-  Alert,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { View, StyleSheet, Alert, Platform, ActivityIndicator, TouchableOpacity, ScrollView, Text, StatusBar } from 'react-native';
+import { useAuth, useUser } from '@clerk/clerk-expo';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { CustomAlert } from '../components/CustomAlert';
 import { useTheme } from '../contexts/ThemeContext';
-import { colors as defaultColors } from '../theme/colorsIOS';
-import { spacing, borderRadius, layout } from '../theme/spacingIOS';
-import { shadows } from '../theme/shadowsIOS';
 import RevenueCatService from '../services/RevenueCatService';
 import { PurchasesPackage } from 'react-native-purchases';
+import { colors as defaultColors, spacing, borderRadius, shadows, layout } from '../theme';
 
 interface PremiumScreenProps {
   onBack: () => void;
@@ -27,6 +17,7 @@ interface PremiumScreenProps {
 export const PremiumScreen: React.FC<PremiumScreenProps> = ({ onBack, onPurchase }) => {
   const { colors } = useTheme();
   const styles = React.useMemo(() => createStyles(colors), [colors]);
+  const { user } = useUser();
 
   const [isPremium, setIsPremium] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -34,6 +25,7 @@ export const PremiumScreen: React.FC<PremiumScreenProps> = ({ onBack, onPurchase
   const [selectedPackage, setSelectedPackage] = useState<PurchasesPackage | null>(null);
 
   const [isPurchasing, setIsPurchasing] = useState(false);
+  const [expiryDate, setExpiryDate] = useState<string | null>(null);
   const [showSuccessAlert, setShowSuccessAlert] = useState(false);
 
   // Load RevenueCat Data
@@ -46,8 +38,9 @@ export const PremiumScreen: React.FC<PremiumScreenProps> = ({ onBack, onPurchase
       setIsLoading(true);
 
       // 1. Check Status
-      const premiumActive = await RevenueCatService.getCustomerStatus();
-      setIsPremium(premiumActive);
+      const rcInfo = await RevenueCatService.getFullCustomerInfo();
+      setIsPremium(rcInfo.isPremium);
+      setExpiryDate(rcInfo.expirationDate);
 
       // 2. Load Offerings
       const currentOffering = await RevenueCatService.getOfferings();
@@ -58,8 +51,8 @@ export const PremiumScreen: React.FC<PremiumScreenProps> = ({ onBack, onPurchase
         const yearly = currentOffering.availablePackages.find(p => p.packageType === 'ANNUAL');
         const monthly = currentOffering.availablePackages.find(p => p.packageType === 'MONTHLY');
 
-        // Select logic: Yearly -> Monthly -> First Available
-        setSelectedPackage(yearly || monthly || currentOffering.availablePackages[0]);
+        // Select logic: Monthly -> Yearly -> First Available
+        setSelectedPackage(monthly || yearly || currentOffering.availablePackages[0]);
       }
     } catch (error) {
       console.error('Error loading RevenueCat data:', error);
@@ -78,21 +71,53 @@ export const PremiumScreen: React.FC<PremiumScreenProps> = ({ onBack, onPurchase
 
     try {
       setIsPurchasing(true);
-      const { isPremium: newStatus } = await RevenueCatService.purchasePackage(selectedPackage);
 
-      if (newStatus) {
+      // 🔥 ENSURE SYNC: Backend must know about user before payment
+      const UserSyncService = (await import('../services/UserSyncService')).default;
+      const currentUser = await UserSyncService.getUserFromBackend();
+
+      if (!currentUser) {
+        console.log('🔄 User not found in DB, attempting to sync from Clerk before purchase...');
+        if (!user) {
+          Alert.alert('Auth Error', 'You must be logged in to purchase.');
+          setIsPurchasing(false);
+          return;
+        }
+
+        const syncResult = await UserSyncService.syncUserWithBackend({
+          clerkId: user.id,
+          email: user.primaryEmailAddress?.emailAddress || '',
+          displayName: user.fullName || user.firstName || 'Pairly User',
+          firstName: user.firstName || undefined,
+          lastName: user.lastName || undefined,
+          photoUrl: user.imageUrl || undefined,
+        });
+
+        if (!syncResult.success) {
+          Alert.alert('Sync Error', 'Could not sync your account with our servers. Please try again.');
+          setIsPurchasing(false);
+          return;
+        }
+        console.log('✅ User successfully synced before purchase');
+      }
+
+      const purchaseResult = await RevenueCatService.purchasePackage(selectedPackage);
+
+      if (purchaseResult.isPremium) {
+        // Fetch full info to get expiry date immediately
+        const rcInfo = await RevenueCatService.getFullCustomerInfo();
         setIsPremium(true);
+        setExpiryDate(rcInfo.expirationDate);
         setShowSuccessAlert(true);
 
-        // ⚡ SYNC: Update backend immediately
-        try {
-          const plan = selectedPackage.packageType === 'ANNUAL' ? 'yearly' : 'monthly';
-          const UserSyncService = (await import('../services/UserSyncService')).default;
-          await UserSyncService.updatePremiumStatus(true, plan);
-          console.log('✅ Premium status synced to backend');
-        } catch (err) {
-          console.error('⚠️ Failed to sync premium to backend:', err);
-        }
+        // ⚡ SYNC: Fire off background update to strictly align backend DB
+        await RevenueCatService.syncSubscriptionWithBackend();
+
+        // Check local features 
+        const PremiumCheckService = (await import('../services/PremiumCheckService')).default;
+        await PremiumCheckService.forceRefresh();
+
+        console.log('✅ Premium status synced to backend and local cache refreshed');
 
         onPurchase?.(selectedPackage.packageType === 'ANNUAL' ? 'yearly' : 'monthly');
       }
@@ -110,7 +135,17 @@ export const PremiumScreen: React.FC<PremiumScreenProps> = ({ onBack, onPurchase
       setIsPurchasing(true);
       const restored = await RevenueCatService.restorePurchases();
       if (restored) {
+        // Fetch full info to get expiry date
+        const rcInfo = await RevenueCatService.getFullCustomerInfo();
         setIsPremium(true);
+        setExpiryDate(rcInfo.expirationDate);
+
+        // SYNC to backend strictly
+        await RevenueCatService.syncSubscriptionWithBackend();
+
+        const PremiumCheckService = (await import('../services/PremiumCheckService')).default;
+        await PremiumCheckService.forceRefresh();
+
         Alert.alert('Restored', 'Your premium purchases have been restored!');
       } else {
         Alert.alert('No Subscription Found', 'We definitively could not find a premium subscription for your account.');
@@ -122,7 +157,6 @@ export const PremiumScreen: React.FC<PremiumScreenProps> = ({ onBack, onPurchase
     }
   };
 
-  // Premium features with emotional copy
   const premiumFeatures = [
     {
       icon: 'infinite',
@@ -182,10 +216,10 @@ export const PremiumScreen: React.FC<PremiumScreenProps> = ({ onBack, onPurchase
             </View>
             <View style={styles.planInfo}>
               <Text style={[styles.planName, isSelected && styles.planNameSelected]}>
-                {isYearly ? 'Yearly' : 'Monthly'}
+                {isYearly ? 'Yearly Plan' : 'Monthly Plan'}
               </Text>
               {isYearly && (
-                <Text style={styles.planSavings}>Maximum Savings</Text>
+                <Text style={styles.planSavings}>Save up to 40%</Text>
               )}
             </View>
           </View>
@@ -194,9 +228,7 @@ export const PremiumScreen: React.FC<PremiumScreenProps> = ({ onBack, onPurchase
             <Text style={[styles.planPrice, isSelected && styles.planPriceSelected]}>
               {pack.product.priceString}
             </Text>
-            <Text style={styles.planPeriod}>
-              /{isYearly ? 'yr' : 'mo'}
-            </Text>
+            <Text style={styles.planPeriod}>/{isYearly ? 'yr' : 'mo'}</Text>
           </View>
         </View>
       </TouchableOpacity>
@@ -217,56 +249,48 @@ export const PremiumScreen: React.FC<PremiumScreenProps> = ({ onBack, onPurchase
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.secondary} />
-
-      {/* Header */}
-      <LinearGradient
-        colors={[colors.secondary, colors.secondaryLight]}
-        style={styles.header}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="white" />
-        </TouchableOpacity>
-
-        <View style={styles.headerContent}>
-          <Ionicons name="diamond" size={32} color="white" style={styles.headerIcon} />
-          <Text style={styles.headerTitle}>Pairly Premium</Text>
-        </View>
-
-        {!isPremium && (
-          <TouchableOpacity onPress={handleRestore} style={styles.restoreButton}>
-            <Text style={styles.restoreText}>Restore</Text>
-          </TouchableOpacity>
-        )}
-      </LinearGradient>
+      <StatusBar barStyle="dark-content" />
 
       {isLoading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.secondary} />
-          <Text style={styles.loadingText}>Loading premium options...</Text>
+          <Text style={styles.loadingText}>Syncing your status...</Text>
         </View>
       ) : (
         <ScrollView
           style={styles.scrollView}
-          showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
         >
+          {/* Header */}
+          <View style={styles.header}>
+            <TouchableOpacity onPress={onBack} style={styles.backButton}>
+              <Ionicons name="arrow-back" size={24} color={colors.text} />
+            </TouchableOpacity>
+            <View style={styles.headerContent}>
+              <Text style={styles.headerTitle}>Premium Access</Text>
+            </View>
+            {!isPremium && (
+              <TouchableOpacity onPress={handleRestore} style={styles.restoreButton}>
+                <Text style={styles.restoreText}>Restore</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
           {/* Premium Status Banner */}
           {isPremium && (
             <View style={styles.premiumBanner}>
               <LinearGradient
-                colors={['#FFD700', '#FFA500']}
-                style={styles.premiumBannerGradient}
+                colors={[colors.secondary, colors.secondaryLight]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
+                style={styles.premiumBannerGradient}
               >
-                <Ionicons name="checkmark-circle" size={24} color="white" />
+                <Ionicons name="checkmark-circle" size={28} color="white" />
                 <View style={styles.premiumBannerText}>
                   <Text style={styles.premiumBannerTitle}>Premium Active</Text>
                   <Text style={styles.premiumBannerSubtitle}>
-                    You have access to all premium features!
+                    {expiryDate ? `Unlimited access until ${new Date(expiryDate).toLocaleDateString()}` : 'Lifetime Access Active'}
                   </Text>
                 </View>
               </LinearGradient>
@@ -285,12 +309,13 @@ export const PremiumScreen: React.FC<PremiumScreenProps> = ({ onBack, onPurchase
           {/* Pricing Plans - Only for free users */}
           {!isPremium && offerings.length > 0 && (
             <View style={styles.pricingContainer}>
+              <Text style={styles.pricingTitle}>Select Your Journey</Text>
               {offerings.map(pack => (
                 <PlanCard key={pack.identifier} pack={pack} />
               ))}
 
               <Text style={styles.trialText}>
-                Secure payment via Google Play
+                No hidden fees. Secure checkout via Google Play.
               </Text>
             </View>
           )}
@@ -315,15 +340,17 @@ export const PremiumScreen: React.FC<PremiumScreenProps> = ({ onBack, onPurchase
           >
             <LinearGradient
               colors={isPurchasing ? [colors.border, colors.border] : [colors.secondary, colors.secondaryLight]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
               style={styles.purchaseButtonGradient}
             >
               {isPurchasing ? (
                 <ActivityIndicator color="white" />
               ) : (
                 <>
-                  <Ionicons name="diamond" size={24} color="white" />
+                  <Ionicons name="flash" size={20} color="white" />
                   <Text style={styles.purchaseButtonText}>
-                    {selectedPackage?.packageType === 'ANNUAL' ? 'Start Yearly Plan' : 'Start Monthly Plan'}
+                    {selectedPackage?.packageType === 'ANNUAL' ? 'Get Yearly Premium' : 'Get Monthly Premium'}
                   </Text>
                 </>
               )}
@@ -331,9 +358,7 @@ export const PremiumScreen: React.FC<PremiumScreenProps> = ({ onBack, onPurchase
           </TouchableOpacity>
 
           <Text style={styles.footerNote}>
-            {selectedPackage
-              ? `Recurring billing. Cancel anytime.`
-              : 'Select a plan to continue'}
+            Secure payment via Google Play. Cancel anytime.
           </Text>
         </View>
       )}
@@ -392,7 +417,7 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     marginTop: spacing.sm,
   },
 
-  // Compact Header
+  // Header
   header: {
     paddingTop: spacing.huge,
     paddingBottom: spacing.lg,
@@ -405,34 +430,30 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: borderRadius.full,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: colors.surface,
     justifyContent: 'center',
     alignItems: 'center',
+    ...shadows.sm,
   },
   restoreButton: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
-    backgroundColor: 'rgba(0,0,0,0.2)',
+    backgroundColor: colors.surface,
     borderRadius: borderRadius.md,
+    ...shadows.sm,
   },
   restoreText: {
-    color: 'white',
+    color: colors.secondary,
     fontFamily: 'Inter-Medium',
     fontSize: 12,
   },
   headerContent: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-  },
-  headerIcon: {
-    marginBottom: 2,
   },
   headerTitle: {
     fontFamily: 'Inter-Bold',
     fontSize: 24,
-    color: 'white',
+    color: colors.text,
   },
 
   // Scroll View
@@ -527,7 +548,14 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
   // Pricing
   pricingContainer: {
     paddingHorizontal: layout.screenPaddingHorizontal,
-    paddingTop: spacing.xxl,
+    paddingTop: spacing.xl,
+  },
+  pricingTitle: {
+    fontFamily: 'Inter-Bold',
+    fontSize: 20,
+    color: colors.text,
+    marginBottom: spacing.lg,
+    textAlign: 'center',
   },
   planCard: {
     backgroundColor: colors.surface,
@@ -600,16 +628,21 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     fontFamily: 'Inter-SemiBold',
     fontSize: 16,
     color: colors.text,
-    marginBottom: spacing.xs,
   },
   planNameSelected: {
-    color: colors.text,
     fontFamily: 'Inter-Bold',
+    color: colors.secondary,
+  },
+  planDescription: {
+    fontFamily: 'Inter-Medium',
+    fontSize: 12,
+    color: colors.textSecondary,
   },
   planSavings: {
     fontFamily: 'Inter-SemiBold',
     fontSize: 11,
     color: colors.success,
+    marginTop: 2,
   },
   planPrice: {
     fontFamily: 'Inter-Bold',
@@ -649,11 +682,12 @@ const createStyles = (colors: typeof defaultColors) => StyleSheet.create({
     gap: spacing.md,
   },
   purchaseButtonText: {
-    fontFamily: 'Inter-Bold', fontSize: 18,
+    fontFamily: 'Inter-Bold',
+    fontSize: 18,
     color: 'white',
   },
   footerNote: {
-    fontSize: 13,
+    fontSize: 12,
     color: colors.textTertiary,
     textAlign: 'center',
     marginTop: spacing.md,

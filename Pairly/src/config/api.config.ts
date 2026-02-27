@@ -10,9 +10,9 @@ import { Platform } from 'react-native';
  * Get API base URL based on environment
  */
 export const getApiUrl = (): string => {
-  // Use Render backend (works from any network)
-  const renderUrl = 'https://pairly-60qj.onrender.com';
-  // console.log('✅ Using Render backend URL:', renderUrl);
+  // Use local backend for testing Single Token Auth feature
+  const renderUrl = 'http://10.30.7.237:3000';
+  // console.log('✅ Using Local backend URL:', renderUrl);
   return renderUrl;
 };
 
@@ -20,9 +20,9 @@ export const getApiUrl = (): string => {
  * Get Socket.IO URL
  */
 export const getSocketUrl = (): string => {
-  // Use Render backend (works from any network)
-  const renderUrl = 'https://pairly-60qj.onrender.com';
-  // console.log('✅ Using Render Socket URL:', renderUrl);
+  // Use local backend for testing Single Token Auth feature
+  const renderUrl = 'http://10.30.7.237:3000';
+  // console.log('✅ Using Local Socket URL:', renderUrl);
   return renderUrl;
 };
 

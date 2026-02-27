@@ -241,12 +241,19 @@ export default function App() {
       setTimeout(async () => {
         try {
           const PremiumCheckService = (await import('./src/services/PremiumCheckService')).default;
+          // Local cache check for instant UI
           const status = await PremiumCheckService.checkPremiumStatus();
 
           if (status.isPremium) {
             Logger.info(`⭐ Premium active: ${status.daysRemaining} days remaining`);
           } else {
             Logger.info(`⏰ Premium expired.`);
+          }
+
+          // ⚡ STRICT SYNC: Push current RevenueCat state to backend silently
+          const RevenueCatService = (await import('./src/services/RevenueCatService')).default;
+          if (RevenueCatService) {
+            await RevenueCatService.syncSubscriptionWithBackend();
           }
 
           // Check if we should show an alert

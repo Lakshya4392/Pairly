@@ -5,11 +5,8 @@ import Purchases, {
     LOG_LEVEL,
 } from 'react-native-purchases';
 import { Platform } from 'react-native';
+import apiClient from './../utils/apiClient';
 
-// 🔑 API KEYS (Ideally from .env, using placeholders for now if not set)
-// You need to set these in your .env file:
-// EXPO_PUBLIC_REVENUECAT_API_KEY_ANDROID
-// EXPO_PUBLIC_REVENUECAT_API_KEY_IOS
 // 🔑 API KEYS (Ideally from .env, using placeholders for now if not set)
 // You need to set these in your .env file:
 // EXPO_PUBLIC_REVENUECAT_API_KEY_ANDROID
@@ -153,16 +150,29 @@ class RevenueCatService {
     }
 
     /**
-     * Check if user has active premium entitlement
+     * Get detailed premium status including expiry
      */
-    async getCustomerStatus(): Promise<boolean> {
+    async getFullCustomerInfo(): Promise<{
+        isPremium: boolean;
+        expirationDate: string | null;
+        productIdentifier: string | null;
+    }> {
         try {
-            if (!this.isInitialized) return false;
+            if (!this.isInitialized) return { isPremium: false, expirationDate: null, productIdentifier: null };
             const customerInfo = await Purchases.getCustomerInfo();
-            return this.checkPremiumEntitlement(customerInfo);
+
+            // Get the first active entitlement (whatever it is named)
+            const activeEntitlements = Object.values(customerInfo.entitlements.active);
+            const entitlement = activeEntitlements.length > 0 ? activeEntitlements[0] : null;
+
+            return {
+                isPremium: entitlement !== null,
+                expirationDate: entitlement?.expirationDate || null,
+                productIdentifier: entitlement?.productIdentifier || null,
+            };
         } catch (error) {
-            console.error('❌ Error checking customer status:', error);
-            return false;
+            console.error('❌ Error checking full customer status:', error);
+            return { isPremium: false, expirationDate: null, productIdentifier: null };
         }
     }
 
@@ -178,11 +188,33 @@ class RevenueCatService {
 
     // Helper to check specific entitlement
     private checkPremiumEntitlement(customerInfo: CustomerInfo): boolean {
-        // ⚠️ IMPORTANT: 'premium_access' must match your RevenueCat Entitlement ID
-        // Updated to match user's dashboard: 'Pairly Pro'
-        return (
-            typeof customerInfo.entitlements.active['Pairly Pro'] !== 'undefined'
-        );
+        // If there is ANY active entitlement, they are premium. 
+        // This avoids bugs if the entitlement name in the dashboard differs.
+        return Object.keys(customerInfo.entitlements.active).length > 0;
+    }
+
+    /**
+     * Instantly sync RevenueCat verification with the backend
+     */
+    async syncSubscriptionWithBackend(): Promise<void> {
+        try {
+            if (!this.isInitialized) return;
+            const status = await this.getFullCustomerInfo();
+
+            // Fire and forget - Do not await/block UI thread
+            apiClient.post('/subscription/sync', {
+                isPremium: status.isPremium,
+                plan: status.productIdentifier?.includes('yearly') ? 'yearly' : 'monthly', // default mapping based on typical IDs
+                expiryDate: status.expirationDate,
+                revenueCatId: (await Purchases.getCustomerInfo()).originalAppUserId,
+            }).then(() => {
+                console.log('✅ Subscription state synced strictly with Backend');
+            }).catch((err) => {
+                console.log('⚠️ Subscription sync backend ping failed:', err.message);
+            });
+        } catch (error) {
+            console.error('❌ Error triggering subscription sync:', error);
+        }
     }
 }
 

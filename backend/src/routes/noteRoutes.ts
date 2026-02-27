@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
-import { sendSharedNote, getRecentNotes, deleteNote } from '../controllers/noteController';
+import { sendSharedNote, getRecentNotes, deleteNote, sendLockScreenEffect } from '../controllers/noteController';
 
 const router = Router();
 
@@ -9,6 +9,9 @@ router.use(authenticate);
 
 // Send a shared note
 router.post('/send', sendSharedNote);
+
+// Trigger a lock screen effect
+router.post('/effect', sendLockScreenEffect);
 
 // Get recent notes
 router.get('/recent', getRecentNotes);
