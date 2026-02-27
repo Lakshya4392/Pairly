@@ -58,12 +58,13 @@ class SocketConnectionService {
         Logger.warn('⚠️ ConnectionManager not available, proceeding anyway');
       }
 
-      // ⚡ IMPROVED: Get auth token for secure connection
-      const token = await AsyncStorage.getItem('auth_token');
+      // ⚡ IMPROVED: Get fresh auth token for secure connection
+      const AuthService = (await import('./AuthService')).default;
+      const token = await AuthService.getToken();
       if (!token) {
         Logger.warn('⚠️ No auth token found, socket may not authenticate properly');
       } else {
-        Logger.debug('✅ Auth token found for socket connection');
+        Logger.debug('✅ Fresh auth token obtained for socket connection');
       }
 
       // ⚡ BULLETPROOF: Check backend health first

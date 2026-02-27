@@ -92,8 +92,9 @@ class FCMService {
         return;
       }
 
-      // Get auth token for authenticated request
-      const authToken = await AsyncStorage.getItem('auth_token');
+      // Get fresh auth token for authenticated request
+      const AuthService = (await import('./AuthService')).default;
+      const authToken = await AuthService.getToken();
 
       const response = await fetch(`${API_CONFIG.baseUrl}/users/fcm-token`, {
         method: 'POST',

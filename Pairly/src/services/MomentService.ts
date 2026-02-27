@@ -76,7 +76,8 @@ class SimpleMomentService {
       // NOTE: Do NOT set Content-Type manually - axios will auto-generate with boundary
       // 3. Upload to backend
       // NOTE: We use direct fetch here because apiClient forces JSON.stringify which breaks FormData
-      const token = await AsyncStorage.getItem('auth_token');
+      const AuthService = (await import('./AuthService')).default;
+      const token = await AuthService.getToken();
       const uploadUrl = API_CONFIG.baseUrl + '/moments/upload';
 
       Logger.debug('📡 [UPLOAD] Direct fetch to: ' + uploadUrl);
@@ -185,7 +186,8 @@ class SimpleMomentService {
       Logger.debug('📤 [SCHEDULE] Uploading scheduled moment...');
 
       // 3. Upload to backend
-      const token = await AsyncStorage.getItem('auth_token');
+      const AuthService = (await import('./AuthService')).default;
+      const token = await AuthService.getToken();
       const uploadUrl = API_CONFIG.baseUrl + '/moments/upload';
 
       const response = await fetch(uploadUrl, {

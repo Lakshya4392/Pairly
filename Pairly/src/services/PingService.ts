@@ -10,7 +10,8 @@ class PingService {
      */
     private static async getToken(): Promise<string | null> {
         try {
-            return await AsyncStorage.getItem('auth_token');
+            const AuthService = (await import('./AuthService')).default;
+            return await AuthService.getToken();
         } catch {
             return null;
         }

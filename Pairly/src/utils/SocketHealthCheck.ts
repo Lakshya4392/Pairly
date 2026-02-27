@@ -36,7 +36,8 @@ class SocketHealthCheck {
 
     // Check 1: Auth Token
     try {
-      const token = await AsyncStorage.getItem('auth_token');
+      const AuthService = (await import('../services/AuthService')).default;
+      const token = await AuthService.getToken();
       if (token) {
         result.checks.token = true;
         result.messages.push('✅ Auth token present');

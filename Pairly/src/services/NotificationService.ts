@@ -152,7 +152,8 @@ class NotificationService {
       // Sync goodMorning/goodNight to backend (for FCM-based server reminders)
       try {
         const { API_CONFIG } = await import('../config/api.config');
-        const token = await AsyncStorage.getItem('auth_token');
+        const AuthService = (await import('../services/AuthService')).default;
+        const token = await AuthService.getToken();
 
         if (token) {
           const response = await fetch(`${API_CONFIG.baseUrl}/reminders/settings`, {
