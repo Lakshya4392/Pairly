@@ -16,6 +16,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { CustomAlert } from '../components/CustomAlert';
 import { ScreenLock } from '../components/ScreenLock';
 import { MemoriesLockModal } from '../components/MemoriesLockModal';
 import { useTheme } from '../contexts/ThemeContext';
@@ -58,6 +59,11 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
   const [deleting, setDeleting] = useState(false); // 🗑️ Delete loading state
   const [isPaired, setIsPaired] = useState(true); // 🔗 Partner connection status
   const [partnerName, setPartnerName] = useState<string>(''); // 👤 Partner name
+
+  // Custom Alert States
+  const [photoToDelete, setPhotoToDelete] = useState<Photo | null>(null);
+  const [showDeleteAlert, setShowDeleteAlert] = useState(false);
+  const [showDeleteSuccessAlert, setShowDeleteSuccessAlert] = useState(false);
 
   useEffect(() => {
     checkMemoriesLock();
@@ -227,50 +233,46 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
   };
 
   // 🗑️ DELETE: Permanently remove photo from DB + Cloudinary
-  const handleDeletePhoto = (photo: Photo) => {
-    Alert.alert(
-      '🗑️ Delete Photo',
-      'This will permanently delete this photo from both your devices. This cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setDeleting(true);
-              console.log('🗑️ [GALLERY] Deleting photo:', photo.id);
+  const confirmDeletePhoto = (photo: Photo) => {
+    setPhotoToDelete(photo);
+    setShowDeleteAlert(true);
+  };
 
-              const response = await ApiClient.delete(`/moments/${photo.id}`) as any;
+  const executeDeletePhoto = async () => {
+    if (!photoToDelete) return;
 
-              if (response.success) {
-                console.log('✅ [GALLERY] Photo deleted successfully');
-                // Remove from local state
-                setPhotos(prev => prev.filter(p => p.id !== photo.id));
-                // Update cache
-                const cached = await AsyncStorage.getItem(GALLERY_CACHE_KEY);
-                if (cached) {
-                  const cachedPhotos = JSON.parse(cached);
-                  await AsyncStorage.setItem(
-                    GALLERY_CACHE_KEY,
-                    JSON.stringify(cachedPhotos.filter((p: Photo) => p.id !== photo.id))
-                  );
-                }
-                setSelectedPhoto(null);
-                Alert.alert('✅ Deleted', 'Photo has been permanently removed');
-              } else {
-                throw new Error(response.error || 'Delete failed');
-              }
-            } catch (error: any) {
-              console.error('❌ [GALLERY] Delete error:', error);
-              Alert.alert('Error', error.message || 'Failed to delete photo');
-            } finally {
-              setDeleting(false);
-            }
-          },
-        },
-      ]
-    );
+    try {
+      setShowDeleteAlert(false);
+      setDeleting(true);
+      console.log('🗑️ [GALLERY] Deleting photo:', photoToDelete.id);
+
+      const response = await ApiClient.delete(`/moments/${photoToDelete.id}`) as any;
+
+      if (response.success) {
+        console.log('✅ [GALLERY] Photo deleted successfully');
+        // Remove from local state
+        setPhotos(prev => prev.filter(p => p.id !== photoToDelete.id));
+        // Update cache
+        const cached = await AsyncStorage.getItem(GALLERY_CACHE_KEY);
+        if (cached) {
+          const cachedPhotos = JSON.parse(cached);
+          await AsyncStorage.setItem(
+            GALLERY_CACHE_KEY,
+            JSON.stringify(cachedPhotos.filter((p: Photo) => p.id !== photoToDelete.id))
+          );
+        }
+        setSelectedPhoto(null);
+        setShowDeleteSuccessAlert(true);
+      } else {
+        throw new Error(response.error || 'Delete failed');
+      }
+    } catch (error: any) {
+      console.error('❌ [GALLERY] Delete error:', error);
+      Alert.alert('Error', error.message || 'Failed to delete photo');
+    } finally {
+      setDeleting(false);
+      setPhotoToDelete(null);
+    }
   };
 
   const formatDate = (timestamp: string) => {
@@ -514,7 +516,7 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
               {/* 🗑️ Delete Button - Bottom Right */}
               <TouchableOpacity
                 style={styles.deleteButton}
-                onPress={() => handleDeletePhoto(selectedPhoto)}
+                onPress={() => confirmDeletePhoto(selectedPhoto)}
                 disabled={deleting}
               >
                 {deleting ? (
@@ -527,6 +529,45 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({ onBack, isPremium 
           )}
         </View>
       </Modal>
+
+      {/* Delete Confirmation Alert */}
+      <CustomAlert
+        visible={showDeleteAlert}
+        title="Delete Memory?"
+        message="This will permanently delete this photo from both your devices. This cannot be undone."
+        icon="trash"
+        iconColor={colors.error}
+        buttons={[
+          {
+            text: 'Keep It',
+            style: 'cancel',
+            onPress: () => setShowDeleteAlert(false),
+          },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: executeDeletePhoto,
+          },
+        ]}
+        onClose={() => setShowDeleteAlert(false)}
+      />
+
+      {/* Delete Success Alert */}
+      <CustomAlert
+        visible={showDeleteSuccessAlert}
+        title="Memory Deleted"
+        message="The photo has been permanently removed."
+        icon="checkmark-circle"
+        iconColor={colors.success}
+        buttons={[
+          {
+            text: 'OK',
+            style: 'default',
+            onPress: () => setShowDeleteSuccessAlert(false),
+          },
+        ]}
+        onClose={() => setShowDeleteSuccessAlert(false)}
+      />
     </View>
   );
 };

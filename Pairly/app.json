@@ -19,7 +19,7 @@
     },
     "android": {
       "package": "com.pairly.app",
-      "versionCode": 6,
+      "versionCode": 7,
       "compileSdkVersion": 34,
       "targetSdkVersion": 34,
       "buildToolsVersion": "34.0.0",

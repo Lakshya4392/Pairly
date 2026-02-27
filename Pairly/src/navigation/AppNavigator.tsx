@@ -51,6 +51,15 @@ export const AppNavigator: React.FC<AppNavigatorProps> = () => {
     partnerName?: string;
   } | null>(null);
 
+  // 🔑 Register live Clerk token getter so ALL API calls always get fresh tokens
+  React.useEffect(() => {
+    const registerTokenGetter = async () => {
+      const AuthService = (await import('../services/AuthService')).default;
+      AuthService.setClerkTokenGetter(getToken);
+    };
+    registerTokenGetter();
+  }, [getToken]);
+
   // --- Helper Functions ---
 
   const initializeFCM = async () => {

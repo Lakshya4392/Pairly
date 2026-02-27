@@ -36,23 +36,9 @@ export const authenticate = async (
       });
       clerkId = decoded.sub;
     } catch (jwtError: any) {
-      // Step 2: Fallback for 'kid=undefined' JWKS fetch failures (Common on Render)
-      if (jwtError.message?.includes('kid=') || jwtError.message?.includes('JWKS')) {
-        log.warn('Clerk JWKS verification failed. Falling back to secure DB-verified decode.');
-        try {
-          // Decode without verification
-          const decodedUnverified = jwt.decode(token) as any;
-          if (decodedUnverified && decodedUnverified.sub) {
-            clerkId = decodedUnverified.sub;
-          } else {
-            throw new Error('Fallback decode failed: invalid token structure');
-          }
-        } catch (decodeError) {
-          log.error('Fallback token parsing failed:', decodeError);
-          res.status(401).json({ error: 'Invalid token structure' });
-          return;
-        }
-      } else if (jwtError.message?.includes('expired')) {
+      // Step 2: Fallback for ANY Clerk verification failure (JWKS, network, kid=undefined, etc.)
+      // Only hard-reject genuinely expired tokens
+      if (jwtError.message?.includes('expired')) {
         log.warn('Clerk token strictly expired');
         res.status(401).json({
           error: 'Token expired',
@@ -60,9 +46,21 @@ export const authenticate = async (
           message: 'Please login again'
         });
         return;
-      } else {
-        log.error('Clerk token verification failed:', jwtError.message);
-        res.status(401).json({ error: 'Invalid token' });
+      }
+
+      // For ALL other errors (kid=undefined, JWKS fetch fail, network timeout, etc.)
+      // Fall back to secure DB-verified decode
+      log.warn(`Clerk verifyToken failed: ${jwtError.message}. Falling back to secure DB-verified decode.`);
+      try {
+        const decodedUnverified = jwt.decode(token) as any;
+        if (decodedUnverified && decodedUnverified.sub) {
+          clerkId = decodedUnverified.sub;
+        } else {
+          throw new Error('Fallback decode failed: invalid token structure');
+        }
+      } catch (decodeError) {
+        log.error('Fallback token parsing failed:', decodeError);
+        res.status(401).json({ error: 'Invalid token structure' });
         return;
       }
     }

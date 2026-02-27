@@ -9,25 +9,48 @@ const USER_KEY = 'pairly_user';
 
 class AuthService {
   private user: User | null = null;
+  private clerkGetTokenFn: (() => Promise<string | null>) | null = null;
 
   /**
-   * Get authentication token directly from Clerk
+   * Register the live Clerk getToken function.
+   * Called once by AppNavigator when it mounts.
+   */
+  setClerkTokenGetter(fn: () => Promise<string | null>): void {
+    this.clerkGetTokenFn = fn;
+    console.log('✅ Live Clerk token getter registered');
+  }
+
+  /**
+   * Get authentication token - ALWAYS fresh from Clerk
+   * Falls back to AsyncStorage cache only if live getter unavailable
    */
   async getToken(): Promise<string | null> {
     try {
-      const { useAuth } = await import('@clerk/clerk-expo');
+      // Priority 1: Always get a FRESH token from the live Clerk session
+      if (this.clerkGetTokenFn) {
+        const freshToken = await this.clerkGetTokenFn();
+        if (freshToken) {
+          // Also update AsyncStorage cache for widgets/background tasks
+          await AsyncStorage.setItem('auth_token', freshToken);
+          return freshToken;
+        }
+      }
 
-      // Note: Getting Clerk tokens outside of React components requires a workaround
-      // We will rely on apiClient.ts handling this via a passed-in token or globally accessible auth object.
-      // But for backward compatibility with Widget Sync:
+      // Priority 2: Fall back to cached token (may be expired but better than nothing)
       const authToken = await AsyncStorage.getItem('auth_token');
       if (authToken) {
+        console.warn('⚠️ Using cached auth token (live getter unavailable)');
         return authToken;
       }
       return null;
     } catch (error) {
-      console.error('Error getting Clerk token:', error);
-      return null;
+      console.error('Error getting auth token:', error);
+      // Last resort fallback to cache
+      try {
+        return await AsyncStorage.getItem('auth_token');
+      } catch {
+        return null;
+      }
     }
   }
 

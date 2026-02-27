@@ -21,7 +21,8 @@ class PremiumService {
   async isPremium(): Promise<boolean> {
     try {
       const RevenueCatService = (await import('./RevenueCatService')).default;
-      const isPremium = await RevenueCatService.getCustomerStatus();
+      const rcStatus = await RevenueCatService.getFullCustomerInfo();
+      const isPremium = rcStatus.isPremium;
 
       // Sync to local storage for offline fallback? 
       // RevenueCat SDK handles caching, so we rely on it.
